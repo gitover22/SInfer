@@ -1,0 +1,1 @@
+import sinfer.mlu_hijack.entrypoints.llm
