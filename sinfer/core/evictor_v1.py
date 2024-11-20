@@ -50,20 +50,23 @@ class Evictor(ABC):
 
 
 class LRUEvictor(Evictor):
-    """Evicts in a least-recently-used order using the last_accessed timestamp
-    that's recorded in the PhysicalTokenBlock. If there are multiple blocks with
-    the same last_accessed time, then the one with the largest num_hashed_tokens
-    will be evicted. If two blocks each have the lowest last_accessed time and
-    highest num_hashed_tokens value, then one will be chose arbitrarily
+    """
+    按照最近最少使用的顺序进行淘汰，依据记录在 `PhysicalTokenBlock` 中的 `last_accessed` 时间戳。
+    如果存在多个块的 `last_accessed` 时间相同，则淘汰 `num_hashed_tokens` 值最大的那个块。
+    如果两个块同时具有最小的 `last_accessed` 时间和最大的 `num_hashed_tokens` 值，则会随机选择一个进行淘汰。
     """
 
     def __init__(self):
-        self.free_table: OrderedDict[int, PhysicalTokenBlock] = OrderedDict()
+        # mapping :{block_hash:block}
+        self.free_table: OrderedDict[int, PhysicalTokenBlock] = OrderedDict() # 用于存放暂时不用的物理块
 
     def __contains__(self, block_hash: int) -> bool:
         return block_hash in self.free_table
 
     def evict(self) -> PhysicalTokenBlock:
+        '''
+        从free_table中驱逐一个物理块
+        '''
         if len(self.free_table) == 0:
             raise ValueError("No usable cache memory left")
 
@@ -72,20 +75,23 @@ class LRUEvictor(Evictor):
         # at the start of OrderedDict. Loop through all these blocks to
         # find the one with maximum number of hashed tokens.
         for _, block in self.free_table.items():
-            if evicted_block.last_accessed < block.last_accessed:
+            if evicted_block.last_accessed < block.last_accessed: # 可能最后一次使用时间相同
                 break
             if evicted_block.num_hashed_tokens < block.num_hashed_tokens:
                 evicted_block = block
 
-        self.free_table.pop(evicted_block.block_hash)
+        self.free_table.pop(evicted_block.block_hash) # 从驱逐器的free_table中移除被选中的驱逐物理块
 
-        evicted_block.computed = False
+        evicted_block.computed = False # 将被驱逐的物理块的计算状态设为False
         return evicted_block
 
     def add(self, block: PhysicalTokenBlock):
         self.free_table[block.block_hash] = block
 
     def remove(self, block_hash: int) -> PhysicalTokenBlock:
+        """
+        将拥有指定hash值的物理块从free_tables中移除
+        """
         if block_hash not in self.free_table:
             raise ValueError(
                 "Attempting to remove block that's not in the evictor")

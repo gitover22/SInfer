@@ -1,9 +1,0 @@
-LICENSE
-README.md
-setup.cfg
-setup.py
-sinfer_nccl/__init__.py
-sinfer_nccl_cu12.egg-info/PKG-INFO
-sinfer_nccl_cu12.egg-info/SOURCES.txt
-sinfer_nccl_cu12.egg-info/dependency_links.txt
-sinfer_nccl_cu12.egg-info/top_level.txt

@@ -21,7 +21,6 @@ class AllocStatus(enum.Enum):
 
 
 class BlockSpaceManager(ABC):
-
     @staticmethod
     def get_block_space_manager_class(version: str):
         version = version.lower()

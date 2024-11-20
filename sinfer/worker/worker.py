@@ -277,14 +277,12 @@ class Worker(WorkerBase):
                                                 self.model_config,
                                                 self.parallel_config)
 
-
 def init_worker_distributed_environment(
     parallel_config: ParallelConfig,
     rank: int,
     distributed_init_method: Optional[str] = None,
     local_rank: int = -1,
 ) -> None:
-    """Initialize the distributed environment."""
     init_distributed_environment(parallel_config.world_size, rank,
                                  distributed_init_method, local_rank)
 
@@ -299,8 +297,7 @@ def init_worker_distributed_environment(
                 "size does not match parallel_config.world_size "
                 f"({pynccl_world_size} vs. {parallel_config.world_size}).")
     elif parallel_config.world_size > 1:
-        # NOTE(woosuk): We don't initialize pynccl process group when world size
-        # is 1.
+        # NOTE(woosuk): We don't initialize pynccl process group when world size is 1.
         # NOTE(kaichao): By default, pynccl is initialized for tp group.
         pynccl_utils.init_process_group(
             group=get_tensor_model_parallel_cpu_group())
@@ -316,10 +313,9 @@ def init_worker_distributed_environment(
 
 
 def _check_if_gpu_supports_dtype(torch_dtype: torch.dtype):
-    # Check if the GPU supports the dtype.
     if torch_dtype == torch.bfloat16:
         compute_capability = torch.cuda.get_device_capability()
-        if compute_capability[0] < 8:
+        if compute_capability[0] < 8: # 算力在8.0以上才支持BF16
             gpu_name = torch.cuda.get_device_name()
             raise ValueError(
                 "Bfloat16 is only supported on GPUs with compute capability "

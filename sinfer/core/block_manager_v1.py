@@ -18,13 +18,6 @@ logger = init_logger(__name__)
 
 
 class BlockAllocatorBase(ABC):
-    """Manages free physical token blocks for a device.
-
-    The allocator maintains a list of free blocks and allocates a block when
-    requested. When a block is freed, its reference count is decremented. If
-    the reference count becomes zero, the block is added back to the free list.
-    """
-
     @abstractmethod
     def __init__(self,
                  device: Device,
@@ -74,47 +67,69 @@ class CachedBlockAllocator(BlockAllocatorBase):
                  num_blocks: int,
                  eviction_policy: EvictionPolicy = EvictionPolicy.LRU) -> None:
         self.device = device
-        self.block_size = block_size
-        self.num_blocks = num_blocks
+        self.block_size = block_size  # 每个block的大小
+        self.num_blocks = num_blocks  # 该设备上留给KV cache的总blocks数量
 
-        self.current_num_blocks = 0
-        self.cached_blocks: Dict[int, PhysicalTokenBlock] = {}
+        self.current_num_blocks = 0 # 当前设备上已分配的物理块的数量(如果一个物理块被释放，但refcount不为0，则current_num_blocks不会减少)
+        self.cached_blocks: Dict[int, PhysicalTokenBlock] = {} # 用于存放正在被使用的物理块 {该物理块（也可以说是逻辑块）的hash值: 物理块}
 
-        self.evictor: Evictor = make_evictor(eviction_policy)
+        self.evictor: Evictor = make_evictor(eviction_policy)  # 默认是LRUEvictor
 
         self.default_hash_ctr = count()
 
     def allocate_block(self, block_hash: int,
                        num_hashed_tokens: int) -> PhysicalTokenBlock:
+        """
+        为哈希值为block_hash分配一个物理块
+        Args:
+            block_hash: 某个逻辑块的hash值。
+                        对于一个seq，计算其下序号为logical_idx的逻辑块的hash值的方法如下：
+                        hash(tuple(截止到序号为logical_idx为止这个seq的所有token_id，
+                                   lora相关的配置)）
+            num_hashed_tokens：对于一个seq，截止到序号为logical_idx的逻辑块为止
+                             （包含这个逻辑块），一共有多少个token
+        """
+
+        # 如果目前已经使用的物理块数量 == 该设备上所有的物理块数量
         if self.current_num_blocks == self.num_blocks:
-            block = self.evictor.evict()
+            block = self.evictor.evict() # 返回一个被选中的驱逐块block，这个block已经从驱逐器的free_tables中移走了
+            # 设定当前block对应的block hash值，直接返回当前block
             block.block_hash = block_hash
             block.num_hashed_tokens = num_hashed_tokens
             return block
+        # 如果目前已使用的物理块数量 ！= 该设备上所有的物理块数量，那么就新分配一个物理块
         block = PhysicalTokenBlock(device=self.device,
                                    block_number=self.current_num_blocks,
                                    block_size=self.block_size,
                                    block_hash=block_hash,
                                    num_hashed_tokens=num_hashed_tokens)
-        self.current_num_blocks += 1
+        self.current_num_blocks += 1 # 当前已使用的物理块数量 += 1
         return block
 
     def allocate(self,
                  block_hash: Optional[int] = None,
                  num_hashed_tokens: int = 0) -> PhysicalTokenBlock:
+        # 如果没有传入逻辑块hash值的话，就用一个伪hash值
         if block_hash is None:
             block_hash = next(self.default_hash_ctr)
+        # 如果hash值在evictor的free_table中的话 说明拥有这个hash值的物理块，之前因为没人引用被释放了，就暂时存在free_tables中，
+        # 现在来的这条seq拥有同样的prefix，所以这个物理块又可以被使用了
         if block_hash in self.evictor:
-            assert block_hash not in self.cached_blocks
-            block = self.evictor.remove(block_hash)
-            assert block.ref_count == 0
-            self.cached_blocks[block_hash] = block
+            assert block_hash not in self.cached_blocks # 首先要保证拥有这个hash值的物理块，肯定不在正在被使用的物理块字典中
+            block = self.evictor.remove(block_hash) # 重新使用这个物理块了，因此我们将该物理块从free_tables中移除，返回的block就是该物理块
+            assert block.ref_count == 0 # 必须保证此时该物理块没有引用任何逻辑块（因为你刚从驱逐器的冷宫中被释放出来）
+            self.cached_blocks[block_hash] = block # 放进“正在被使用的物理块”字典中
             block.ref_count += 1
             assert block.block_hash == block_hash
             return block
+        # 如果现在hash既不在驱逐器的free_tables中，也不在“当前正在被使用物理块“字典中的话
+        # 说明该seq装的对应文本是之前没见过的，不满足prefix可以重复利用的场景
         if block_hash not in self.cached_blocks:
+            # 为这个seq，分配一个新的物理块
             self.cached_blocks[block_hash] = self.allocate_block(
                 block_hash, num_hashed_tokens)
+        # 从正在使用的物理块字典（cached_blocks）中取出这个新分配的物理块，
+        # 并将其ref_count += 1，最后返回它
         block = self.cached_blocks[block_hash]
         assert block.block_hash == block_hash
         block.ref_count += 1
@@ -151,11 +166,8 @@ class CachedBlockAllocator(BlockAllocatorBase):
 
 
 class UncachedBlockAllocator(BlockAllocatorBase):
-    """Manages free physical token blocks for a device.
-
-    The allocator maintains a list of free blocks and allocates a block when
-    requested. When a block is freed, its reference count is decremented. If
-    the reference count becomes zero, the block is added back to the free list.
+    """
+        管理一个设备上的空闲物理块
     """
 
     def __init__(
@@ -164,12 +176,12 @@ class UncachedBlockAllocator(BlockAllocatorBase):
         block_size: int,
         num_blocks: int,
     ) -> None:
-        self.device = device
-        self.block_size = block_size
-        self.num_blocks = num_blocks
+        self.device = device  # cpu/gpu
+        self.block_size = block_size # 物理块大小
+        self.num_blocks = num_blocks # 该设备上留给KV cache的总物理块数量
+        self.free_blocks: BlockTable = [] # 跟踪该设备上所有未被使用过的物理块
 
-        # Initialize the free blocks.
-        self.free_blocks: BlockTable = []
+        # 初始化物理块列表free_blocks
         for i in range(num_blocks):
             block = PhysicalTokenBlock(device=device,
                                        block_number=i,
@@ -178,6 +190,7 @@ class UncachedBlockAllocator(BlockAllocatorBase):
                                        num_hashed_tokens=0)
             self.free_blocks.append(block)
 
+    # 从空闲块中取出一个物理块
     def allocate(self,
                  block_hash: Optional[int] = None,
                  num_hashed_tokens: int = 0) -> PhysicalTokenBlock:
@@ -187,6 +200,7 @@ class UncachedBlockAllocator(BlockAllocatorBase):
         block.ref_count = 1
         return block
 
+    # 释放一个物理块，会检查引用计数器
     def free(self, block: PhysicalTokenBlock) -> None:
         if block.ref_count == 0:
             raise ValueError(f"Double free! {block} is already freed.")
@@ -194,9 +208,11 @@ class UncachedBlockAllocator(BlockAllocatorBase):
         if block.ref_count == 0:
             self.free_blocks.append(block)
 
+    # 获取空闲块的数量
     def get_num_free_blocks(self) -> int:
         return len(self.free_blocks)
 
+    # 获取一个设备的物理块总数
     def get_num_total_blocks(self) -> int:
         return self.num_blocks
 
@@ -214,12 +230,12 @@ class BlockSpaceManagerV1(BlockSpaceManager):
 
     def __init__(
         self,
-        block_size: int,
-        num_gpu_blocks: int,
-        num_cpu_blocks: int,
-        watermark: float = 0.01,
-        sliding_window: Optional[int] = None,
-        enable_caching: bool = False,
+        block_size: int,     # 每个block的槽位大小
+        num_gpu_blocks: int, # 当前gpu上最多能分配的block数量
+        num_cpu_blocks: int, # 当前cpu上，用于做swap的内存中，最多能分配的block数量
+        watermark: float = 0.01, # 内存交换的水位线（阈值）
+        sliding_window: Optional[int] = None, # 滑动窗口的大小
+        enable_caching: bool = False, # 是否需要做prefix caching
     ) -> None:
         self.block_size = block_size
         self.num_total_gpu_blocks = num_gpu_blocks
@@ -240,8 +256,11 @@ class BlockSpaceManagerV1(BlockSpaceManager):
 
         self.enable_caching = enable_caching
 
+        # 水位线block数量：这个阈值决定是否要给当前seq分配block
+        # 设置水位线block的目的是不要一下打满设备中的物理块，留一些buffer，避免后续频繁地发生swap
         self.watermark_blocks = int(watermark * num_gpu_blocks)
 
+        # 根据是否做了prefix caching限制，来选择不同的allocator
         if self.enable_caching:
             logger.info("Automatic prefix caching is enabled.")
             self.gpu_allocator: BlockAllocatorBase = CachedBlockAllocator(
@@ -253,12 +272,17 @@ class BlockSpaceManagerV1(BlockSpaceManager):
                 Device.GPU, block_size, num_gpu_blocks)
             self.cpu_allocator = UncachedBlockAllocator(
                 Device.CPU, block_size, num_cpu_blocks)
-        # Mapping: seq_id -> BlockTable.
+            
+        # Mapping: seq_id -> BlockTable.维护每个seq下的物理块列表
         self.block_tables: Dict[int, BlockTable] = {}
 
     def can_allocate(self, seq_group: SequenceGroup) -> AllocStatus:
-        # FIXME(woosuk): Here we assume that all sequences in the group share
-        # the same prompt. This may not be true for preempted sequences.
+        '''
+        是否可以给这个seq_group分配物理块, 返回结果有三种情况：
+        - AllocStatus.NEVER 永不分配
+        - AllocStatus.OK 可以分配
+        - AllocStatus.LATER 延迟分配
+        '''
         seq = seq_group.get_seqs(status=SequenceStatus.WAITING)[0]
         num_required_blocks = len(seq.logical_token_blocks)
 
@@ -277,31 +301,38 @@ class BlockSpaceManagerV1(BlockSpaceManager):
             return AllocStatus.LATER
 
     def allocate(self, seq_group: SequenceGroup) -> None:
-        # NOTE: Here we assume that all sequences in the group have the same
-        # prompt.
-        seq = seq_group.get_seqs(status=SequenceStatus.WAITING)[0]
+        """
+        为当前seq_group分配物理块做prefill
+        """
+        seq = seq_group.get_seqs(status=SequenceStatus.WAITING)[0] # waiting队列没做过prefill，只有一条序列
 
-        # Allocate new physical token blocks that will store the prompt tokens.
+        # 计算该seq的逻辑块数量
+        # （prefill阶段，有多少个逻辑块，就应该分配多少个物理块）
         num_prompt_blocks = len(seq.logical_token_blocks)
 
         block_table: BlockTable = []
+
+        # 遍历该seq的所有逻辑块
         for logical_idx in range(num_prompt_blocks):
+            # 如果block的滑动窗口长度不为空
             if (self.block_sliding_window is not None
                     and logical_idx >= self.block_sliding_window):
                 block = block_table[logical_idx % self.block_sliding_window]
                 # Set the reference counts of the token blocks.
                 block.ref_count = seq_group.num_seqs()
+            # 如果做了prefix caching，即使用的是CachedBlockAllocator
             elif self.enable_caching:
                 block = self.gpu_allocator.allocate(
                     seq.hash_of_block(logical_idx),
                     seq.num_hashed_tokens_of_block(logical_idx))
+            # UncachedBlockAllocator对应的情况
             else:
                 block = self.gpu_allocator.allocate()
                 # Set the reference counts of the token blocks.
                 block.ref_count = seq_group.num_seqs()
             block_table.append(block)
 
-        # Assign the block table for each sequence.
+        # prefill阶段，这个seq_group下所有的seq共享一个prompt，也即共享这个prompt代表的物理块
         for seq in seq_group.get_seqs(status=SequenceStatus.WAITING):
             self.block_tables[seq.seq_id] = block_table.copy()
 
@@ -324,17 +355,18 @@ class BlockSpaceManagerV1(BlockSpaceManager):
     ) -> PhysicalTokenBlock:
         assert self.enable_caching
 
-        # Compute a new hash for the block so that it can be shared by other
-        # Sequences
+        # 如果当前最后一个逻辑块已经是满的，那么就根据所有tokens计算一个new_hash值
         new_hash = seq.hash_of_block(len(seq.logical_token_blocks) - 1)
 
-        # if new_hash is already in the cached table, then free last_block
-        # and return the cached version
+        # 如果根据new_hash，这最后一个物理块在cached_tables(有人正在和你用一样的)
+        # 或者在驱逐器中
         if self.gpu_allocator.contains_block(new_hash):
-            self.gpu_allocator.free(last_block)
-            return self.gpu_allocator.allocate(new_hash)
+            self.gpu_allocator.free(last_block) # 释放最后一个物理块
+            return self.gpu_allocator.allocate(new_hash) # 用new_hash重新分配（即复用）物理块
+        # 如果根据new_hash，这最后一个物理块既不在cached_tables也不在驱逐器中
+        # （说明只有它的默认hash值在cached_tables中）
         else:
-            self.gpu_allocator.update_hash(new_hash, last_block)
+            self.gpu_allocator.update_hash(new_hash, last_block) # 对于这个物理块，在cached_tables中用new_hash代替old_hash
             return last_block
 
     def _is_last_block_full(
@@ -349,6 +381,7 @@ class BlockSpaceManagerV1(BlockSpaceManager):
         seq: Sequence,
         last_block: PhysicalTokenBlock,
     ) -> PhysicalTokenBlock:
+        # 检查当前这最后一个逻辑块是否满了，如果是，则检查是否有可复用物理块
         if self._is_last_block_full(seq):
             return self._promote_last_block(seq, last_block)
         else:
@@ -358,22 +391,23 @@ class BlockSpaceManagerV1(BlockSpaceManager):
         self,
         seq: Sequence,
     ) -> PhysicalTokenBlock:
-        # Called before a new block is appended.
-        # This is in charge of allocating a new physical block (to be appended).
-
-        # None if the last block is not full. Otherwise, we set it to the
-        # content hash.
+        '''
+        在想添加新的物理块之前，调用这个函数，来判断是不是真得有必要添加一个物理块
+        '''
         if not self.enable_caching:
-            return self.gpu_allocator.allocate()
+            return self.gpu_allocator.allocate() # 如果不使用prefix caching，就直接分配物理块
         block_hash: Optional[int] = None
+        # 如果该seq的最后一块逻辑块是满的
         if (self._is_last_block_full(seq)):
+            # 那么就截止到最后一块逻辑块（包括最后一块逻辑为止）计算所有token的block hash
+            # (除了prefill阶段外，decode阶段只有在逻辑块满的时候才重新计算整串tokens的hash值，
+            # 否则就用默认hash值)
             block_hash = seq.hash_of_block(len(seq.logical_token_blocks) - 1)
         num_hashed_tokens = seq.num_hashed_tokens_of_block(
             len(seq.logical_token_blocks) - 1)
 
-        # num_hashed_tokens is used to compute future hashes
-        # (e.g. in the hashing function, it is used to ask the sequence for
-        # prefix tokens)
+        # 使用prefix caching下的allocate方法，根据物理块的hash值，检查当前
+        # 是否有可复用的物理块，以此决定是新分配一个物理块，还是复用旧物理块。
         new_block = self.gpu_allocator.allocate(block_hash, num_hashed_tokens)
 
         # If the block has is None, then the block is not full.
@@ -390,9 +424,11 @@ class BlockSpaceManagerV1(BlockSpaceManager):
         """Allocate a physical slot for a new token."""
         logical_blocks = seq.logical_token_blocks
         block_table = self.block_tables[seq.seq_id]
-        # If we need to allocate a new physical block
+
+        # 如果物理块数量 < 逻辑块数量（说明此时需要分配新的物理块了）
+        # 注：上1个推理阶段完毕后，seq的逻辑块更新了（把最新生成的这个token装进去了） 但物理块还没更新
         if len(block_table) < len(logical_blocks):
-            # Currently this code only supports adding one physical block
+            # 物理块只允许比逻辑块少1块
             assert len(block_table) == len(logical_blocks) - 1
 
             if (self.block_sliding_window
@@ -401,27 +437,28 @@ class BlockSpaceManagerV1(BlockSpaceManager):
                 block_table.append(block_table[len(block_table) %
                                                self.block_sliding_window])
             else:
-                # The sequence hash a new logical block.
-                # Allocate a new physical block.
+                # 分配一个新物理块
                 new_block = self._allocate_last_physical_block(seq)
                 block_table.append(new_block)
                 return {}
 
-        # We want to append the token to the last physical block.
-        last_block = block_table[-1]
+        # 如果物理块数量 == 逻辑块数量.
+        last_block = block_table[-1] # 取出最后一个物理块
         assert last_block.device == Device.GPU
         if last_block.ref_count == 1:
-            # Not shared with other sequences. Appendable.
+            # 如果启动了prefix caching
             if self.enable_caching:
-                # If the last block is now complete, we may reuse an old block
-                # to save memory.
+                # 检查下当前物理块slots是否被填满：
+                # - 没有填满，不需要做任何操作
+                # - 填满时，我们对它计算new_hash值，并根据new_hash寻找是否有可复用的物理块，
+                #   若有，则释放当前物理块，取而代之以旧物理块
                 maybe_new_block = self._maybe_promote_last_block(
                     seq, last_block)
                 block_table[-1] = maybe_new_block
             return {}
         else:
-            # The last block is shared with other sequences.
-            # Copy on Write: Allocate a new block and copy the tokens.
+            # 如果最后一个物理块的引用数量为 > 1 (有别的逻辑块在引用它)
+            # 触发copy-on-write机制，分配一个新的物理块
             new_block = self._allocate_last_physical_block(seq)
 
             block_table[-1] = new_block

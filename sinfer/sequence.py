@@ -222,7 +222,7 @@ class Sequence:
         self.output_logprobs: SampleLogprobs = []
         self.output_text = ""
 
-        self.logical_token_blocks: List[LogicalTokenBlock] = []
+        self.logical_token_blocks: List[LogicalTokenBlock] = [] # 每个seq都会维护自己的逻辑块列表
         # Initialize the logical token blocks with the prompt token ids.
         self._append_tokens_to_blocks(prompt_token_ids)
         self.status = SequenceStatus.WAITING
@@ -248,13 +248,17 @@ class Sequence:
         # TODO This can produce incorrect hash when block size > prompt size
 
         # Compute the number of tokens in the sequence
-        # TODO: The current hashing function is O(L^2). We should optimize
-        # this in the future.
+        # TODO: The current hashing function is O(L^2). We should optimize this in the future.
         num_tokens = self.num_hashed_tokens_of_block(logical_idx)
         return hash(
             (tuple(self.data.get_token_ids()[0:num_tokens]), self.lora_int_id))
 
     def num_hashed_tokens_of_block(self, logical_idx: int):
+        """
+        计算截止到序号为logical_idx的逻辑块为止（包含这个逻辑块），一共有多少个token
+        例如block_size = 16, logical_idx = 1,
+        则截止到序号为1的逻辑块为止，一共有 1*16 + 16 = 32个逻辑块
+        """
         return logical_idx * self.block_size + self.block_size
 
     def reset_state_for_recompute(self):

@@ -189,8 +189,7 @@ def sinfer__module_executor__layers__rotary_embedding__RotaryEmbedding__forward(
     @brief: use bt_ops.apply_rotary to replace ops.rotary_embedding
     '''
     if offsets is not None:
-        pass
-        # raise ValueError(f"bt_ops.apply_rotary not support offsets yet.")
+        raise ValueError(f"bt_ops.apply_rotary not support offsets yet.")
     else:
         if RotaryEmbedding.set_cos_sin == False:
             RotaryEmbedding.cos_, RotaryEmbedding.sin_ = self._get_cos_sin(positions)

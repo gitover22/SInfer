@@ -41,10 +41,7 @@ def get_path(*filepath) -> str:
 
 
 def find_version(filepath: str) -> str:
-    """Extract version information from the given filepath.
-
-    Adapted from https://github.com/ray-project/ray/blob/0b190ee1160eeca9796bc091e07eaebf4c85b511/python/setup.py
-    """
+    # 从给定的文件路径中提取版本信息
     with open(filepath, 'r') as file:
         lines = file.readlines()
     for line in lines:
@@ -56,9 +53,6 @@ def find_version(filepath: str) -> str:
 
 
 def get_commit_id() -> str:
-    """
-    get the current commit of sinfer mlu
-    """
     git_short_hash = subprocess.run(
         ['git', 'rev-parse', '--short', 'HEAD'],
         stdout=subprocess.PIPE,
@@ -67,14 +61,9 @@ def get_commit_id() -> str:
     return git_short_hash
 
 def get_sinfer_version() -> str:
-    """
-    get sinfer version
-    """
     version = (
-        "1.0.0+mlu"
-        + find_version(get_path(os.path.dirname(os.path.abspath(__file__))
-        + "/sinfer", "version_config"))
-        + ".pt2.3")
+        find_version(get_path(os.path.dirname(os.path.abspath(__file__))
+        + "/sinfer", "version"))+ "+mlu")
     if get_commit_id():
         version += "." + get_commit_id()
     return version

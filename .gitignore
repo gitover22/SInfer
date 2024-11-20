@@ -1,4 +1,4 @@
-models/2b_sft_model
-models/Llama-3.2-1B
 models/Meta-Llama-3-8B-Instruct
 models/proxy_timeout
+sinfer/**/__pycache__/
+

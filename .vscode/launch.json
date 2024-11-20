@@ -12,6 +12,15 @@
             "console": "integratedTerminal",
             "justMyCode": false,
             "cwd":"${workspaceFolder}/models"
+        },
+        {
+            "name": "setup",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "/home/zouguoqiang/SInfer/setup.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "cwd":"${workspaceFolder}"
         }
     ]
 }

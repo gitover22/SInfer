@@ -1024,7 +1024,7 @@ class Scheduler:
                 indices for the appended slots.
         """
         num_lookahead_slots = self._get_num_lookahead_slots(is_prefill=False)
-
+        # 遍历这个seq_group中状态为running的所有seq
         for seq in seq_group.get_seqs(status=SequenceStatus.RUNNING):
             cows = self.block_manager.append_slots(seq, num_lookahead_slots)
 

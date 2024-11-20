@@ -28,7 +28,6 @@ sinfer/sampling_params.py
 sinfer/sequence.py
 sinfer/test_utils.py
 sinfer/utils.py
-sinfer/version_config
 sinfer.egg-info/PKG-INFO
 sinfer.egg-info/SOURCES.txt
 sinfer.egg-info/dependency_links.txt
@@ -113,6 +112,7 @@ sinfer/lora/request.py
 sinfer/lora/utils.py
 sinfer/lora/worker_manager.py
 sinfer/mlu_hijack/__init__.py
+sinfer/mlu_hijack/device_info.py
 sinfer/mlu_hijack/dump_info.py
 sinfer/mlu_hijack/mlu_definitions.py
 sinfer/mlu_hijack/mlu_hijack.py
@@ -244,7 +244,6 @@ sinfer/model_executor/models/dbrx.py
 sinfer/model_executor/models/decilm.py
 sinfer/model_executor/models/deepseek.py
 sinfer/model_executor/models/falcon.py
-sinfer/model_executor/models/fm9g.py
 sinfer/model_executor/models/gemma.py
 sinfer/model_executor/models/gpt2.py
 sinfer/model_executor/models/gpt_bigcode.py
