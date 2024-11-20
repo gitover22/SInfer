@@ -12,27 +12,13 @@ def sinfer__core__block_manager_v1__BlockSpaceManagerV1__can_append_slots(self,
                       num_lookahead_slots: int = 0) -> bool:
     assert (num_lookahead_slots == 0
             ), "lookahead allocation not supported in BlockSpaceManagerV1"
-
-    # Simple heuristic: If there is at least one free block
-    # for each sequence, we can append.
-    '''
-    =============================
-    Modify by sinfer_mlu
-    =============================
-    @brief: optimize the allocation strategy for unpagged mode
-    ''' 
+    # 优化分配策略: unpagged mode 可以返回true
     if not USE_PAGED:
         return True
     else:
         num_free_gpu_blocks = self.gpu_allocator.get_num_free_blocks()
         num_seqs = seq_group.num_seqs(status=SequenceStatus.RUNNING)
         return num_seqs <= num_free_gpu_blocks
-    '''
-    ==================
-    End of MLU Hijack
-    ==================
-    '''
-
 
 MluHijackObject.add_hijack_object(BlockSpaceManagerV1,
                                   BlockSpaceManagerV1.can_append_slots,

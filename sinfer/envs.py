@@ -16,7 +16,7 @@ if TYPE_CHECKING:
     S3_SECRET_ACCESS_KEY: Optional[str] = None
     S3_ENDPOINT_URL: Optional[str] = None
     SINFER_CONFIG_ROOT: str = ""
-    SINFER_USAGE_STATS_SERVER: str = "https://stats.sinfer.ai"
+    SINFER_USAGE_STATS_SERVER: str = "https://github.com/gitover22"
     SINFER_NO_USAGE_STATS: bool = False
     SINFER_DO_NOT_TRACK: bool = False
     SINFER_USAGE_SOURCE: str = ""
@@ -36,15 +36,7 @@ if TYPE_CHECKING:
     CMAKE_BUILD_TYPE: Optional[str] = None
     VERBOSE: bool = False
 
-# The begin-* and end* here are used by the documentation generator
-# to extract the used env vars.
-
-# begin-env-vars-definition
-
 environment_variables: Dict[str, Callable[[], Any]] = {
-
-    # ================== Installation Time Env Vars ==================
-
     # Target device of SInfer, supporting [cuda (by default), rocm, neuron, cpu]
     "SINFER_TARGET_DEVICE":
     lambda: os.getenv("SINFER_TARGET_DEVICE", "cuda"),
@@ -153,7 +145,7 @@ environment_variables: Dict[str, Callable[[], Any]] = {
 
     # Usage stats collection
     "SINFER_USAGE_STATS_SERVER":
-    lambda: os.environ.get("SINFER_USAGE_STATS_SERVER", "https://stats.sinfer.ai"),
+    lambda: os.environ.get("SINFER_USAGE_STATS_SERVER", "https://github.com/gitover22"),
     "SINFER_NO_USAGE_STATS":
     lambda: os.environ.get("SINFER_NO_USAGE_STATS", "0") == "1",
     "SINFER_DO_NOT_TRACK":
@@ -203,11 +195,8 @@ environment_variables: Dict[str, Callable[[], Any]] = {
     lambda: os.getenv("SINFER_WORKER_MULTIPROC_METHOD", "spawn"),
 }
 
-# end-env-vars-definition
-
-
 def __getattr__(name):
-    # lazy evaluation of environment variables
+    # 惰性求值
     if name in environment_variables:
         return environment_variables[name]()
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

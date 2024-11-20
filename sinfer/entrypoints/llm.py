@@ -15,66 +15,29 @@ from sinfer.utils import Counter
 
 
 class LLM:
-    """An LLM for generating texts from given prompts and sampling parameters.
+    """
+    用于offline inference的用户接口类
 
-    This class includes a tokenizer, a language model (possibly distributed
-    across multiple GPUs), and GPU memory space allocated for intermediate
-    states (aka KV cache). Given a batch of prompts and sampling parameters,
-    this class generates texts from the model, using an intelligent batching
-    mechanism and efficient memory management.
-
-    NOTE: This class is intended to be used for offline inference. For online
-    serving, use the `AsyncLLMEngine` class instead.
-    NOTE: For the comprehensive list of arguments, see `EngineArgs`.
-
-    Args:
-        model: The name or path of a HuggingFace Transformers model.
-        tokenizer: The name or path of a HuggingFace Transformers tokenizer.
-        tokenizer_mode: The tokenizer mode. "auto" will use the fast tokenizer
-            if available, and "slow" will always use the slow tokenizer.
-        skip_tokenizer_init: If true, skip initialization of tokenizer and
-            detokenizer. Expect valid prompt_token_ids and None for prompt
-            from the input.
-        trust_remote_code: Trust remote code (e.g., from HuggingFace) when
-            downloading the model and tokenizer.
-        tensor_parallel_size: The number of GPUs to use for distributed
-            execution with tensor parallelism.
-        dtype: The data type for the model weights and activations. Currently,
-            we support `float32`, `float16`, and `bfloat16`. If `auto`, we use
-            the `torch_dtype` attribute specified in the model config file.
-            However, if the `torch_dtype` in the config is `float32`, we will
-            use `float16` instead.
-        quantization: The method used to quantize the model weights. Currently,
-            we support "awq", "gptq", "squeezellm", "weightonly", and "fp8" (experimental).
-            If None, we first check the `quantization_config` attribute in the
-            model config file. If that is None, we assume the model weights are
-            not quantized and use `dtype` to determine the data type of
-            the weights.
-        revision: The specific model version to use. It can be a branch name,
-            a tag name, or a commit id.
-        tokenizer_revision: The specific tokenizer version to use. It can be a
-            branch name, a tag name, or a commit id.
-        seed: The seed to initialize the random number generator for sampling.
-        gpu_memory_utilization: The ratio (between 0 and 1) of GPU memory to
-            reserve for the model weights, activations, and KV cache. Higher
-            values will increase the KV cache size and thus improve the model's
-            throughput. However, if the value is too high, it may cause out-of-
-            memory (OOM) errors.
-        swap_space: The size (GiB) of CPU memory per GPU to use as swap space.
-            This can be used for temporarily storing the states of the requests
-            when their `best_of` sampling parameters are larger than 1. If all
-            requests will have `best_of=1`, you can safely set this to 0.
-            Otherwise, too small values may cause out-of-memory (OOM) errors.
-        enforce_eager: Whether to enforce eager execution. If True, we will
-            disable CUDA graph and always execute the model in eager mode.
-            If False, we will use CUDA graph and eager execution in hybrid.
-        max_context_len_to_capture: Maximum context len covered by CUDA graphs.
-            When a sequence has context length larger than this, we fall back
-            to eager mode (DEPRECATED. Use `max_seq_len_to_capture` instead).
-        max_seq_len_to_capture: Maximum sequence len covered by CUDA graphs.
-            When a sequence has context length larger than this, we fall back
-            to eager mode.
-        disable_custom_all_reduce: See ParallelConfig
+    参数:
+        model: 模型名或路径.
+        tokenizer: 分词器名称或路径
+        tokenizer_mode: 分词器模式,“auto”将会使用快速分词器(如果可用),而“slow”将始终使用慢速分词器。
+        skip_tokenizer_init: 如果为 True,将跳过分词器和反分词器的初始化。需要在输入中提供有效的 prompt_token_ids,并将 prompt 设置为 None
+        trust_remote_code: 在下载模型和分词器时是否信任远程代码(例如来自 HuggingFace)
+        tensor_parallel_size: 使用TP并行的设备数量
+        dtype: 模型权重和激活值的数据类型。目前支持 float32、float16 和 bfloat16。如果设置为 auto,则使用模型配置文件中的 torch_dtype 属性。但是,如果配置中的 torch_dtype 是 float32,将改为使用 float16
+        quantization: 用于量化模型权重的方法。目前支持 "awq"、"gptq"、"squeezellm"、"weightonly" 和 "fp8"(测试中)。如果为 None,将首先检查模型配置文件中的 quantization_config 属性。如果该属性为 None,则假定模型权重未被量化,并使用 dtype 来确定权重的数据类型。
+        revision: 使用的具体模型版本。可以是分支名、标签名或提交 ID
+        tokenizer_revision: 使用的具体分词器版本。可以是分支名、标签名或提交 ID
+        seed: 用于初始化随机数生成器的采样种子
+        gpu_memory_utilization: GPU 内存的利用率(在 0 到 1 之间)。用于保留模型权重、激活值和 KV 缓存的比例。
+                                更高的值将增加 KV 缓存的大小,从而提高模型的吞吐量。但是,值过高可能会导致内存不足(OOM)错误。
+        swap_space: 每个 GPU 使用的 CPU 内存大小(GB)作为交换空间。用于临时存储请求的状态,当它们的 best_of 参数大于 1 时非常有用。
+                    如果所有请求的 best_of=1,可以将其安全设置为 0。否则,值过小可能会导致OOM
+        enforce_eager: 是否强制使用即时模式执行。如果设置为 True,将禁用 CUDA 图,并始终在即时模式下执行模型。如果设置为 False,则在 CUDA 图和即时执行之间使用混合模式
+        max_context_len_to_capture: CUDA 图覆盖的最大上下文长度。当序列的上下文长度超过该值时,将回退到即时模式(已弃用,建议使用 max_seq_len_to_capture 代替)
+        max_seq_len_to_capture: CUDA 图覆盖的最大序列长度。当序列的上下文长度超过该值时,将回退到即时模式
+        disable_custom_all_reduce: 是否禁用自定义all reduce操作
     """
 
     def __init__(

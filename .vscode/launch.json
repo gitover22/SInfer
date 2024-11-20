@@ -8,7 +8,7 @@
             "name": "llama3_infer",
             "type": "debugpy",
             "request": "launch",
-            "program": "/home/zouguoqiang/SInfer/models/llama3_infer.py",
+            "program": "${workspaceFolder}/models/llama3_infer.py",
             "console": "integratedTerminal",
             "justMyCode": false,
             "cwd":"${workspaceFolder}/models"
@@ -17,10 +17,19 @@
             "name": "setup",
             "type": "debugpy",
             "request": "launch",
-            "program": "/home/zouguoqiang/SInfer/setup.py",
+            "program": "${workspaceFolder}/setup.py",
             "console": "integratedTerminal",
             "justMyCode": false,
             "cwd":"${workspaceFolder}"
+        },
+        {
+            "name": "test_python",
+            "type":"debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/models/test_python.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "cwd": "${workspaceFolder}/models"
         }
     ]
 }

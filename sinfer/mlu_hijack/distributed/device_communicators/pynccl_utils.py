@@ -14,22 +14,13 @@ logger = init_logger(__name__)
 
 def sinfer__distributed__device_communicators__pynccl_utils__init_process_group(
         group: Optional[ProcessGroup] = None) -> None:
-    '''
-    =============================
-    Modify by sinfer_mlu
-    =============================
-    @brief: replace nccl to cncl
-    '''
+    # 替换nccl为 CNCL
     assert not pynccl_utils.is_initialized()
-    # NOTE: Temporarily disable this feature
+    # 暂时不做这个特性
     # logger.info("SInfer is using cncl==%s", cnclGetVersion())
     # pynccl_utils.comm = CNCLCommunicator(group=group)
     # assert pynccl_utils.is_initialized()
-    '''
-    ==================
-    End of MLU Hijack
-    ==================
-    '''
+    
 
 
 MluHijackObject.add_hijack_object(pynccl_utils,

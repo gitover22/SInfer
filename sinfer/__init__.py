@@ -9,7 +9,7 @@ from sinfer.outputs import CompletionOutput, RequestOutput
 from sinfer.sampling_params import SamplingParams
 import os
 import warnings
-
+import subprocess
 def find_version(filepath: str) -> str:
     if not os.path.exists(filepath):
         warnings.warn("Unable to find version_config file in the path {} ".format(filepath))
@@ -25,7 +25,15 @@ def find_version(filepath: str) -> str:
     warnings.warn("Unable to find version string in the file {}".format(filepath))
     return ""
 
-__version__ = "1.0.0+mlu" +  find_version(os.path.dirname(os.path.abspath(__file__)) + "/version_config") + ".pt2.3"
+def get_commit_id() -> str:
+    git_short_hash = subprocess.run(
+        ['git', 'rev-parse', '--short', 'HEAD'],
+        stdout=subprocess.PIPE,
+        text=True
+    ).stdout.strip()
+    return git_short_hash
+
+__version__ = find_version(os.path.dirname(os.path.abspath(__file__)) + "/version") +"+mlu."+get_commit_id()
 
 __all__ = [
     "LLM",

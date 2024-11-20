@@ -12,6 +12,8 @@ from sinfer.logger import init_logger
 
 logger = init_logger(__name__)
 
+LLM.metric = LLMMetric()
+LLM.dump_info = LLMDumpInfo()
 
 sinfer__entrypoints__llm__LLM____init__org = LLM.__init__
 
@@ -49,6 +51,7 @@ def sinfer__entrypoints__llm__LLM____init__(
                quantization=quantization,
                model=model, trust_remote_code=kwargs.get('trust_remote_code', 'default_value'))
     
+    # 调用原来的构造函数
     sinfer__entrypoints__llm__LLM____init__org(
         self=self,
         model=model,
@@ -148,12 +151,6 @@ def sinfer__entrypoints__llm__LLM___run_engine(self, use_tqdm: bool) -> List[Req
     # 按照request ID 排序
     outputs = sorted(outputs, key=lambda x: int(x.request_id))
     return outputs
-
-
-LLM.metric = LLMMetric()
-
-LLM.dump_info = LLMDumpInfo()
-
 
 MluHijackObject.add_hijack_object(LLM,
                                   LLM.__init__,

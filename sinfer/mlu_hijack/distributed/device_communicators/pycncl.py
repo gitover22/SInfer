@@ -1,29 +1,7 @@
-# This file is a pure Python wrapper for the NCCL library.
-# The main purpose is to use NCCL combined with CUDA graph.
-# Before writing this script, we tried the following approach:
-# 1. We tried to use `cupy`, it calls NCCL correctly, but `cupy` itself
-#  often gets stuck when initializing the NCCL communicator.
-# 2. We tried to use `torch.distributed`, but `torch.distributed.all_reduce`
-#  contains many other potential cuda APIs, that are not allowed during
-#  capturing the CUDA graph. For further details, please check
-# https://discuss.pytorch.org/t/pytorch-cudagraph-with-nccl-operation-failed/ .
-#
-# Another rejected idea is to write a C/C++ binding for NCCL. It is usually
-# doable, but we often encounter issues related with nccl versions, and need
-# to switch between different versions of NCCL. See
-# https://github.com/NVIDIA/nccl/issues/1234 for more details.
-# A C/C++ binding is not flexible enough to handle this. It requires
-# recompilation of the code every time we want to switch between different
-# versions. This current implementation, with a **pure** Python wrapper, is
-# more flexible. We can easily switch between different versions of NCCL by
-# changing the environment variable `SINFER_NCCL_SO_PATH`, or the `so_file`
-# variable in the code.
-
 import ctypes
 import platform
 from typing import Optional, Union
 
-# ===================== import region =====================
 import torch
 import torch.distributed as dist
 from torch.distributed import ProcessGroup, ReduceOp
@@ -34,12 +12,10 @@ from sinfer.mlu_hijack.mlu_hijack_utils import find_cncl_library
 
 logger = init_logger(__name__)
 
-so_file = find_cncl_library()
+so_file = find_cncl_library()   # /usr/local/neuware/lib64/libcncl.so
 
 try:
-    # load the library in another process.
-    # if it core dumps, it will not crash the current process
-    cncl = ctypes.CDLL(so_file)
+    cncl = ctypes.CDLL(so_file) # 使用另一个进程动态加载cncl库，实现对底层 C 接口的调用
 except Exception as e:
     logger.error(
         "Failed to load CNCL library from %s ."
@@ -48,19 +24,14 @@ except Exception as e:
         platform.platform())
     raise e
 
-# === export types and functions from nccl to Python ===
-# for the original nccl definition, please check
-# https://github.com/NVIDIA/nccl/blob/master/src/nccl.h.in
-
-
 cnclResult_t = ctypes.c_int
 
 
-_c_cnclGetErrorString = cncl.cnclGetErrorStr
-_c_cnclGetErrorString.restype = ctypes.c_char_p
+_c_cnclGetErrorString = cncl.cnclGetErrorStr # 函数绑定，python与C函数进行绑定
+_c_cnclGetErrorString.restype = ctypes.c_char_p # 返回值类型
 _c_cnclGetErrorString.argtypes = [cnclResult_t]
 
-
+# 使用 CNCL_CHECK包装对CNCL函数调用返回值的检查 
 def CNCL_CHECK(result: cnclResult_t) -> None:
     if result != 0:
         error_str = _c_cnclGetErrorString(result)
@@ -72,7 +43,7 @@ _c_cnclGetVersion = cncl.cnclGetLibVersion
 _c_cnclGetVersion.restype = ctypes.c_int
 _c_cnclGetVersion.argtypes = [ctypes.POINTER(ctypes.c_int), ctypes.POINTER(ctypes.c_int), ctypes.POINTER(ctypes.c_int)]
 
-
+# 获取CNCL版本号
 def cnclGetVersion() -> str:
     major = ctypes.c_int()
     minor = ctypes.c_int()
@@ -89,7 +60,7 @@ _c_cnclGetUniqueId = cncl.cnclGetCliqueId
 _c_cnclGetUniqueId.restype = ctypes.c_int
 _c_cnclGetUniqueId.argtypes = [ctypes.POINTER(CnclUniqueId)]
 
-
+# 获取Clique的ID
 def cnclGetUniqueId() -> CnclUniqueId:
     unique_id = CnclUniqueId()
     CNCL_CHECK(_c_cnclGetUniqueId(ctypes.byref(unique_id)))
@@ -175,9 +146,10 @@ class cnclRedOpTypeEnum:
         #     return cls.cnclAvg
         raise ValueError(f"Unsupported op: {op}")
 
-
+# 将 CNCL 的 cnclAllReduce 函数从 C 接口映射到 Python
 _c_cnclAllReduce = cncl.cnclAllReduce
-_c_cnclAllReduce.restype = ctypes.c_int
+_c_cnclAllReduce.restype = ctypes.c_int   # 返回值类型
+# 定义函数参数类型： 源张量的内存地址，目标张量的内存地址，张量的元素数量，归约操作的类型，张量的数据类型，通信器的指针，流的指针
 _c_cnclAllReduce.argtypes = [
     ctypes.c_void_p, ctypes.c_void_p, ctypes.c_size_t, cnclRedOp_t,
     cnclDataType_t, ctypes.c_void_p, ctypes.c_void_p
@@ -262,5 +234,6 @@ class CNCLCommunicator:
                              ctypes.c_void_p(tensor.data_ptr()),
                              tensor.numel(),
                              cnclDataTypeEnum.from_torch(tensor.dtype),
-                             cnclRedOpTypeEnum.from_torch(op), self.comm,
+                             cnclRedOpTypeEnum.from_torch(op), 
+                             self.comm,
                              ctypes.c_void_p(stream.mlu_stream)))

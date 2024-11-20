@@ -1,4 +1,3 @@
-"""Sampling parameters for text generation."""
 import copy
 from enum import IntEnum
 from functools import cached_property
@@ -12,93 +11,51 @@ _SAMPLING_EPS = 1e-5
 
 
 class SamplingType(IntEnum):
-    GREEDY = 0
+    GREEDY = 0 # 贪婪采样
     RANDOM = 1
     RANDOM_SEED = 2
     BEAM = 3
 
-
+# LogitsProcessor 是一个函数,它接收一个先前生成的 token 列表和一个表示下一个 token 的 logits 张量,并返回一个经过修改的 logits 张量用于采样
 LogitsProcessor = Callable[[List[int], torch.Tensor], torch.Tensor]
-"""LogitsProcessor is a function that takes a list of previously generated
-tokens and a tensor of the logits for the next token, and returns a modified
-tensor of logits to sample from."""
 
 
 class SamplingParams:
-    """Sampling parameters for text generation.
-
-    Overall, we follow the sampling parameters from the OpenAI text completion
-    API (https://platform.openai.com/docs/api-reference/completions/create).
-    In addition, we support beam search, which is not supported by OpenAI.
-
-    Args:
-        n: Number of output sequences to return for the given prompt.
-        best_of: Number of output sequences that are generated from the prompt.
-            From these `best_of` sequences, the top `n` sequences are returned.
-            `best_of` must be greater than or equal to `n`. This is treated as
-            the beam width when `use_beam_search` is True. By default, `best_of`
-            is set to `n`.
-        presence_penalty: Float that penalizes new tokens based on whether they
-            appear in the generated text so far. Values > 0 encourage the model
-            to use new tokens, while values < 0 encourage the model to repeat
-            tokens.
-        frequency_penalty: Float that penalizes new tokens based on their
-            frequency in the generated text so far. Values > 0 encourage the
-            model to use new tokens, while values < 0 encourage the model to
-            repeat tokens.
-        repetition_penalty: Float that penalizes new tokens based on whether
-            they appear in the prompt and the generated text so far. Values > 1
-            encourage the model to use new tokens, while values < 1 encourage
-            the model to repeat tokens.
-        temperature: Float that controls the randomness of the sampling. Lower
-            values make the model more deterministic, while higher values make
-            the model more random. Zero means greedy sampling.
-        top_p: Float that controls the cumulative probability of the top tokens
-            to consider. Must be in (0, 1]. Set to 1 to consider all tokens.
-        top_k: Integer that controls the number of top tokens to consider. Set
-            to -1 to consider all tokens.
-        min_p: Float that represents the minimum probability for a token to be
-            considered, relative to the probability of the most likely token.
-            Must be in [0, 1]. Set to 0 to disable this.
-        seed: Random seed to use for the generation.
-        use_beam_search: Whether to use beam search instead of sampling.
-        length_penalty: Float that penalizes sequences based on their length.
-            Used in beam search.
-        early_stopping: Controls the stopping condition for beam search. It
-            accepts the following values: `True`, where the generation stops as
-            soon as there are `best_of` complete candidates; `False`, where an
-            heuristic is applied and the generation stops when is it very
-            unlikely to find better candidates; `"never"`, where the beam search
-            procedure only stops when there cannot be better candidates
-            (canonical beam search algorithm).
-        stop: List of strings that stop the generation when they are generated.
-            The returned output will not contain the stop strings.
-        stop_token_ids: List of tokens that stop the generation when they are
-            generated. The returned output will contain the stop tokens unless
-            the stop tokens are special tokens.
-        include_stop_str_in_output: Whether to include the stop strings in
-            output text. Defaults to False.
-        ignore_eos: Whether to ignore the EOS token and continue generating
-            tokens after the EOS token is generated.
-        max_tokens: Maximum number of tokens to generate per output sequence.
-        min_tokens: Minimum number of tokens to generate per output sequence
-            before EOS or stop_token_ids can be generated
-        logprobs: Number of log probabilities to return per output token.
-            Note that the implementation follows the OpenAI API: The return
-            result includes the log probabilities on the `logprobs` most likely
-            tokens, as well the chosen tokens. The API will always return the
-            log probability of the sampled token, so there  may be up to
-            `logprobs+1` elements in the response.
-        prompt_logprobs: Number of log probabilities to return per prompt token.
-        detokenize: Whether to detokenize the output. Defaults to True.
-        skip_special_tokens: Whether to skip special tokens in the output.
-        spaces_between_special_tokens: Whether to add spaces between special
-            tokens in the output.  Defaults to True.
-        logits_processors: List of functions that modify logits based on
-            previously generated tokens.
-        truncate_prompt_tokens: If set to an integer k, will use only the last k
-            tokens from the prompt (i.e., left truncation). Defaults to None
-            (i.e., no truncation).
+    """
+        采样配置
+    参数:
+        n: 对给定的 prompt 返回的输出序列数量
+        best_of: 从 prompt 生成的序列数量。从这些 best_of 序列中,返回前 n 个最优序列。best_of 必须大于或等于 n。
+                当 use_beam_search 为 True 时,这被视为束宽度。默认情况下,best_of 等于 n
+        presence_penalty: 一个浮点数,根据生成文本中是否出现新 token 进行惩罚。
+                值大于 0 时,鼓励模型使用新 token;值小于 0 时,鼓励模型重复使用 token.
+        frequency_penalty: 根据生成文本中 token 的出现频率进行惩罚。值大于 0 时,鼓励模型使用新 token;值小于 0 时,鼓励模型重复使用 token。
+        repetition_penalty: 根据 token 是否出现在 prompt 和生成文本中进行惩罚。值大于 1 时,鼓励模型使用新 token;值小于 1 时,鼓励模型重复使用 token。
+        temperature: 控制采样的随机性。值越低,模型越确定性;值越高,模型越随机。值为 0 表示贪婪采样。
+        top_p: 浮点数,控制采样时考虑的累积概率。范围必须在 (0, 1] 内,设置为 1 时表示考虑所有 token。
+        top_k: 一个整数,控制采样时考虑的最高概率的 token 数量。设置为 -1 时表示考虑所有 token.
+        min_p: 浮点数,表示 token 的概率相对于最可能 token 的最小值。范围为 [0, 1]。设置为 0 时表示禁用。
+        seed: 用于生成的随机种子
+        use_beam_search: 是否使用 beam search 而非采样
+        length_penalty: 浮点数,根据序列长度对生成进行惩罚,用于 beam search
+        early_stopping: 控制 beam search 的停止条件。取值包括:
+                    True:当有 best_of 个完整候选时立即停止生成。
+                    False:使用启发式方法,当几乎不可能找到更好的候选时停止生成。
+                    never:只有当无法找到更好的候选时,才停止(标准 beam search 算法)
+        stop: 一个字符串列表,当生成的文本中出现这些字符串时停止生成。返回的输出将不包含这些字符串。
+        stop_token_ids: 一个 token 列表,当生成的 token 包含这些 ID 时停止生成。返回的输出将包含这些 token,除非它们是特殊 token.
+        include_stop_str_in_output: 是否在输出文本中包含 stop 字符串。默认值为 False
+        ignore_eos: 是否忽略 EOS token,在生成 EOS token 后继续生成。
+        max_tokens: 每个输出序列生成的最大 token 数。
+        min_tokens: 在生成 EOS 或 stop_token_ids 之前,每个输出序列必须生成的最小 token 数。
+        logprobs: 返回每个输出 token 的 log 概率数量。结果包括 logprobs 个最可能的 token 的 log 概率,
+                以及选定的 token 的 log 概率。API 总是返回采样 token 的 log 概率,因此结果中可能有多达 logprobs+1 个元素
+        prompt_logprobs: 返回每个 prompt token 的 log 概率数量
+        detokenize: 是否将输出进行解码(detokenize)。默认值为 True
+        skip_special_tokens: 是否跳过输出中的特殊 token.
+        spaces_between_special_tokens: 是否在输出的特殊 token 之间添加空格。默认值为 True。
+        logits_processors: 一个函数列表,根据之前生成的 token 修改 logits
+        truncate_prompt_tokens: 如果设置为整数 k,将仅使用 prompt 中最后的 k 个 token(即左截断)。默认为 None(即不截断)
     """
 
     def __init__(
@@ -139,6 +96,7 @@ class SamplingParams:
         self.top_p = top_p
         self.top_k = top_k
         self.min_p = min_p
+        
         if seed == -1:
             self.seed = None
         else:
@@ -274,17 +232,15 @@ class SamplingParams:
             raise ValueError("best_of must be 1 when using greedy sampling."
                              f"Got {self.best_of}.")
 
+    # 根据 generation_config 中的非默认值更新 SamplingParams 的配置
     def update_from_generation_config(
             self, generation_config: Dict[str, Any]) -> None:
-        """Update if there are non-default values from generation_config"""
-        # Update eos_token_id for generation
         if (not self.ignore_eos) and (eos_ids :=
                                       generation_config.get("eos_token_id")):
-            # it can be either int or list of int
             if isinstance(eos_ids, int):
-                eos_ids = [eos_ids]
-            original_stop_token_ids = set(self.stop_token_ids)
-            original_stop_token_ids.update(eos_ids)
+                eos_ids = [eos_ids] # 包装成列表
+            original_stop_token_ids = set(self.stop_token_ids)  # 包装为set，避免重复token id
+            original_stop_token_ids.update(eos_ids) # 合并
             self.stop_token_ids = list(original_stop_token_ids)
 
     @cached_property
@@ -298,10 +254,8 @@ class SamplingParams:
         return SamplingType.RANDOM
 
     def clone(self) -> "SamplingParams":
-        """Deep copy excluding LogitsProcessor objects.
-
-        LogitsProcessor objects are excluded because they may contain an
-        arbitrary, nontrivial amount of data.
+        """
+            深度copy 除了 LogitsProcessor对象 之外的所有
         """
 
         logit_processor_refs = None if self.logits_processors is None else {

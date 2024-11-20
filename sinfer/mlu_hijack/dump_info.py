@@ -89,7 +89,7 @@ class LLMDumpInfo:
         if generate_latency_device != None:
             self.generate_latency_device = generate_latency_device
         
-        # paser the model config
+        # 解析模型配置
         if self.model_config == None and self.model != None and self.trust_remote_code != None:
             self.model_config = get_config(self.model, self.trust_remote_code)
         

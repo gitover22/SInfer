@@ -1,4 +1,3 @@
-
 import os
 import torch
 import sinfer
@@ -7,7 +6,7 @@ import numpy as np
 from typing import List, Union, Optional
 from sinfer.worker.model_runner import _BATCH_SIZES_TO_CAPTURE, _BATCH_SIZE_ALIGNMENT
 from sinfer.logger import init_logger
-import ctypes
+import ctypes # 用于与 C/C++ 动态链接库交互
 
 logger = init_logger(__name__)
 
@@ -52,6 +51,7 @@ class MluHijackObject:
 def find_cncl_library():
     so_file = envs.SINFER_NCCL_SO_PATH
     if so_file:
+        # 存在nccl库
         logger.info(
             "Found nccl from environment variable SINFER_NCCL_SO_PATH=%s",
             so_file)
@@ -60,7 +60,7 @@ def find_cncl_library():
         so_file = os.path.join(neuware_home, "lib64/libcncl.so")
     return so_file
 
-# 转化为tensor数据类型（带填充）
+# 转化x为tensor数据类型（带填充）
 def make_tensor_with_pad(
     x: List[List[int]],
     max_len: int,
@@ -68,11 +68,6 @@ def make_tensor_with_pad(
     dtype: torch.dtype,
     device: Optional[Union[str, torch.device]],
 ) -> torch.Tensor:
-    """Make a padded tensor of a 2D inputs.
-
-    The padding is applied to the end of each inner list until it reaches
-    `max_len`.
-    """
     padded_x = np.zeros([len(x), max_len], dtype=np.int32) + pad # 创建一个形状为 [len(x), max_len] 的 numpy 数组，默认填充值为 pad
     # 将列表的内容填充到数组对应位置
     for ind,i in enumerate(x): # ind为index，i为子列表
@@ -91,7 +86,7 @@ def make_tensor_without_pad(
                         device=device,
                         pin_memory=pin_memory and str(device) == "cpu")
 
-
+# 
 def set_batch_sizes_to_capture(max_batch_size_to_capture):
     logger.info(f"Set max_batch_size_to_capture={max_batch_size_to_capture}")
     global _BATCH_SIZES_TO_CAPTURE # 一个用于存储待捕获batch size的list，升序
