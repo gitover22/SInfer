@@ -1,20 +1,19 @@
 import enum
-from abc import ABC, abstractmethod, abstractproperty
+from abc import ABC, abstractmethod
 from typing import OrderedDict
 
 from sinfer.block import PhysicalTokenBlock
 
-
 class EvictionPolicy(enum.Enum):
-    """Enum for eviction policy used by make_evictor to instantiate the correct
-       Evictor subclass.
+    """
+    驱逐策略的枚举类
     """
     LRU = enum.auto()
 
 
 class Evictor(ABC):
-    """The Evictor subclasses should be used by the BlockAllocator class to
-    handle eviction of freed PhysicalTokenBlocks.
+    """
+    BlockAllocator类应该使用Evictor子类来处理释放的物理token块的回收
     """
 
     @abstractmethod
@@ -44,10 +43,6 @@ class Evictor(ABC):
         """
         pass
 
-    @abstractproperty
-    def num_blocks(self) -> int:
-        pass
-
 
 class LRUEvictor(Evictor):
     """
@@ -71,9 +66,7 @@ class LRUEvictor(Evictor):
             raise ValueError("No usable cache memory left")
 
         evicted_block = next(iter(self.free_table.values()))
-        # The blocks with the lowest timestamps should be placed consecutively
-        # at the start of OrderedDict. Loop through all these blocks to
-        # find the one with maximum number of hashed tokens.
+        # 具有最小时间戳的块应连续放置在 OrderedDict 的开头。遍历所有这些块，找到哈希令牌数量最多的那个块。
         for _, block in self.free_table.items():
             if evicted_block.last_accessed < block.last_accessed: # 可能最后一次使用时间相同
                 break

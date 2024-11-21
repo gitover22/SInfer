@@ -7,7 +7,7 @@ import torch
 
 from sinfer.model_executor.layers.rotary_embedding import get_rope
 
-
+# 旋转位置嵌入
 def benchmark_rope_kernels_multi_lora(
     is_neox_style: bool,
     batch_size: int,

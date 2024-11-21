@@ -51,8 +51,8 @@ def get_attn_backend(dtype: torch.dtype) -> Type[AttentionBackend]:
         raise ValueError("Invalid attention backend.")
 
 
+# 返回一个FlashAttention后端
 def _which_attn_to_use(dtype: torch.dtype) -> _Backend:
-    """Returns which flash attention backend to use."""
     if is_cpu():
         return _Backend.TORCH_SDPA
 
@@ -87,5 +87,5 @@ def _which_attn_to_use(dtype: torch.dtype) -> _Backend:
     if backend_by_env_var is not None:
         return _Backend[backend_by_env_var]
 
-    # Default case.
+    # 默认
     return _Backend.FLASH_ATTN

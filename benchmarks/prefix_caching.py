@@ -17,12 +17,14 @@ def test_prefix(llm=None, sampling_params=None, prompts=None):
 
 def main(args):
     llm = LLM(model=args.model,
+              dtype=args.dtype,
               tokenizer_mode='auto',
               trust_remote_code=True,
               enforce_eager=True,
               use_v2_block_manager=args.use_v2_block_manager,
               tensor_parallel_size=args.tensor_parallel_size,
-              enable_prefix_caching=args.enable_prefix_caching)
+            #   enable_prefix_caching=args.enable_prefix_caching)
+              enable_prefix_caching=True)
 
     num_prompts = 100
     prompts = [PROMPT] * num_prompts
@@ -49,7 +51,7 @@ if __name__ == "__main__":
         'prefix caching.')
     parser.add_argument('--model',
                         type=str,
-                        default='baichuan-inc/Baichuan2-13B-Chat')
+                        default='/home/zouguoqiang/SInfer/models/Meta-Llama-3-8B-Instruct')
     parser.add_argument('--tensor-parallel-size', '-tp', type=int, default=1)
     parser.add_argument('--output-len', type=int, default=10)
     parser.add_argument('--enable-prefix-caching',
@@ -58,5 +60,14 @@ if __name__ == "__main__":
     parser.add_argument('--use-v2-block-manager',
                         action='store_true',
                         help='Use BlockSpaceMangerV2')
+    parser.add_argument(
+        '--dtype',
+        type=str,
+        default='float16',
+        choices=['auto', 'half', 'float16', 'bfloat16', 'float', 'float32'],
+        help='data type for model weights and activations. '
+        'The "auto" option will use FP16 precision '
+        'for FP32 and FP16 models, and BF16 precision '
+        'for BF16 models.')
     args = parser.parse_args()
     main(args)

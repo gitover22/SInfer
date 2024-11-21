@@ -1,4 +1,6 @@
-"""Benchmark offline inference throughput."""
+
+
+# 离线推理吞吐量
 import argparse
 import json
 import random
@@ -24,28 +26,44 @@ def sample_requests(
     tokenizer: PreTrainedTokenizerBase,
     fixed_output_len: Optional[int],
 ) -> List[Tuple[str, int, int]]:
+    """
+    从指定数据集中采样请求数据。
+
+    该函数从数据集中筛选符合条件的对话，按照要求生成一个包含输入提示词、其长度
+    和输出长度的元组列表。用于大模型推理输入的准备。
+
+    参数:
+        dataset_path (str): json数据集文件的路径
+        num_requests (int): 需要采样的请求数量 (最大)
+        tokenizer (PreTrainedTokenizerBase): 分词器
+        fixed_output_len (Optional[int]): 固定的输出长度，如果为 None 则根据实际回答计算长度
+    返回:
+        List[Tuple[str, int, int]]:存储元组 (提示词, 提示词长度, 输出长度) 的list
+
+    异常:
+        ValueError: 如果 `fixed_output_len` 小于 4。
+    """
     if fixed_output_len is not None and fixed_output_len < 4:
         raise ValueError("output_len too small")
 
-    # Load the dataset.
     with open(dataset_path) as f:
         dataset = json.load(f)
-    # Filter out the conversations with less than 2 turns.
+    # 筛选出至少包含两轮对话的数据
     dataset = [data for data in dataset if len(data["conversations"]) >= 2]
-    # Only keep the first two turns of each conversation.
+    # 只保留每个对话的前两轮内容（提示词和回答）
     dataset = [(data["conversations"][0]["value"],
                 data["conversations"][1]["value"]) for data in dataset]
 
-    # Shuffle the dataset.
+    # 打乱数据集以增加随机性
     random.shuffle(dataset)
 
-    # Filter out sequences that are too long or too short
     filtered_dataset: List[Tuple[str, int, int]] = []
+    # 遍历数据集进行过滤和采样
     for i in range(len(dataset)):
         if len(filtered_dataset) == num_requests:
             break
 
-        # Tokenize the prompts and completions.
+        # 使用分词器对提示词和完成分词，计算其 token 长度
         prompt = dataset[i][0]
         prompt_token_ids = tokenizer(prompt).input_ids
         completion = dataset[i][1]
@@ -53,11 +71,10 @@ def sample_requests(
         prompt_len = len(prompt_token_ids)
         output_len = len(completion_token_ids
                          ) if fixed_output_len is None else fixed_output_len
+        # 筛掉过短和过长的
         if prompt_len < 4 or output_len < 4:
-            # Prune too short sequences.
             continue
         if prompt_len > 1024 or prompt_len + output_len > 2048:
-            # Prune too long sequences.
             continue
         filtered_dataset.append((prompt, prompt_len, output_len))
 
@@ -117,9 +134,7 @@ def run_sinfer(
         load_format=load_format
     )
 
-    # Generate a warning if the maximum sum of the input length and output
-    # length is less than the maximum model length, as only the first
-    # `max_model_len` will be processed.
+    # 如果输入长度和输出长度的最大值之和 大于 模型的最大长度，则生成一个警告，因为只有前 `max_model_len` 的部分会被处理。
     max_length = max((req[1] + req[2] for req in requests), default=0)
     max_model_len = llm.llm_engine.model_config.max_model_len
     if max_length > max_model_len:
@@ -127,7 +142,6 @@ def run_sinfer(
             f"The sum of input and output length({max_length}) is larger than"
             f" max model length({max_model_len})")
 
-    # Add the requests to the engine.
     prompts = []
     sampling_params = []
     for prompt, _, output_len in requests:
@@ -138,7 +152,7 @@ def run_sinfer(
                 temperature=0.0 if use_beam_search else 1.0,
                 top_p=1.0,
                 use_beam_search=use_beam_search,
-                ignore_eos=True,
+                ignore_eos=True, # 这样每个prompts都会生成output_len长度的输出
                 max_tokens=output_len,
             ))
 
@@ -230,11 +244,11 @@ def main(args: argparse.Namespace):
     print(args)
     random.seed(args.seed)
 
-    # Sample the requests.
+    # 获取分词器
     tokenizer = AutoTokenizer.from_pretrained(
         args.tokenizer, trust_remote_code=args.trust_remote_code)
     if args.dataset is None:
-        # Synthesize a prompt with the given input length.
+        # 用给定的输入长度合成一个提示符
         prompt = "hi" * (args.input_len - 1)
         requests = [(prompt, args.input_len, args.output_len)
                     for _ in range(args.num_prompts)]
@@ -278,18 +292,20 @@ if __name__ == "__main__":
                         default="sinfer")
     parser.add_argument("--dataset",
                         type=str,
-                        default=None,
+                        # default=None,
+                        default="/home/zouguoqiang/SInfer/benchmarks/dataset.json",
                         help="Path to the dataset.")
     parser.add_argument("--input-len",
                         type=int,
                         default=None,
+                        # default=32,
                         help="Input prompt length for each request")
     parser.add_argument("--output-len",
                         type=int,
-                        default=None,
+                        default=128,
                         help="Output length for each request. Overrides the "
                         "output length from the dataset.")
-    parser.add_argument("--model", type=str, default="facebook/opt-125m")
+    parser.add_argument("--model", type=str, default="/home/zouguoqiang/SInfer/models/Meta-Llama-3-8B-Instruct")
     parser.add_argument("--tokenizer", type=str, default=None)
     parser.add_argument('--quantization',
                         '-q',
@@ -322,7 +338,8 @@ if __name__ == "__main__":
     parser.add_argument(
         '--dtype',
         type=str,
-        default='auto',
+        # default='auto',
+        default='float16',
         choices=['auto', 'half', 'float16', 'bfloat16', 'float', 'float32'],
         help='data type for model weights and activations. '
         'The "auto" option will use FP16 precision '
@@ -411,15 +428,17 @@ if __name__ == "__main__":
         assert args.output_len is not None
     else:
         assert args.input_len is None
-
+    # backend : sinfer/hf/mii
     if args.backend == "sinfer":
         if args.hf_max_batch_size is not None:
             raise ValueError("HF max batch size is only for HF backend.")
+    # HuggingFace
     elif args.backend == "hf":
         if args.hf_max_batch_size is None:
             raise ValueError("HF max batch size is required for HF backend.")
         if args.quantization is not None:
             raise ValueError("Quantization is only for SInfer backend.")
+    # Microsoft Inferencing and Integration
     elif args.backend == "mii":
         if args.dtype != "auto":
             raise ValueError("dtype must be auto for MII backend.")

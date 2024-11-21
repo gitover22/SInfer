@@ -2,9 +2,8 @@ import logging
 from logging import Logger
 
 def init_logger(name: str) -> Logger:
-    """Initialize loggers for benchmarks module,
-    and keep the configuration consistent with the sinfer module"""
-
+    # 保持sinfer模块的配置一致
+    
     logger = logging.getLogger(name)
 
     sinfer_logger = logging.Logger.manager.loggerDict.get('sinfer', None)

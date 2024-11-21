@@ -25,20 +25,11 @@ def sinfer__attention__backends__flash_attn__FlashAttentionImpl____init__(
 ) -> None:
     sinfer__attention__backends__flash_attn__FlashAttentionImpl____init__org(
             self, num_heads, head_size, scale, num_kv_heads, alibi_slopes, sliding_window)
-    '''
-    =============================
-    Modify by sinfer_mlu
-    =============================
-    @brief: move alibi_slopes to device
-    '''
+
+    # move alibi_slopes to device
+
     if self.alibi_slopes is not None:
         self.alibi_slopes = self.alibi_slopes.cuda()
-    '''
-    ==================
-    End of MLU Hijack
-    ==================
-    '''
-
 
 def sinfer__attention__backends__flash_attn__FlashAttentionImpl__forward(
     self,
@@ -72,12 +63,7 @@ def sinfer__attention__backends__flash_attn__FlashAttentionImpl__forward(
         # Reshape the input keys and values and store them in the cache.
         # If kv_cache is not provided, the new key and value tensors are
         # not cached. This happens during the initial memory profiling run.
-        '''
-        =============================
-        Modify by sinfer_mlu
-        =============================
-        @brief: use bt_ops.reshape_paged_cache
-        '''
+        # use bt_ops.reshape_paged_cache
         if USE_PAGED:
             bt_ops.reshape_paged_cache(key,
                                        value,
@@ -95,11 +81,6 @@ def sinfer__attention__backends__flash_attn__FlashAttentionImpl__forward(
                                         None, # context_seq_offset
                                         attn_metadata.batch_ids,
                                         attn_metadata.slot_mapping_new)
-        '''
-        ==================
-        End of MLU Hijack
-        ==================
-        '''
 
     num_prefill_tokens = attn_metadata.num_prefill_tokens
     num_decode_tokens = attn_metadata.num_decode_tokens
@@ -122,12 +103,7 @@ def sinfer__attention__backends__flash_attn__FlashAttentionImpl__forward(
             # normal attention
             # When block_tables are not filled, it means q and k are the
             # prompt, and they have the same length.
-            '''
-            =============================
-            Modify by sinfer_mlu
-            =============================
-            @brief: use bt_ops.flash_attention
-            '''
+            # use bt_ops.flash_attention
             alibi_slopes = None if self.alibi_slopes is None else \
                                 self.alibi_slopes.repeat(attn_metadata.num_prefills, 1)
             out = bt_ops.flash_attention(query,
@@ -147,11 +123,6 @@ def sinfer__attention__backends__flash_attn__FlashAttentionImpl__forward(
                                             else self.sliding_window[1],
                                          torch.float,
                                          False)
-            '''
-            ==================
-            End of MLU Hijack
-            ==================
-            '''
             assert output[:num_prefill_tokens].shape == out.shape
             output[:num_prefill_tokens] = out
         else:
@@ -159,12 +130,7 @@ def sinfer__attention__backends__flash_attn__FlashAttentionImpl__forward(
             # TODO(Hai) this triton kernel has regression issue (broke) to
             # deal with different data types between KV and FP8 KV cache,
             # to be addressed separately.
-            '''
-            =============================
-            Modify by sinfer_mlu
-            =============================
-            @brief: chunked-prefix use triton
-            '''
+            # chunked-prefix use triton
             x = 16 // key_cache.element_size()
             kc_reshaped = key_cache.view(key_cache.shape[0], key_cache.shape[1],
                     key_cache.shape[2], key_cache.shape[3] // x, x).permute(0, 1, 3, 2, 4)
@@ -184,19 +150,8 @@ def sinfer__attention__backends__flash_attn__FlashAttentionImpl__forward(
                 self.alibi_slopes,
                 self.sliding_window[0],
             )
-            '''
-            ==================
-            End of MLU Hijack
-            ==================
-            '''
     if decode_meta := attn_metadata.decode_metadata:
-        # Decoding run.
-        '''
-        =============================
-        Modify by sinfer_mlu
-        =============================
-        @brief: use bt_ops.single_query_cached_kv_attn
-        '''
+        # use bt_ops.single_query_cached_kv_attn
         alibi_slopes = None if self.alibi_slopes is None \
                             else self.alibi_slopes.repeat(attn_metadata.num_decode_tokens, 1)
         decode_query = decode_query.view(-1, 1, self.num_heads, self.head_size).contiguous()
@@ -210,11 +165,6 @@ def sinfer__attention__backends__flash_attn__FlashAttentionImpl__forward(
                                                  0, 0, # windows_size_left/right
                                                  self.scale)
         output[num_prefill_tokens:] = out.view(-1, self.num_heads, self.head_size)
-        '''
-        ==================
-        End of MLU Hijack
-        ==================
-        '''
 
     # Reshape the output tensor.
     return output.view(num_tokens, hidden_size)

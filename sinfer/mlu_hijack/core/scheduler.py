@@ -32,12 +32,7 @@ def sinfer__core__scheduler__Scheduler____init__(
         cache_config=cache_config,
         lora_config=lora_config
     )
-    '''
-    =============================
-    Modify by sinfer_mlu
-    =============================
-    @brief: add for scheduler profiling
-    '''
+    # add for scheduler profiling
     logger.info(f"SInfer scheduler profiling start...")
     
     self.df = pd.DataFrame(
@@ -59,12 +54,6 @@ def sinfer__core__scheduler__Scheduler____init__(
     self.preempt_ratio = 0
 
     self.finished_seq_groups = []
-    '''
-    ==================
-    End of MLU Hijack
-    ==================
-    '''
-
 
 def sinfer__core__scheduler__Scheduler___schedule_prefills(
     self,
@@ -80,23 +69,12 @@ def sinfer__core__scheduler__Scheduler___schedule_prefills(
         curr_loras=curr_loras,
         enable_chunking=enable_chunking
     )
-    '''
-    =============================
-    Modify by sinfer_mlu
-    =============================
-    @brief: add for scheduler profiling
-    '''
+    # add for scheduler profiling
     # wait_reqs = len(waiting_queue)
     # sched_reqs = wait_reqs - len(remaining_waiting)
     # sched_to_run = [s.seq_group.request_id for s in prefills.seq_groups]
     # sched_to_ingore = [s.seq_group.request_id for s in prefills.ignored_seq_groups]
-    '''
-    ==================
-    End of MLU Hijack
-    ==================
-    '''
     return remaining_waiting, prefills
-
 
 def sinfer__core__scheduler__Scheduler___schedule_running(
     self,
@@ -114,24 +92,14 @@ def sinfer__core__scheduler__Scheduler___schedule_running(
         policy=policy,
         enable_chunking=enable_chunking
     )
-    '''
-    =============================
-    Modify by sinfer_mlu
-    =============================
-    @brief: add for scheduler profiling
-    '''
+    # add for scheduler profiling
     # run_reqs = len(running_queue)
     # sched_reqs = run_reqs - len(remaining_running)
     sched_to_preempt = [s.request_id for s in running_scheduled.preempted]
     # sched_to_swap_out = [s.request_id for s in running_scheduled.swapped_out]
     self.running_to_waiting_seqs += len(sched_to_preempt)
-    '''
-    ==================
-    End of MLU Hijack
-    ==================
-    '''
+    
     return remaining_running, running_scheduled
-
 
 def sinfer__core__scheduler__Scheduler___schedule_swapped(
     self,
@@ -149,48 +117,20 @@ def sinfer__core__scheduler__Scheduler___schedule_swapped(
         policy=policy,
         enable_chunking=enable_chunking
     )
-    '''
-    =============================
-    Modify by sinfer_mlu
-    =============================
-    @brief: add for scheduler profiling
-    '''
+    # add for scheduler profiling
     # swap_reqs = len(swapped_queue)
     # sched_reqs = swap_reqs - len(remaining_swapped)
     # sched_to_swap_in = [s.seq_group.request_id for s in swapped_in.decode_seq_groups]
-    # sched_to_ignore = [s.seq_group.request_id for s in swapped_in.infeasible_seq_groups]
-    '''
-    ==================
-    End of MLU Hijack
-    ==================
-    '''
     return remaining_swapped, swapped_in
-
 
 def sinfer__core__scheduler__Scheduler___schedule_default(self) -> SchedulerOutputs:
     scheduler_outputs = sinfer__core__scheduler__Scheduler___schedule_default__org(self)
-    '''
-    =============================
-    Modify by sinfer_mlu
-    =============================
-    @brief: add for scheduler profiling
-    '''
+    # add for scheduler profiling
     self.sched_step += 1
-    '''
-    ==================
-    End of MLU Hijack
-    ==================
-    '''
     return scheduler_outputs
 
-
 def sinfer__core__scheduler__Scheduler__free_finished_seq_groups(self) -> None:
-    '''
-    =============================
-    Modify by sinfer_mlu
-    =============================
-    @brief: add for scheduler profiling
-    '''
+    # add for scheduler profiling
     finished_seq_groups_ = [seq_group for seq_group in self.running
                                     if seq_group.is_finished()]
 
@@ -219,12 +159,6 @@ def sinfer__core__scheduler__Scheduler__free_finished_seq_groups(self) -> None:
                  'finished','batch_utils', 'block_utils', 'preempt_ratio'],
         index=[str(self.sched_step)])
     self.df = pd.concat([self.df, df_])
-    '''
-    ==================
-    End of MLU Hijack
-    ==================
-    '''
-
 
 def summary_finished_seq_groups(seq_groups: List[SequenceGroup]):
     df = pd.DataFrame(

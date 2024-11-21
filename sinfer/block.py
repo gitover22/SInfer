@@ -4,7 +4,6 @@ from sinfer.utils import Device
 _BLANK_TOKEN_ID = -1
 DEFAULT_LAST_ACCESSED_TIME = -1
 
-
 class LogicalTokenBlock:
     """
     一个逻辑块
@@ -43,7 +42,6 @@ class LogicalTokenBlock:
     def get_last_token_id(self) -> int:
         assert self.num_tokens > 0
         return self.token_ids[self.num_tokens - 1]
-
 
 class PhysicalTokenBlock:
     """

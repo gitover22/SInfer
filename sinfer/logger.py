@@ -1,4 +1,3 @@
-"""Logging configuration for SInfer."""
 import datetime
 import json
 import logging
@@ -12,11 +11,11 @@ from typing import Dict, Optional
 
 import sinfer.envs as envs
 
-SINFER_CONFIGURE_LOGGING = envs.SINFER_CONFIGURE_LOGGING
-SINFER_LOGGING_CONFIG_PATH = envs.SINFER_LOGGING_CONFIG_PATH
+SINFER_CONFIGURE_LOGGING = envs.SINFER_CONFIGURE_LOGGING # 是否配置日志记录系统
+SINFER_LOGGING_CONFIG_PATH = envs.SINFER_LOGGING_CONFIG_PATH # 日志配置文件的路径
 
 _FORMAT = "%(levelname)s %(asctime)s %(filename)s:%(lineno)d] %(message)s"
-_DATE_FORMAT = "%m-%d %H:%M:%S"
+_DATE_FORMAT = "%m-%d %H:%M:%S"      # 时间戳格式
 
 DEFAULT_LOGGING_CONFIG = {
     "formatters": {
@@ -44,7 +43,7 @@ DEFAULT_LOGGING_CONFIG = {
     "version": 1,
 }
 
-
+# 初始化根日志器的配置
 def _configure_sinfer_root_logger() -> None:
     logging_config: Optional[Dict] = None
 
@@ -63,6 +62,7 @@ def _configure_sinfer_root_logger() -> None:
             raise RuntimeError(
                 "Could not load logging config. File does not exist: %s",
                 SINFER_LOGGING_CONFIG_PATH)
+        # 从文件中加载自定义日志配置
         with open(SINFER_LOGGING_CONFIG_PATH, encoding="utf-8",
                   mode="r") as file:
             custom_config = json.loads(file.read())
@@ -73,46 +73,40 @@ def _configure_sinfer_root_logger() -> None:
         logging_config = custom_config
 
     if logging_config:
-        dictConfig(logging_config)
+        dictConfig(logging_config) # 用一个dict配置logging
 
 
 def init_logger(name: str) -> Logger:
-    """The main purpose of this function is to ensure that loggers are
-    retrieved in such a way that we can be sure the root sinfer logger has
-    already been configured."""
-
     return logging.getLogger(name)
 
-
-# The root logger is initialized when the module is imported.
-# This is thread-safe as the module is only imported once,
-# guaranteed by the Python GIL.
+# 根日志器在模块导入时初始化。  
+# 这是线程安全的，因为模块只会被导入一次，  
+# 由Python GIL（全局解释器锁）保证。  
 _configure_sinfer_root_logger()
 
 logger = init_logger(__name__)
 
-
+# 记录 root_dir 范围内所有函数的调用和返回
 def _trace_calls(log_path, root_dir, frame, event, arg=None):
     if event in ['call', 'return']:
-        # Extract the filename, line number, function name, and the code object
+        # 提取文件名, 行号, 函数名
         filename = frame.f_code.co_filename
         lineno = frame.f_lineno
         func_name = frame.f_code.co_name
-        if not filename.startswith(root_dir):
-            # only log the functions in the sinfer root_dir
+        if not filename.startswith(root_dir): # 如果文件路径不在 root_dir 范围内，跳过记录
             return
-        # Log every function call or return
         try:
-            last_frame = frame.f_back
+            last_frame = frame.f_back # 获取上一层调用栈信息
             if last_frame is not None:
                 last_filename = last_frame.f_code.co_filename
                 last_lineno = last_frame.f_lineno
                 last_func_name = last_frame.f_code.co_name
             else:
-                # initial frame
+                # 如果是初始帧，设置为空值
                 last_filename = ""
                 last_lineno = 0
                 last_func_name = ""
+            # 打开日志文件，以追加方式写入函数调用或返回信息
             with open(log_path, 'a') as f:
                 if event == 'call':
                     f.write(f"{datetime.datetime.now()} Call to"
@@ -125,7 +119,6 @@ def _trace_calls(log_path, root_dir, frame, event, arg=None):
                             f" to {last_func_name} in {last_filename}:"
                             f"{last_lineno}\n")
         except NameError:
-            # modules are deleted during shutdown
             pass
     return partial(_trace_calls, log_path, root_dir)
 
@@ -133,14 +126,11 @@ def _trace_calls(log_path, root_dir, frame, event, arg=None):
 def enable_trace_function_call(log_file_path: str,
                                root_dir: Optional[str] = None):
     """
-    Enable tracing of every function call in code under `root_dir`.
-    This is useful for debugging hangs or crashes.
-    `log_file_path` is the path to the log file.
-    `root_dir` is the root directory of the code to trace. If None, it is the
-    sinfer root directory.
+    启用对 root_dir 下代码中每个函数调用的跟踪, 这对于调试程序挂起或崩溃非常有用
+    log_file_path: 是日志文件的路径
+    root_dir: 是需要跟踪的代码的根目录. 如果为 None, 则默认为 sinfer 的根目录 
 
-    Note that this call is thread-level, any threads calling this function
-    will have the trace enabled. Other threads will not be affected.
+    此调用是线程级的, 任何调用此函数的线程都会启用跟踪, 其他线程不会受到影响 
     """
     logger.warning(
         "SINFER_TRACE_FUNCTION is enabled. It will record every"

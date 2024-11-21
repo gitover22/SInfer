@@ -1,3 +1,6 @@
+'''
+一个简单的离线推理示例,其中评测结果仅作为参考
+'''
 from sinfer import LLM, SamplingParams
 import time
 # Sample prompts.

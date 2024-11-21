@@ -16,15 +16,13 @@ logger = init_logger(__name__)
 
 def main(args: argparse.Namespace):
     print(args)
-    
-    # NOTE(woosuk): If the request cannot be processed in a single batch,
-    # the engine will automatically process the request in multiple batches.
     llm = LLM(model=args.model,
               tokenizer=args.tokenizer,
               quantization=args.quantization,
               tensor_parallel_size=args.tensor_parallel_size,
               trust_remote_code=args.trust_remote_code,
-              dtype=args.dtype,
+            #   dtype=args.dtype,
+              dtype= "float16",
               enforce_eager=args.enforce_eager,
               kv_cache_dtype=args.kv_cache_dtype,
               quantization_param_path=args.quantization_param_path,
@@ -42,9 +40,6 @@ def main(args: argparse.Namespace):
               skip_tokenizer_init=args.skip_tokenizer_init,
               load_format=args.load_format)
 
-    # Generate a warning if the sum of the input length and output length
-    # is less than the maximum model length, as only the first
-    # `max_model_len` will be processed.
     max_length = args.input_len + args.output_len
     max_model_len = llm.llm_engine.model_config.max_model_len
     if max_length > max_model_len:
@@ -65,7 +60,7 @@ def main(args: argparse.Namespace):
     dummy_prompt_token_ids = np.random.randint(10000,
                                                size=(args.batch_size,
                                                      args.input_len))
-    dummy_prompt_token_ids = dummy_prompt_token_ids.tolist()
+    dummy_prompt_token_ids = dummy_prompt_token_ids.tolist() # 二维列表
 
     def run_to_completion(profile_dir: Optional[str] = None):
         if profile_dir:
@@ -89,6 +84,7 @@ def main(args: argparse.Namespace):
             latency = end_time - start_time
             return latency
 
+    # 需要多次预热
     print("Warming up...")
     for _ in tqdm(range(args.num_iters_warmup), desc="Warmup iterations"):
         run_to_completion(profile_dir=None)
@@ -126,7 +122,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description='Benchmark the latency of processing a single batch of '
         'requests till completion.')
-    parser.add_argument('--model', type=str, default='facebook/opt-125m')
+    parser.add_argument('--model', type=str, default='/home/zouguoqiang/SInfer/models/Meta-Llama-3-8B-Instruct')
     parser.add_argument('--tokenizer', type=str, default=None)
     parser.add_argument('--quantization',
                         '-q',

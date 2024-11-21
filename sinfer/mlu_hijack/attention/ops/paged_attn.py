@@ -8,29 +8,19 @@ from sinfer.attention.ops.paged_attn import PagedAttention
 
 logger = init_logger(__name__)
 
-
 @staticmethod
 def sinfer__attention__ops__paged_attn__PagedAttention__split_kv_cache(
     kv_cache: torch.Tensor,
     num_kv_heads: int,
     head_size: int,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
-    '''
-    =============================
-    Modify by sinfer_mlu
-    =============================
-    @brief: fit bt_ops.reshape_paged_cache shape requirements
-    '''    
+    # fit bt_ops.reshape_paged_cache shape requirements
     num_blocks = kv_cache.shape[1]
     key_cache = kv_cache[0]
     key_cache = key_cache.view(num_blocks, num_kv_heads, -1, head_size)
     value_cache = kv_cache[1]
     value_cache = value_cache.view(num_blocks, num_kv_heads, -1, head_size)
-    '''
-    ==================
-    End of MLU Hijack
-    ==================
-    '''
+
     return key_cache, value_cache
 
 
@@ -41,18 +31,9 @@ def sinfer__attention__ops__paged_attn__PagedAttention__copy_blocks(
 ) -> None:
     key_caches = [kv_cache[0] for kv_cache in kv_caches]
     value_caches = [kv_cache[1] for kv_cache in kv_caches]
-    '''
-    =============================
-    Modify by sinfer_mlu
-    =============================
-    @brief: use bt_ops.copy_blocks
-    '''  
+    # use bt_ops.copy_blocks
     bt_ops.copy_blocks(key_caches, value_caches, src_to_dists)
-    '''
-    ==================
-    End of MLU Hijack
-    ==================
-    '''
+
 
 
 @staticmethod
@@ -61,12 +42,7 @@ def sinfer__attention__ops__paged_attn__PagedAttention__swap_blocks(
     dst_kv_cache: torch.Tensor,
     src_to_dst: Dict[int, int],
 ) -> None:
-    '''
-    =============================
-    Modify by sinfer_mlu
-    =============================
-    @brief: use bt_ops.swap_blocks
-    '''
+    # use bt_ops.swap_blocks
     src_key_cache = src_kv_cache[0]
     dst_key_cache = dst_kv_cache[0]
     bt_ops.swap_blocks(dst_key_cache, src_key_cache, src_to_dst)
@@ -74,12 +50,6 @@ def sinfer__attention__ops__paged_attn__PagedAttention__swap_blocks(
     src_value_cache = src_kv_cache[1]
     dst_value_cache = dst_kv_cache[1]
     bt_ops.swap_blocks(dst_value_cache, src_value_cache, src_to_dst)
-    '''
-    ==================
-    End of MLU Hijack
-    ==================
-    '''
-
 
 MluHijackObject.add_hijack_object(PagedAttention,
                                   PagedAttention.split_kv_cache,
