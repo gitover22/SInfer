@@ -1,4 +1,0 @@
-models/Meta-Llama-3-8B-Instruct
-models/proxy_timeout
-sinfer/**/__pycache__/
-models/test_python.py
