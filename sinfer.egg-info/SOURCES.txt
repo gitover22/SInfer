@@ -8,7 +8,6 @@ requirements-cpu.txt
 requirements-cuda.txt
 setup.py
 cmake/cpu_extension.cmake
-cmake/hipify.py
 cmake/utils.cmake
 ray_mlu/__init__.py
 ray_mlu/mlu.py

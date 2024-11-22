@@ -9,3 +9,4 @@ tools/**/__pycache__/
 .proxy_timeout
 .pytest_cache
 .vscode
+log/

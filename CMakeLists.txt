@@ -2,8 +2,10 @@ cmake_minimum_required(VERSION 3.21)
 
 project(sinfer_extensions LANGUAGES CXX)
 
+# 默认设备类型
 option(SINFER_TARGET_DEVICE "Target device backend for SInfer" "cuda")
 
+# print
 message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
 message(STATUS "Target device: ${SINFER_TARGET_DEVICE}")
 
@@ -20,10 +22,7 @@ set(CUDA_SUPPORTED_ARCHS "7.0;7.5;8.0;8.6;8.9;9.0")
 # CUDA 对应的 PyTorch 版本来源于 pyproject.toml 和各种 requirements.txt 文件，并且需要保持一致
 set(TORCH_SUPPORTED_VERSION_CUDA "2.3.0")
 
-#
-# Try to find python package with an executable that exactly matches
-# `SINFER_PYTHON_EXECUTABLE` and is one of the supported versions.
-#
+# 检查是否设置了 SINFER_PYTHON_EXECUTABLE（目标 Python 解释器路径），如果未设置，会抛出错误
 if (SINFER_PYTHON_EXECUTABLE)
   find_python_from_executable(${SINFER_PYTHON_EXECUTABLE} "${PYTHON_SUPPORTED_VERSIONS}")
 else()
@@ -37,7 +36,7 @@ endif()
 #
 append_cmake_prefix_path("torch" "torch.utils.cmake_prefix_path")
 
-# Ensure the 'nvcc' command is in the PATH
+# 确保 nvcc 可用
 find_program(NVCC_EXECUTABLE nvcc)
 if (CUDA_FOUND AND NOT NVCC_EXECUTABLE)
     message(FATAL_ERROR "nvcc not found")
@@ -111,7 +110,7 @@ endif()
 
 
 #
-# _C extension
+# 定义 _C 扩展模块
 #
 set(SINFER_EXT_SRC
   "csrc/cache_kernels.cu"
@@ -146,7 +145,7 @@ define_gpu_extension_target(
   WITH_SOABI)
 
 #
-# _moe_C extension
+# 定义 _moe_C 扩展模块
 #
 set(SINFER_MOE_EXT_SRC
   "csrc/moe/moe_ops.cpp"
@@ -162,7 +161,7 @@ define_gpu_extension_target(
   WITH_SOABI)
 
 #
-# _punica_C extension
+# 定义 _punica_C 扩展模块
 #
 set(SINFER_PUNICA_EXT_SRC
   "csrc/punica/bgmv/bgmv_bf16_bf16_bf16.cu"

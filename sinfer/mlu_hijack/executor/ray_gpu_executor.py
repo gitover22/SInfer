@@ -7,21 +7,19 @@ import os
 
 def sinfer__executor__ray_gpu_executor__RayGPUExecutor__get_latency(self):
     '''
-    requires that torch.cuda.synchronize() be executed before this function 
-    for getting an accurate reading
+    调用此方法之前，必须执行 torch.cuda.synchronize()，以确保 CUDA 的操作完成（同步 GPU 和 CPU 操作），从而提供准确的延迟数据
     '''
     all_latencies = self._run_workers(method="get_latency")
 
-    # only the driver worker finishes the model.compute_logits() process whereas
-    # the ray workers rest after computing each respective logit.
+    # 只有主驱动节点（driver worker）完成了 model.compute_logits() 过程，而其他 Ray 工作者（workers）在计算各自对应的 logit 后便停止运行
     return all_latencies[0]
 
 def sinfer__executor__ray_gpu_executor__RayGPUExecutor___configure_ray_workers_use_nsight(self,
                                           ray_remote_kwargs) -> Dict[str, Any]:
-    # If nsight profiling is enabled, we need to set the profiling
-    # configuration for the ray workers as runtime env.
+    # 如果启用了 nsight 性能分析，我们需要为 ray workers 设置性能分析配置作为运行时环境
     runtime_env = ray_remote_kwargs.setdefault("runtime_env", {})
-    # get cnperf data on each worker of mlu
+
+    # 获取cnperf data 在每一个mlu的worker上
     runtime_env.update({
         "nsight": {
             "o": os.getcwd(),

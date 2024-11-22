@@ -1,18 +1,17 @@
 Metadata-Version: 2.1
 Name: sinfer
-Version: 1.0.0+mlu.101280c
-Summary: A high-throughput and memory-efficient inference and serving engine for LLMs on MLU backendon
+Version: 1.0.0+mlu.cc18eed
+Summary: A smart inference framework for LLMs on MLU backend
 Home-page: 
 Author: huafeng
 License: Apache 2.0
-Project-URL: Homepage, https://github.com/sinfer-project/sinfer
-Classifier: Programming Language :: Python :: 3.8
+Project-URL: Homepage, https://github.com/gitover22/SInfer
 Classifier: Programming Language :: Python :: 3.9
 Classifier: Programming Language :: Python :: 3.10
 Classifier: Programming Language :: Python :: 3.11
 Classifier: License :: OSI Approved :: Apache Software License
 Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
-Requires-Python: >=3.8
+Requires-Python: >=3.9
 Description-Content-Type: text/markdown
 License-File: LICENSE
 Requires-Dist: cmake>=3.21
@@ -75,7 +74,7 @@ Requires-Dist: tensorizer==2.9.0; extra == "tensorizer"
 
 ## SInfer
 
-SInfer is a framework for efficient inference on heterogeneous CPU/MLU.
+A smart inference framework for LLMs on MLU backend
 
 ### system-level optimizations:
 - chunked-prefill
