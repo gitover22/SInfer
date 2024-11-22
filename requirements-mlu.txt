@@ -1,0 +1,17 @@
+# Common dependencies
+-r requirements-common.txt
+-r requirements-dev.txt
+
+accelerate
+loguru
+
+ray >= 2.5.1
+triton == 3.0.0
+torch == 2.3.0
+torch-mlu >= 1.22.1
+bangtransformer == 1.1.2
+xformers == 0.0.24
+
+
+datasets
+transformers_stream_generator

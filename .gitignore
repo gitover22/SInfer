@@ -1,0 +1,11 @@
+models/Meta-Llama-3-8B-Instruct
+models/proxy_timeout
+models/test_python.py
+sinfer/**/__pycache__/
+tests/**/__pycache__/
+benchmarks/**/__pycache__/
+examples/**/__pycache__/
+tools/**/__pycache__/
+.proxy_timeout
+.pytest_cache
+.vscode

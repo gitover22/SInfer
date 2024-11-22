@@ -18,7 +18,7 @@ sampling_params = SamplingParams(
 )
 print(sampling_params) # __repr__
 
-# 实例化LLM对象
+#    实例化LLM对象
 llm = LLM(model="./Meta-Llama-3-8B-Instruct",trust_remote_code=True,dtype="float16",tensor_parallel_size =4)
 
 s = time.time()
@@ -37,7 +37,7 @@ total_time = e - s
 print("total time: "+str(total_time))
 
 
-tokens_per_second = sum / total_time
+tokens_per_second =    sum / total_time
 
 print(f"Total tokens generated: {sum}")
 print(f"prompts per seconds: {len(prompts)/total_time:.2f}")
