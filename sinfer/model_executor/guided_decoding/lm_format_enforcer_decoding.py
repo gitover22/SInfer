@@ -1,15 +1,12 @@
 from functools import lru_cache
 from json import loads as json_loads
 from typing import Optional, Union
-
 from lmformatenforcer import (CharacterLevelParser, JsonSchemaParser,
                               RegexParser, StringParser,
                               TokenEnforcerTokenizerData, UnionParser)
 from pydantic import BaseModel
-# from lmformatenforcer.integrations.vllm import build_vllm_logits_processor as build_sinfer_logits_processor
-# from lmformatenforcer.integrations.vllm import build_vllm_token_enforcer_tokenizer_data as build_sinfer_token_enforcer_tokenizer_data
-from sinfer_build import build_sinfer_logits_processor
-from sinfer_build import build_sinfer_token_enforcer_tokenizer_data
+from .sinfer_build import build_sinfer_logits_processor
+from .sinfer_build import build_sinfer_token_enforcer_tokenizer_data
 from transformers import PreTrainedTokenizerBase
 
 from sinfer.entrypoints.openai.protocol import (ChatCompletionRequest,
