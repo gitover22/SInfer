@@ -52,7 +52,7 @@ async def lifespan(app: fastapi.FastAPI):
 
     yield
 
-
+# 实例化FastAPI
 app = fastapi.FastAPI(lifespan=lifespan)
 
 
@@ -126,32 +126,32 @@ async def create_completion(request: CompletionRequest, raw_request: Request):
 if __name__ == "__main__":
     args = parse_args()
 
-    app.add_middleware(
+    app.add_middleware(  # 添加 CORS 中间件
         CORSMiddleware,
         allow_origins=args.allowed_origins,
-        allow_credentials=args.allow_credentials,
-        allow_methods=args.allowed_methods,
-        allow_headers=args.allowed_headers,
+        allow_credentials=args.allow_credentials,  # 是否允许发送凭证（如 Cookies
+        allow_methods=args.allowed_methods,   # 允许的 HTTP 方法
+        allow_headers=args.allowed_headers,   # 允许的请求头
     )
 
     if token := envs.SINFER_API_KEY or args.api_key:
 
-        @app.middleware("http")
-        async def authentication(request: Request, call_next):
+        @app.middleware("http") # 定义一个 HTTP 请求的中间件
+        async def authentication(request: Request, call_next):  # 异步认证中间件
             root_path = "" if args.root_path is None else args.root_path
-            if not request.url.path.startswith(f"{root_path}/v1"):
+            if not request.url.path.startswith(f"{root_path}/v1"): # 如果请求路径不以 /v1 开头，直接处理请求
                 return await call_next(request)
             if request.headers.get("Authorization") != "Bearer " + token:
                 return JSONResponse(content={"error": "Unauthorized"},
                                     status_code=401)
-            return await call_next(request)
+            return await call_next(request) # 如果认证通过，继续处理请求
 
-    for middleware in args.middleware:
+    for middleware in args.middleware: # 遍历命令行参数中的 middleware 列表，加载自定义的中间件
         module_path, object_name = middleware.rsplit(".", 1)
         imported = getattr(importlib.import_module(module_path), object_name)
         if inspect.isclass(imported):
-            app.add_middleware(imported)
-        elif inspect.iscoroutinefunction(imported):
+            app.add_middleware(imported) 
+        elif inspect.iscoroutinefunction(imported): # 如果是协程函数，作为 HTTP 中间件添加
             app.middleware("http")(imported)
         else:
             raise ValueError(f"Invalid middleware {middleware}. "

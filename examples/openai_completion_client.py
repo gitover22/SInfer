@@ -1,11 +1,9 @@
 from openai import OpenAI
 
-# Modify OpenAI's API key and API base to use SInfer's API server.
-openai_api_key = "EMPTY"
-openai_api_base = "http://localhost:3344/v1"
+openai_api_key = "token-abc123"
+openai_api_base = "http://localhost:8000/v1"
 
 client = OpenAI(
-    # defaults to os.environ.get("OPENAI_API_KEY")
     api_key=openai_api_key,
     base_url=openai_api_base,
 )
@@ -13,19 +11,21 @@ client = OpenAI(
 models = client.models.list()
 model = models.data[0].id
 
-# Completion API
-stream = False
+stream = False # 流输出
+# @app.post("/v1/completions")
 completion = client.completions.create(
     model=model,
-    prompt="A robot may not injure a human being",
+    prompt="write some python program",
     echo=False,
-    n=2,
+    n=1,
     stream=stream,
     logprobs=3)
 
 print("Completion results:")
 if stream:
     for c in completion:
-        print(c)
+        # 只打印每个返回结果中的文本内容
+        print(c.choices[0].text,end='')  # 获取每个结果中的文本
 else:
-    print(completion)
+    # 如果是非流式输出，打印文本部分
+    print(completion.choices[0].text)

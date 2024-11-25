@@ -20,13 +20,14 @@ user_message = [{
         "role": "user",
         "content": "Where was it played?"
     }]
-# 请求模型生成结果
+# 请求模型生成结果，该方法对应post请求
 completion = client.chat.completions.create(
     model="/home/zouguoqiang/SInfer/models/Meta-Llama-3-8B-Instruct",
     messages=user_message,
-    max_tokens=1000  # 确保生成内容不超过上下文窗口限制
+    # max_tokens=1000  # 确保生成内容不超过上下文窗口限制
 )
-
+# client.models()
+print(client.models)
 # 打印用户输入和模型生成内容
 print("="*50)
 print("User Prompt:", user_message[3]['content'])

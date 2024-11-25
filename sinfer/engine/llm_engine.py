@@ -131,7 +131,7 @@ class LLMEngine:
             model_config.seed,
             model_config.served_model_name,
         )
-        # TODO(woosuk): Print more configs in debug mode.
+        # Print more configs in debug mode.
 
         self.model_config = model_config
         self.cache_config = cache_config

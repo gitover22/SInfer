@@ -52,8 +52,7 @@ class ModelConfig:
         tokenizer_revision: The specific tokenizer version to use. It can be a
             branch name, a tag name, or a commit id. If unspecified, will use
             the default version.
-        max_model_len: Maximum length of a sequence (including prompt and
-            output). If None, will be derived from the model.
+        max_model_len: 一个seq的最大长度 (包括提示和输出). If None, will be derived from the model.
         quantization: Quantization method that was used to quantize the model
             weights. If None, we assume the model weights are not quantized.
         quantization_param_path: Path to JSON file containing scaling factors.
@@ -1193,8 +1192,9 @@ class DecodingConfig:
 
 @dataclass(frozen=True)
 class EngineConfig:
-    """Dataclass which contains all engine-related configuration. This
-    simplifies passing around the distinct configurations in the codebase.
+    """
+    这是一个包含所有引擎相关配置的 `dataclass`
+    它简化了在代码库中传递不同配置的过程。
     """
 
     model_config: ModelConfig
@@ -1220,7 +1220,8 @@ class EngineConfig:
                 self.scheduler_config)
 
     def to_dict(self):
-        """Return the configs as a dictionary, for use in **kwargs.
+        """
+        将 EngineConfig 类的所有配置项以字典的形式返回
         """
         return dict(
             (field.name, getattr(self, field.name)) for field in fields(self))

@@ -14,15 +14,15 @@ logger = init_logger(__name__)
 class GPUExecutor(ExecutorBase):
 
     def _init_executor(self) -> None:
-        """Initialize the worker and load the model.
+        """初始化worker并加载模型
 
-        If speculative decoding is enabled, we instead create the speculative
-        worker.
+        
+       
         """
         if self.speculative_config is None:
-            self._init_non_spec_worker()
+            self._init_non_spec_worker() # 初始化
         else:
-            self._init_spec_worker()
+            self._init_spec_worker() # 初始化推测解码
 
     def _get_worker_kwargs(
             self,
@@ -64,9 +64,9 @@ class GPUExecutor(ExecutorBase):
         assert self.parallel_config.world_size == 1, (
             "GPUExecutor only supports single GPU.")
 
-        self.driver_worker = self._create_worker()
-        self.driver_worker.init_device()
-        self.driver_worker.load_model()
+        self.driver_worker = self._create_worker() # 创建worker
+        self.driver_worker.init_device() # 初始化设备
+        self.driver_worker.load_model() # 加载模型
 
     def _init_spec_worker(self):
         """Initialize a SpecDecodeWorker, using a draft model for proposals.

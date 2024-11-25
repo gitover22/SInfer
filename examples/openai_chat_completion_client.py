@@ -1,8 +1,7 @@
 from openai import OpenAI
 
-# Modify OpenAI's API key and API base to use SInfer's API server.
-openai_api_key = "EMPTY"
-openai_api_base = "http://localhost:3344/v1"
+openai_api_key = "token-abc123"
+openai_api_base = "http://localhost:8000/v1"
 
 client = OpenAI(
     # defaults to os.environ.get("OPENAI_API_KEY")
@@ -12,7 +11,7 @@ client = OpenAI(
 
 models = client.models.list()
 model = models.data[0].id
-
+# @app.post("/v1/chat/completions")
 chat_completion = client.chat.completions.create(
     messages=[{
         "role": "system",

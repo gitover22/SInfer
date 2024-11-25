@@ -916,13 +916,9 @@ class Scheduler:
         )
 
     def schedule(self) -> Tuple[List[SequenceGroupMetadata], SchedulerOutputs]:
-        # Schedule sequence groups.
-        # This function call changes the internal states of the scheduler
-        # such as self.running, self.swapped, and self.waiting.
         scheduler_outputs = self._schedule() # 获取调度输出
         now = time.time()
 
-        # Create input data structures.
         seq_group_metadata_list: List[SequenceGroupMetadata] = []
         for i, scheduled_seq_group in enumerate(
                 scheduler_outputs.scheduled_seq_groups):

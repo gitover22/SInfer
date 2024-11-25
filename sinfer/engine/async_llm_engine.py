@@ -79,7 +79,9 @@ class AsyncStream:
 
 
 class RequestTracker:
-    """Synchronous abstraction for tracking requests."""
+    """
+    负责管理和追踪多个异步请求的状态和数据流
+    """
 
     def __init__(self) -> None:
         self._request_streams: Dict[str, AsyncStream] = {}
@@ -194,17 +196,11 @@ class RequestTracker:
 
 
 class _AsyncLLMEngine(LLMEngine):
-    """Extension of LLMEngine to add async methods."""
+    """对原始的 LLMEngine 类进行扩展，增加了异步方法，核心目的是实现异步推理支持"""
 
     async def step_async(self) -> List[RequestOutput]:
-        """Performs one decoding iteration and returns newly generated results.
-        The workers are ran asynchronously if possible.
-
-        This function performs one decoding iteration of the engine. It first
-        schedules the sequences to be executed in the next iteration and the
-        token blocks to be swapped in/out/copy. Then, it executes the model
-        and updates the scheduler with the model outputs. Finally, it decodes
-        the sequences and returns the newly generated results.
+        """执行一次解码迭代并返回新生成的结果。
+        该函数执行引擎的一次解码迭代。首先，它会调度下一次迭代中需要执行的序列以及需要交换（载入/移出/复制）的 token 块。然后，执行模型推理，并使用模型的输出更新调度器。最后，它对序列进行解码并返回新生成的结果
         """
         seq_group_metadata_list, scheduler_outputs = self.scheduler.schedule()
 
@@ -227,7 +223,6 @@ class _AsyncLLMEngine(LLMEngine):
             output, scheduler_outputs.scheduled_seq_groups,
             scheduler_outputs.ignored_seq_groups, seq_group_metadata_list)
 
-        # Log stats.
         self.do_log_stats(scheduler_outputs, output)
 
         return request_outputs
@@ -281,7 +276,7 @@ class _AsyncLLMEngine(LLMEngine):
 
 
 class AsyncLLMEngine:
-    """An asynchronous wrapper for LLMEngine.
+    """对LLMEngine的异步包装
 
     This class is used to wrap the LLMEngine class to make it asynchronous. It
     uses asyncio to create a background loop that keeps processing incoming
@@ -304,7 +299,7 @@ class AsyncLLMEngine:
         start_engine_loop: If True, the background task to run the engine
             will be automatically started in the generate call.
         *args: Arguments for LLMEngine.
-        *kwargs: Arguments for LLMEngine.
+        **kwargs: Arguments for LLMEngine.
     """
 
     _engine_class: Type[_AsyncLLMEngine] = _AsyncLLMEngine
@@ -324,9 +319,9 @@ class AsyncLLMEngine:
         self.engine = self._init_engine(*args, **kwargs)
 
         self.background_loop: Optional[asyncio.Future] = None
-        # We need to keep a reference to unshielded
-        # task as well to prevent it from being garbage
-        # collected
+
+        # 需要保持对未加保护的（unshielded）任务的引用
+        # 以防止它被垃圾回收
         self._background_loop_unshielded: Optional[asyncio.Task[Any]] = None
         self.start_engine_loop = start_engine_loop
         self._errored_with: Optional[BaseException] = None
@@ -341,9 +336,9 @@ class AsyncLLMEngine:
         start_engine_loop: bool = True,
         usage_context: UsageContext = UsageContext.ENGINE_CONTEXT,
     ) -> "AsyncLLMEngine":
-        """Creates an async LLM engine from the engine arguments."""
+        """创建一个异步的LLMEngine"""
         # Create the engine configs.
-        engine_config = engine_args.create_engine_config()
+        engine_config = engine_args.create_engine_config() # 创建一个EngineConfig实例
 
         if engine_config.device_config.device_type == "neuron":
             from sinfer.executor.neuron_executor import NeuronExecutorAsync
@@ -361,8 +356,8 @@ class AsyncLLMEngine:
             assert engine_config.parallel_config.world_size == 1, (
                 "Ray is required if parallel_config.world_size > 1.")
             from sinfer.executor.gpu_executor import GPUExecutorAsync
-            executor_class = GPUExecutorAsync
-        # Create the async LLM engine.
+            executor_class = GPUExecutorAsync    # tensor-parallel-size = 1 时
+        # 创建异步LLM engine
         engine = cls(
             engine_config.parallel_config.worker_use_ray,
             engine_args.engine_use_ray,
@@ -429,7 +424,7 @@ class AsyncLLMEngine:
         elif self.worker_use_ray:
             engine_class = ray.remote(num_cpus=0)(self._engine_class).remote
         else:
-            # FIXME(woosuk): This is a bit hacky. Be careful when changing the
+            # This is a bit hacky. Be careful when changing the
             # order of the arguments.
             cache_config = kwargs["cache_config"]
             parallel_config = kwargs["parallel_config"]
@@ -684,13 +679,10 @@ class AsyncLLMEngine:
         return self._abort(request_id)
 
     def _abort(self, request_id: str) -> None:
-        """Abort a request.
-
-        Abort a submitted request. If the request is finished or not found,
+        """终止一个已提交的request. 
+        If the request is finished or not found,
         this method will be a no-op.
 
-        Args:
-            request_id: The unique id of the request.
         """
         self._request_tracker.abort_request(request_id,
                                             verbose=self.log_requests)

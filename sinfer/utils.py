@@ -170,26 +170,24 @@ def random_uuid() -> str:
 @lru_cache(maxsize=None)
 def get_sinfer_instance_id():
     """
-    If the environment variable SINFER_INSTANCE_ID is set, return it.
-    Otherwise, return a random UUID.
-    Instance id represents an instance of the SINFER. All processes in the same
-    instance should have the same instance id.
+    如果环境变量 SINFER_INSTANCE_ID 已设置，则返回它。
+    否则返回一个随机的 UUID。
+    实例 ID 表示一个 SINFER 的实例，所有属于同一实例的进程应该共享相同的实例 ID。
     """
+    # 检查环境变量是否已定义，如果未定义则生成随机 UUID
     return envs.SINFER_INSTANCE_ID or f"sinfer-instance-{random_uuid()}"
 
 
 @lru_cache(maxsize=None)
 def in_wsl() -> bool:
-    # Reference: https://github.com/microsoft/WSL/issues/4071
+    # 检查系统信息中是否包含 "microsoft" 以识别 WSL 环境
     return "microsoft" in " ".join(uname()).lower()
 
 
 def make_async(func: Callable[..., T]) -> Callable[..., Awaitable[T]]:
-    """Take a blocking function, and run it on in an executor thread.
-
-    This function prevents the blocking function from blocking the
-    asyncio event loop.
-    The code in this function needs to be thread safe.
+    """
+    将一个阻塞的函数(同步函数)转换为异步函数，从而避免阻塞 asyncio 事件循环。
+    它通过将阻塞函数放入线程池中运行，确保主事件循环能够继续处理其他任务
     """
 
     def _async_wrapper(*args, **kwargs) -> asyncio.Future:

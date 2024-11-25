@@ -9,11 +9,10 @@ from sinfer.sequence import ExecuteModelRequest, SamplerOutput
 
 
 class ExecutorBase(ABC):
-    """Base class for all executors.
+    """所有executors的基类
 
-    An executor is responsible for executing the model on a specific device
-    type (e.g., CPU, GPU, Neuron, etc.). Or it can be a distributed executor
-    that can execute the model on multiple devices.
+    执行器负责在特定的设备类型（例如 CPU、GPU、Neuron 等）上执行模型。
+    或者，它可以是一个分布式执行器，能够在多个设备上执行模型。
     """
 
     def __init__(

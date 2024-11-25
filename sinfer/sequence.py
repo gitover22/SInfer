@@ -1,4 +1,3 @@
-"""Sequence and its related classes."""
 import copy
 import enum
 from dataclasses import dataclass, field
@@ -10,7 +9,6 @@ from sinfer.sampling_params import SamplingParams
 
 if TYPE_CHECKING:
     import torch
-
     from sinfer.spec_decode.metrics import SpecDecodeWorkerMetrics
 
 
@@ -636,8 +634,7 @@ class SequenceOutput:
     """The model output associated with a sequence.
 
     Args:
-        parent_seq_id: The ID of the parent sequence (for forking in beam
-            search).
+        parent_seq_id: The ID of the parent sequence (for forking in beam search).
         output_token: The output token ID.
         logprobs: The logprobs of the output token.
             (Token id -> logP(x_i+1 | x_0, ..., x_i))
