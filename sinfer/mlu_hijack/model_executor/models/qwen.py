@@ -25,19 +25,11 @@ def sinfer__module_executor__models__qwen__QwenAttention__forward(
 ) -> torch.Tensor:
     qkv, _ = self.c_attn(hidden_states)
     q, k, v = qkv.chunk(chunks=3, dim=-1)
-    '''
-    =============================
-    Modify by sinfer_mlu
-    =============================
-    @brief: pack q & k to fit bt_ops.apply_rotary
-    ''' 
+    
+    # pack q & k to fit bt_ops.apply_rotary
     qk, _ = qkv.split([self.head_dim * self.num_heads * 2, self.head_dim * self.num_heads], dim=-1)
     self.rotary_emb(positions, qk.view(-1, self.num_heads + self.num_heads, self.head_dim))
-    '''
-    ==================
-    End of MLU Hijack
-    ==================
-    '''
+  
     attn_output = self.attn(q, k, v, kv_cache, attn_metadata)
     output, _ = self.c_proj(attn_output)
     return output
@@ -61,12 +53,7 @@ def sinfer__module_executor__models__qwen__QWenBlock__init__(
                               quant_config=quant_config)
 
     self.ln_2 = RMSNorm(config.hidden_size, eps=config.layer_norm_epsilon)
-    '''
-    =============================
-    Modify by sinfer_mlu
-    =============================
-    @brief: use FeedForward instead of MLP
-    '''
+    # use FeedForward instead of MLP
     self.mlp = FeedForward(hidden_size=config.hidden_size,
                             intermediate_size=config.intermediate_size // 2,
                             hidden_act='silu',
@@ -75,12 +62,6 @@ def sinfer__module_executor__models__qwen__QWenBlock__init__(
                             down_proj_name='c_proj',
                             bias=False,
                             quant_config=quant_config)
-    '''
-    ==================
-    End of MLU Hijack
-    ==================
-    '''
-
 
 MluHijackObject.add_hijack_object(QWenAttention,
                                   QWenAttention.forward,

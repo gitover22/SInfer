@@ -607,10 +607,10 @@ class SchedulerConfig:
         max_num_batched_tokens: Optional[int],
         max_num_seqs: int,
         max_model_len: int,
-        use_v2_block_manager: bool = False,
+        use_v2_block_manager: bool = False, # 默认使用v1
         num_lookahead_slots: int = 0,
         delay_factor: float = 0.0,
-        enable_chunked_prefill: bool = False,
+        enable_chunked_prefill: bool = False, # 默认不开启
     ) -> None:
         if max_num_batched_tokens is not None:
             self.max_num_batched_tokens = max_num_batched_tokens

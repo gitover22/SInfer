@@ -25,20 +25,11 @@ def sinfer__module_executor__models__baichuan__BaiChuanAttention__forward(
 ) -> torch.Tensor:
     qkv, _ = self.W_pack(hidden_states)
     q, k, v = qkv.chunk(chunks=3, dim=-1)
-    '''
-    =============================
-    Modify by sinfer_mlu
-    =============================
-    @brief: pack q & k to fit bt_ops.apply_rotary
-    ''' 
+    # pack q & k to fit bt_ops.apply_rotary
     qk, _ = qkv.split([self.num_heads * self.head_dim * 2, self.num_heads * self.head_dim], dim=-1)
     if self.postion_embedding != "ALIBI":
         self.rotary_emb(positions, qk.view(-1, self.num_heads + self.num_heads, self.head_dim))
-    '''
-    ==================
-    End of MLU Hijack
-    ==================
-    '''
+     
     attn_output = self.attn(q, k, v, kv_cache, attn_metadata)
     output, _ = self.o_proj(attn_output)
     return output
@@ -63,12 +54,7 @@ def sinfer__module_executor__models__baichuan__BaiChuanDecoderLayer__init__(
         max_position_embeddings=max_position_embeddings,
         quant_config=quant_config,
     )
-    '''
-    =============================
-    Modify by sinfer_mlu
-    =============================
-    @brief: use FeedForward instead of MLP
-    '''
+    # use FeedForward instead of MLP
     self.mlp = FeedForward(hidden_size=config.hidden_size,
                             intermediate_size=config.intermediate_size,
                             hidden_act='silu',
@@ -77,11 +63,7 @@ def sinfer__module_executor__models__baichuan__BaiChuanDecoderLayer__init__(
                             down_proj_name='down_proj',
                             bias=False,
                             quant_config=quant_config)
-    '''
-    ==================
-    End of MLU Hijack
-    ==================
-    '''
+     
     self.input_layernorm = RMSNorm(config.hidden_size,
                                     eps=config.rms_norm_eps)
     self.post_attention_layernorm = RMSNorm(config.hidden_size,

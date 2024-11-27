@@ -38,10 +38,11 @@ class SequenceStatus(enum.Enum):
     WAITING = enum.auto()
     RUNNING = enum.auto()
     SWAPPED = enum.auto()
-    FINISHED_STOPPED = enum.auto()
-    FINISHED_LENGTH_CAPPED = enum.auto()
-    FINISHED_ABORTED = enum.auto()
-    FINISHED_IGNORED = enum.auto()
+    # 四种完成状态
+    FINISHED_STOPPED = enum.auto()  # 正常完成 eos
+    FINISHED_LENGTH_CAPPED = enum.auto() # seq的长度达到最大长度限制，而结束推理
+    FINISHED_ABORTED = enum.auto() # 不正常状态，而被终止的推理
+    FINISHED_IGNORED = enum.auto() # 因prompt过长而被终止执行的推理(忽略)
 
     @staticmethod
     def is_finished(status: "SequenceStatus") -> bool:
@@ -221,7 +222,7 @@ class Sequence:
         self.output_text = ""
 
         self.logical_token_blocks: List[LogicalTokenBlock] = [] # 每个seq都会维护自己的逻辑块列表
-        # Initialize the logical token blocks with the prompt token ids.
+        # 使用提示(prompt)的token ID初始化逻辑token块。
         self._append_tokens_to_blocks(prompt_token_ids)
         self.status = SequenceStatus.WAITING
         self.stop_reason: Union[int, str, None] = None
@@ -271,17 +272,23 @@ class Sequence:
         self.logical_token_blocks.append(block)
 
     def _append_tokens_to_blocks(self, token_ids: List[int]) -> None:
+        """
+        将token_ids动态填入逻辑块列表中
+        Args:
+            token_ids: prompt部分的token_ids
+        """
         cursor = 0
+        # 遍历prompt token_ids中的每一个token_id
         while cursor < len(token_ids):
-            if not self.logical_token_blocks:
-                self._append_logical_block()
+            if not self.logical_token_blocks: # 如果当前逻辑块列表（logical_token_blocks）为空
+                self._append_logical_block() # 则先append一个逻辑块，该逻辑块index为0，大小为16，其中的每一个token_id为-1
 
-            last_block = self.logical_token_blocks[-1]
-            if last_block.is_full():
-                self._append_logical_block()
-                last_block = self.logical_token_blocks[-1]
+            last_block = self.logical_token_blocks[-1] # 取出逻辑块列表中的最后一个逻辑块
+            if last_block.is_full(): # 如果这最后一个逻辑块中已经没有槽位
+                self._append_logical_block() # 那么再append一个空的逻辑块
+                last_block = self.logical_token_blocks[-1] # 把这个新append的逻辑块取出来
 
-            num_empty_slots = last_block.get_num_empty_slots()
+            num_empty_slots = last_block.get_num_empty_slots()  # 检查当前取出的逻辑块中空槽位的数量
             last_block.append_tokens(token_ids[cursor:cursor +
                                                num_empty_slots])
             cursor += num_empty_slots
@@ -398,7 +405,7 @@ class SequenceGroup:
     """A group of sequences that are generated from the same prompt.
 
     Args:
-        request_id: The ID of the request.
+        request_id: 请求id, 一个SG就是一个请求, 对应一个id
         seqs: The list of sequences.
         sampling_params: The sampling parameters used to generate the outputs.
         arrival_time: The arrival time of the request.
@@ -479,20 +486,20 @@ class SequenceGroup:
         self.metrics.finished_time = time
 
     def get_max_num_running_seqs(self) -> int:
-        """The maximum number of sequences running in parallel in the remaining
-        lifetime of the request."""
+        """
+        该seq_group在剩余生命周期内并行运行的最大seq数量
+        剩余生命周期指从此刻一直到seq_group中所有的seq都做完推理
+        用于估计若当前对一个seq_group做推理, 它将消耗多少gpu资源
+        """
         if self.sampling_params.use_beam_search:
-            # For beam search, maximally there will always be `best_of` beam
-            # candidates running in the future.
+            # 若采用beam search，每1个推理阶段都是best_of（束宽）个seq在running
             return self.sampling_params.best_of
         else:
             if self.sampling_params.best_of > self.num_seqs():
-                # At prompt stage, the sequence group is not yet filled up
-                # and only have one sequence running. However, in the
-                # generation stage, we will have `best_of` sequences running.
+                # 不适用束搜索时，best_of默认和n一致，即1个prompt产出n个outputs
+                # 如果出现best_of > self.num_seqs()的情况，说明该seq_group刚从waiting变成running，准备做推理
                 return self.sampling_params.best_of
-            # At sampling stages, return the number of actual sequences
-            # that are not finished yet.
+            # 其余情况，返回未完成推理的seq数量
             return self.num_unfinished_seqs()
 
     def get_seqs(
@@ -525,8 +532,7 @@ class SequenceGroup:
         return num_uncomputed_tokens
 
     def num_seqs(self, status: Optional[SequenceStatus] = None) -> int:
-        # Optimization. We don't need to call get_seqs if we don't need to
-        # filter by states.
+        # 获取序列组中的序列数量
         if status is None:
             return len(self.seqs_dict)
 

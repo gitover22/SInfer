@@ -29,20 +29,11 @@ def sinfer__module_executor__models__falcon__FalconAttention__forward(
     if bias is not None:
         qkv += bias
     q, k, v = qkv.split([self.q_size, self.kv_size, self.kv_size], dim=-1)
-    '''
-    =============================
-    Modify by sinfer_mlu
-    =============================
-    @brief: pack q & k to fit bt_ops.apply_rotary
-    ''' 
+    # pack q & k to fit bt_ops.apply_rotary
     if self.use_rotary:
         qk, _ = qkv.split([self.q_size + self.kv_size, self.kv_size], dim=-1)
         self.rotary_emb(positions, qk.view(-1, self.num_heads + self.num_kv_heads, self.head_dim))
-    '''
-    ==================
-    End of MLU Hijack
-    ==================
-    '''
+    
     attn_output = self.attn(q, k, v, kv_cache, attn_metadata)
     attn_output, bias = self.dense(attn_output)
     return attn_output, bias
@@ -61,12 +52,7 @@ def sinfer__module_executor__models__falcon__FalconDecoderLayer____init__(
 
     self.reduce_row_parallel_results = not (config.new_decoder_architecture
                                             or config.parallel_attn)
-    '''
-    =============================
-    Modify by sinfer_mlu
-    =============================
-    @brief: use FeedForward instead of MLP
-    '''
+    # use FeedForward instead of MLP
     self.mlp = FeedForward(hidden_size=hidden_size,
                             intermediate_size=hidden_size * 4,
                             hidden_act='gelu',
@@ -77,11 +63,7 @@ def sinfer__module_executor__models__falcon__FalconDecoderLayer____init__(
                             quant_config=quant_config,
                             skip_bias_add=True,
                             reduce_results=self.reduce_row_parallel_results)
-    '''
-    ==================
-    End of MLU Hijack
-    ==================
-    '''
+    
     if config.new_decoder_architecture:
         # The layer norm before self-attention
         self.ln_attn = LayerNorm(hidden_size,

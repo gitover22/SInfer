@@ -278,27 +278,27 @@ class BlockSpaceManagerV1(BlockSpaceManager):
 
     def can_allocate(self, seq_group: SequenceGroup) -> AllocStatus:
         '''
-        是否可以给这个seq_group分配物理块, 返回结果有三种情况：
+        是否可以给这个处于waiting队列的seq_group分配物理块做prefill, 返回结果有三种情况：
         - AllocStatus.NEVER 永不分配
         - AllocStatus.OK 可以分配
         - AllocStatus.LATER 延迟分配
         '''
-        seq = seq_group.get_seqs(status=SequenceStatus.WAITING)[0]
-        num_required_blocks = len(seq.logical_token_blocks)
+        seq = seq_group.get_seqs(status=SequenceStatus.WAITING)[0] # waiting队列中都是prefill阶段的序列，且只有一个序列
+        num_required_blocks = len(seq.logical_token_blocks) # 这个序列的所有逻辑块数量
 
         if self.block_sliding_window is not None:
             num_required_blocks = min(num_required_blocks,
                                       self.block_sliding_window)
-        num_free_gpu_blocks = self.gpu_allocator.get_num_free_blocks()
+        num_free_gpu_blocks = self.gpu_allocator.get_num_free_blocks() # 获取所有可用物理块数量
 
-        # Use watermark to avoid frequent cache eviction.
+        # 设备中所有的物理块数量 - 该seq实际需要的物理块数量 < 水位线block数量，则不分配（说明当前seq太长了）
         if (self.num_total_gpu_blocks - num_required_blocks <
                 self.watermark_blocks):
             return AllocStatus.NEVER
-        if num_free_gpu_blocks - num_required_blocks >= self.watermark_blocks:
+        if num_free_gpu_blocks - num_required_blocks >= self.watermark_blocks:  # 如果设备中可用的物理块数量 - 该seq实际需要的block数量 >= 水位线block数量，则分配
             return AllocStatus.OK
         else:
-            return AllocStatus.LATER
+            return AllocStatus.LATER         # 否则，现在不能分配，但可以延迟分配
 
     def allocate(self, seq_group: SequenceGroup) -> None:
         """
@@ -339,13 +339,16 @@ class BlockSpaceManagerV1(BlockSpaceManager):
     def can_append_slots(self,
                          seq_group: SequenceGroup,
                          num_lookahead_slots: int = 0) -> bool:
+        '''能否为seq_group分配物理块做decode
+        检查对于SG中的每一个seq, 是否能至少分配一个空闲物理块给它(考虑最坏情况)
+        '''
         assert (num_lookahead_slots == 0
                 ), "lookahead allocation not supported in BlockSpaceManagerV1"
 
         # Simple heuristic: If there is at least one free block
         # for each sequence, we can append.
-        num_free_gpu_blocks = self.gpu_allocator.get_num_free_blocks()
-        num_seqs = seq_group.num_seqs(status=SequenceStatus.RUNNING)
+        num_free_gpu_blocks = self.gpu_allocator.get_num_free_blocks() # 获取所有可用的物理块数量 
+        num_seqs = seq_group.num_seqs(status=SequenceStatus.RUNNING) # 获取序列组中所有处于running状态的序列数量
         return num_seqs <= num_free_gpu_blocks
 
     def _promote_last_block(

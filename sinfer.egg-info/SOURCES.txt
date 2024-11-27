@@ -94,7 +94,6 @@ sinfer/executor/distributed_gpu_executor.py
 sinfer/executor/executor_base.py
 sinfer/executor/gpu_executor.py
 sinfer/executor/multiproc_worker_utils.py
-sinfer/executor/neuron_executor.py
 sinfer/executor/ray_gpu_executor.py
 sinfer/executor/ray_utils.py
 sinfer/logging/__init__.py
@@ -183,6 +182,7 @@ sinfer/model_executor/guided_decoding/__init__.py
 sinfer/model_executor/guided_decoding/lm_format_enforcer_decoding.py
 sinfer/model_executor/guided_decoding/outlines_decoding.py
 sinfer/model_executor/guided_decoding/outlines_logits_processors.py
+sinfer/model_executor/guided_decoding/sinfer_build.py
 sinfer/model_executor/layers/__init__.py
 sinfer/model_executor/layers/activation.py
 sinfer/model_executor/layers/layernorm.py

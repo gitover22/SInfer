@@ -95,7 +95,6 @@ class EngineArgs:
             parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
         """Shared CLI arguments for SInfer engine."""
 
-        # Model arguments
         parser.add_argument(
             '--model',
             type=str,

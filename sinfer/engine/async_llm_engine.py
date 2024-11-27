@@ -340,10 +340,7 @@ class AsyncLLMEngine:
         # Create the engine configs.
         engine_config = engine_args.create_engine_config() # 创建一个EngineConfig实例
 
-        if engine_config.device_config.device_type == "neuron":
-            from sinfer.executor.neuron_executor import NeuronExecutorAsync
-            executor_class = NeuronExecutorAsync
-        elif engine_config.device_config.device_type == "cpu":
+        if engine_config.device_config.device_type == "cpu":
             assert not engine_config.parallel_config.worker_use_ray, (
                 "Ray is not supported with the CPU backend.")
             from sinfer.executor.cpu_executor import CPUExecutorAsync

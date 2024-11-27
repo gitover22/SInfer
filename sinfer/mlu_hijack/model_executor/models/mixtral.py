@@ -20,19 +20,10 @@ def sinfer__module_executor__models__mixtral__MixtralAttention__forward(
 ) -> torch.Tensor:
     qkv, _ = self.qkv_proj(hidden_states)
     q, k, v = qkv.split([self.q_size, self.kv_size, self.kv_size], dim=-1)
-    '''
-    =============================
-    Modify by sinfer_mlu
-    =============================
-    @brief: pack q & k to fit bt_ops.apply_rotary
-    ''' 
+    # pack q & k to fit bt_ops.apply_rotary
     qk, _ = qkv.split([self.q_size + self.kv_size, self.kv_size], dim=-1)
     self.rotary_emb(positions, qk.view(-1, self.num_heads + self.num_kv_heads, self.head_dim))
-    '''
-    ==================
-    End of MLU Hijack
-    ==================
-    '''
+    
     attn_output = self.attn(q, k, v, kv_cache, attn_metadata)
     output, _ = self.o_proj(attn_output)
     return output
@@ -45,12 +36,7 @@ def sinfer__module_executor__models__mixtral__MixtralMoE__forward(
     hidden_states = hidden_states.view(-1, self.hidden_size)
     # router_logits: (num_tokens, n_experts)
     router_logits, _ = self.gate(hidden_states)
-    '''
-    =============================
-    Modify by sinfer_mlu
-    =============================
-    @brief: use bt_ops.fused_moe
-    ''' 
+    # use bt_ops.fused_moe
     final_hidden_states = bt_ops.fused_moe(hidden_states,
                                            router_logits,
                                            self.w13_weight,
@@ -66,11 +52,6 @@ def sinfer__module_executor__models__mixtral__MixtralMoE__forward(
                                            True,
                                            True,
                                            'silu')
-    '''
-    ==================
-    End of MLU Hijack
-    ==================
-    '''
 
     if self.tp_size > 1:
         final_hidden_states = tensor_model_parallel_all_reduce(

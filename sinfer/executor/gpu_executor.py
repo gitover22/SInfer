@@ -15,9 +15,6 @@ class GPUExecutor(ExecutorBase):
 
     def _init_executor(self) -> None:
         """初始化worker并加载模型
-
-        
-       
         """
         if self.speculative_config is None:
             self._init_non_spec_worker() # 初始化

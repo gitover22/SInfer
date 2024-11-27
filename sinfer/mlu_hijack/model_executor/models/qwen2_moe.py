@@ -28,19 +28,11 @@ def sinfer__module_executor__models__qwen2moe__Qwen2MoeAttention__forward(
 ) -> torch.Tensor:
     qkv, _ = self.qkv_proj(hidden_states)
     q, k, v = qkv.split([self.q_size, self.kv_size, self.kv_size], dim=-1)
-    '''
-    =============================
-    Modify by sinfer_mlu
-    =============================
-    @brief: pack q & k to fit bt_ops.apply_rotary
-    ''' 
+
+    # pack q & k to fit bt_ops.apply_rotary
     qk, _ = qkv.split([self.q_size + self.kv_size, self.kv_size], dim=-1)
     self.rotary_emb(positions, qk.view(-1, self.num_heads + self.num_kv_heads, self.head_dim))
-    '''
-    ==================
-    End of MLU Hijack
-    ==================
-    '''
+
     attn_output = self.attn(q, k, v, kv_cache, attn_metadata)
     output, _ = self.o_proj(attn_output)
     return output
@@ -71,12 +63,8 @@ def sinfer__module_executor__models__qwen2moe__Qwen2MoeDecoderLayer____init__(
         self.mlp = Qwen2MoeSparseMoeBlock(config=config,
                                           quant_config=quant_config)
     else:
-        '''
-        =============================
-        Modify by sinfer_mlu
-        =============================
-        @brief: use FeedForward instead of MLP
-        '''
+
+        # use FeedForward instead of MLP
         self.mlp = FeedForward(hidden_size=config.hidden_size,
                                intermediate_size=config.intermediate_size,
                                hidden_act='silu',
@@ -85,11 +73,7 @@ def sinfer__module_executor__models__qwen2moe__Qwen2MoeDecoderLayer____init__(
                                down_proj_name='down_proj',
                                bias=False,
                                quant_config=quant_config)
-        '''
-        ==================
-        End of MLU Hijack
-        ==================
-        '''
+        
     self.input_layernorm = RMSNorm(config.hidden_size,
                                    eps=config.rms_norm_eps)
     self.post_attention_layernorm = RMSNorm(config.hidden_size,
@@ -111,12 +95,7 @@ def sinfer__module_executor__models__qwen2moe__Qwen2MoeSparseMoeBlock____init__(
             f"Tensor parallel size {self.tp_size} is greater than "
             f"the number of experts {self.n_routed_experts}.")
 
-    '''
-    =============================
-    Modify by sinfer_mlu
-    =============================
-    @brief: replace weight_loader for experts
-    '''
+    # replace weight_loader for experts
     self.moe_intermediate_size = self.config.moe_intermediate_size // self.tp_size
     self.w1 = nn.Parameter(
         torch.empty(self.config.num_experts,
@@ -135,23 +114,13 @@ def sinfer__module_executor__models__qwen2moe__Qwen2MoeSparseMoeBlock____init__(
     set_weight_attrs(self.w2, {
         "weight_loader": self.weight_loader,
     })
-    '''
-    ==================
-    End of MLU Hijack
-    ==================
-    '''
 
     self.gate = ReplicatedLinear(config.hidden_size,
                                  self.n_routed_experts,
                                  bias=False,
                                  quant_config=None)
     if config.shared_expert_intermediate_size > 0:
-        '''
-        =============================
-        Modify by sinfer_mlu
-        =============================
-        @brief: use FeedForward instead of MLP
-        '''
+        # use FeedForward instead of MLP
         self.shared_expert = FeedForward(hidden_size=config.hidden_size,
                                          intermediate_size=config.shared_expert_intermediate_size,
                                          hidden_act='silu',
@@ -161,11 +130,7 @@ def sinfer__module_executor__models__qwen2moe__Qwen2MoeSparseMoeBlock____init__(
                                          bias=False,
                                          quant_config=quant_config,
                                          reduce_results=False)
-        '''
-        ==================
-        End of MLU Hijack
-        ==================
-        '''
+    
     else:
         self.shared_expert = None
     self.shared_expert_gate = torch.nn.Linear(config.hidden_size,
@@ -187,12 +152,7 @@ def sinfer__module_executor__models__qwen2moe__Qwen2MoeSparseMoeBlock__forward(
 
     # router_logits: (num_tokens, n_experts)
     router_logits, _ = self.gate(hidden_states)
-    '''
-    =============================
-    Modify by sinfer_mlu
-    =============================
-    @brief: use bt_ops.fused_moe 
-    ''' 
+    # use bt_ops.fused_moe 
     final_hidden_states = bt_ops.fused_moe(hidden_states,
                                            router_logits,
                                            self.w1,
@@ -208,11 +168,6 @@ def sinfer__module_executor__models__qwen2moe__Qwen2MoeSparseMoeBlock__forward(
                                            self.config.norm_topk_prob,
                                            True,
                                            'silu')
-    '''
-    ==================
-    End of MLU Hijack
-    ==================
-    '''
 
     if shared_output is not None:
         final_hidden_states = final_hidden_states + shared_output
@@ -252,12 +207,8 @@ def sinfer__module_executor__models__qwen2moe__Qwen2MoeForCausalLM__load_weights
         ("gate_up_proj", "gate_proj", 0),
         ("gate_up_proj", "up_proj", 1),
     ]
-    '''
-    =============================
-    Modify by sinfer_mlu
-    =============================
-    @brief: load weights for experts
-    ''' 
+
+    # load weights for experts
     expert_params_mapping = [
         # These are the weights for the experts
         # (param_name, weight_name, expert_id)
@@ -266,21 +217,11 @@ def sinfer__module_executor__models__qwen2moe__Qwen2MoeForCausalLM__load_weights
         for expert_id in range(self.config.num_experts)
         for weight_name in ["gate_proj", "up_proj", "down_proj"]
     ]
-    '''
-    ==================
-    End of MLU Hijack
-    ==================
-    '''
 
     params_dict = dict(self.named_parameters())
     for name, loaded_weight in weights:
         if "mlp.experts." in name:
-            '''
-            =============================
-            Modify by sinfer_mlu
-            =============================
-            @brief: load weights for experts
-            ''' 
+            # load weights for experts
             for param_name, weight_name, expert_id in expert_params_mapping:
                 if weight_name not in name:
                     continue
@@ -294,11 +235,7 @@ def sinfer__module_executor__models__qwen2moe__Qwen2MoeForCausalLM__load_weights
                                   expert_id=expert_id)
                 # name not in params_dict: Skip experts that are not assigned to this worker.
                 break
-            '''
-            ==================
-            End of MLU Hijack
-            ==================
-            '''
+        
         else:
             if "rotary_emb.inv_freq" in name:
                 continue

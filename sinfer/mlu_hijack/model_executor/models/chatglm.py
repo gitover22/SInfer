@@ -26,19 +26,10 @@ def sinfer__module_executor__models__chatglm__GLMAttention__forward(
 ) -> torch.Tensor:
     qkv, _ = self.query_key_value(hidden_states)
     q, k, v = qkv.split([self.q_size, self.kv_size, self.kv_size], dim=-1)
-    '''
-    =============================
-    Modify by sinfer_mlu
-    =============================
-    @brief: pack q & k to fit bt_ops.apply_rotary
-    ''' 
+    # pack q & k to fit bt_ops.apply_rotary
     qk, _ = qkv.split([self.q_size + self.kv_size, self.kv_size], dim=-1)
     self.rotary_emb(position_ids, qk.view(-1, self.num_heads + self.num_kv_heads, self.head_dim))
-    '''
-    ==================
-    End of MLU Hijack
-    ==================
-    '''
+
     context_layer = self.attn(
         q,
         k,
@@ -74,12 +65,7 @@ def sinfer__module_executor__models__chatglm__GLMBlock__init__(
     self.post_attention_layernorm = layer_norm_func(
         config.hidden_size, eps=config.layernorm_epsilon)
 
-    '''
-    =============================
-    Modify by sinfer_mlu
-    =============================
-    @brief: use FeedForward instead of MLP
-    '''
+    # use FeedForward instead of MLP
     # MLP
     self.mlp = FeedForward(
         hidden_size=config.hidden_size,
@@ -91,12 +77,6 @@ def sinfer__module_executor__models__chatglm__GLMBlock__init__(
         bias=config.add_bias_linear,
         quant_config=quant_config
     )
-    '''
-    ==================
-    End of MLU Hijack
-    ==================
-    '''
-
 
 MluHijackObject.add_hijack_object(GLMAttention,
                                   GLMAttention.forward,

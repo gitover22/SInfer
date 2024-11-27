@@ -28,12 +28,7 @@ def sinfer__module_executor__models__baichuan__BloomBlock__init__(
     self.self_attention = BloomAttention(config, quant_config)
     self.post_attention_layernorm = nn.LayerNorm(
             hidden_size, eps=config.layer_norm_epsilon)
-    '''
-    =============================
-    Modify by sinfer_mlu
-    =============================
-    @brief: use FeedForward instead of MLP
-    '''
+    # use FeedForward instead of MLP
     self.mlp = FeedForward(hidden_size=hidden_size,
                            intermediate_size=hidden_size * 4,
                            hidden_act='gelu',
@@ -42,11 +37,7 @@ def sinfer__module_executor__models__baichuan__BloomBlock__init__(
                            down_proj_name="dense_4h_to_h",
                            bias=False,
                            quant_config=quant_config)
-    '''
-    ==================
-    End of MLU Hijack
-    ==================
-    '''
+    
     self.apply_residual_connection_post_layernorm = (
             config.apply_residual_connection_post_layernorm)
     

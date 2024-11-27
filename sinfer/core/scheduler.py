@@ -20,34 +20,21 @@ logger = init_logger(__name__)
 # Test-only. If configured, decode is preempted with
 # ARTIFICIAL_PREEMPTION_PROB% probability.
 ENABLE_ARTIFICIAL_PREEMPT = bool(
-    os.getenv("SINFER_TEST_ENABLE_ARTIFICIAL_PREEMPT", False))  # noqa
+    os.getenv("SINFER_TEST_ENABLE_ARTIFICIAL_PREEMPT", False))
 ARTIFICIAL_PREEMPTION_PROB = 0.5
 ARTIFICIAL_PREEMPTION_MAX_CNT = 500
 
-
-class PreemptionMode(enum.Enum):
-    """Preemption modes.
-
-    1. Swapping: Swap out the blocks of the preempted sequences to CPU memory
-    and swap them back in when the sequences are resumed.
-    2. Recomputation: Discard the blocks of the preempted sequences and
-    recompute them when the sequences are resumed, treating the sequences as
-    new prompts.
-    """
-    SWAP = enum.auto()
-    RECOMPUTE = enum.auto()
-
+class PreemptionStrategy(enum.Enum):
+    SWAP = enum.auto() # 换出 kv cache 从gpu换出到cpu
+    RECOMPUTE = enum.auto() # 重计算
 
 @dataclass
 class SchedulingBudget:
-    """The available slots for scheduling.
-
-    TODO(sang): Right now, the budget is request_id-aware meaning it can ignore
-    budget update from the same request_id. It is because in normal scheduling
-    path, we update RUNNING num_seqs ahead of time, meaning it could be
-    updated more than once when scheduling RUNNING requests. Since this won't
-    happen if we only have chunked prefill scheduling, we can remove this
-    feature from the API when chunked prefill is enabled by default.
+    """
+        调度预算
+        当前，预算是与`request_id`关联的，这意味着它可以忽略来自相同`request_id`的预算更新。
+        这是因为在正常调度路径中,会提前更新正在运行RUNNING的num_seqs, 这可能导致在调度运行中的请求时多次更新。
+        由于如果仅使用分块预填充调度,这种情况不会发生,因此当分块预填充默认启用时,可以从API中移除该特性。
     """
     token_budget: int
     max_num_seqs: int
@@ -101,26 +88,21 @@ class SchedulingBudget:
 
 @dataclass
 class ScheduledSequenceGroup:
-    # A sequence group that's scheduled.
+    # 被调度的序列组
     seq_group: SequenceGroup
-    # The total chunk size (number of tokens) to process for next iteration.
-    # 1 for decoding. Same as prompt tokens for prefill, but if prefill is
-    # chunked, it can be smaller than that.
+    # 下一次迭代要处理的总分块大小(token数量)
+    # 解码时为1,对于预填充,与提示token数量相同,但如果预填充是分块的,则可能会小于提示token数量
     token_chunk_size: int
 
 
 @dataclass
 class SchedulerOutputs:
-    """The scheduling decision made from a scheduler."""
-    # Scheduled sequence groups.
-    scheduled_seq_groups: Iterable[ScheduledSequenceGroup]
-    # Number of prefill groups scheduled.
-    num_prefill_groups: int
-    # Total number of batched tokens.
-    num_batched_tokens: int
-    # Blocks to swap in. Dict of CPU -> GPU block number.
+    scheduled_seq_groups: Iterable[ScheduledSequenceGroup]  # 被调度的序列组
+    num_prefill_groups: int  # prefill阶段的序列组 
+    num_batched_tokens: int  # 所有scheduled_seq_groups的token总数
+    # 换入的块. Dict of CPU -> GPU block number.
     blocks_to_swap_in: Dict[int, int]
-    # Blocks to swap out. Dict of GPU -> CPU block number.
+    # 换出的块. Dict of GPU -> CPU block number.
     blocks_to_swap_out: Dict[int, int]
     # Blocks to copy. Source to a list of dest blocks.
     blocks_to_copy: Dict[int, List[int]]
@@ -132,7 +114,7 @@ class SchedulerOutputs:
     running_queue_size: int
 
     def __post_init__(self):
-        # Swap in and swap out should never happen at the same time.
+        # 换入和换出不能同时发生
         assert not (self.blocks_to_swap_in and self.blocks_to_swap_out)
 
         self.num_loras: int = len(self.lora_requests)
@@ -140,7 +122,6 @@ class SchedulerOutputs:
             self._sort_by_lora_ids()
 
     def is_empty(self) -> bool:
-        # NOTE: We do not consider the ignored sequence groups.
         return (not self.scheduled_seq_groups and not self.blocks_to_swap_in
                 and not self.blocks_to_swap_out and not self.blocks_to_copy)
 
@@ -160,23 +141,16 @@ class SchedulerOutputs:
 
 @dataclass
 class SchedulerRunningOutputs:
-    """The requests that are scheduled from a running queue.
-
-    Could contain prefill (prefill that's chunked) or decodes. If there's not
-    enough memory, it can be preempted (for recompute) or swapped out.
+    """从 running 队列中调度的request
+    可能包含预填充（被分块的预填充数据）或解码数据。如果内存不足，它可以被抢占（用于重新计算）或被交换出去
     """
-    # Selected sequences that are running and in a decoding phase.
-    decode_seq_groups: List[SequenceGroup]
-    # Selected sequences that are running and in a prefill phase.
-    # I.e., it means the prefill has been chunked.
-    prefill_seq_groups: List[SequenceGroup]
-    # The preempted sequences.
-    preempted: List[SequenceGroup]
-    # Sequences that are swapped out.
-    swapped_out: List[SequenceGroup]
-    # The blocks to swap out.
+
+    decode_seq_groups: List[SequenceGroup]    # decode阶段的序列组
+    prefill_seq_groups: List[SequenceGroup]   # prefill阶段的序列组（意味着开启了 chunked prefill）
+    preempted: List[SequenceGroup]            # 被抢占的序列组(重计算)
+    swapped_out: List[SequenceGroup]          # swap out的序列组(换出)
+
     blocks_to_swap_out: Dict[int, int]
-    # The blocks to copy.
     blocks_to_copy: Dict[int, List[int]]
     # The number of slots for lookahead decoding.
     num_lookahead_slots: int
@@ -196,19 +170,17 @@ class SchedulerRunningOutputs:
 
 @dataclass
 class SchedulerSwappedInOutputs:
-    """The requests that are scheduled from a swap queue.
+    """从 swap 队列调度的序列组
 
-    Could contain prefill (prefill that's chunked) or decodes.
+    可能包含prefill (chunked prefill) 和 decodes阶段的序列组.
     """
     # Selected sequences that are going to be swapped in and is in a
     # decoding phase.
     decode_seq_groups: List[SequenceGroup]
     # Selected sequences that are going to be swapped in and in a prefill
-    # phase. I.e., it means the prefill has been chunked.
+    # phase. （意味着chunked prefill开启）
     prefill_seq_groups: List[SequenceGroup]
-    # The blocks to swap in.
     blocks_to_swap_in: Dict[int, int]
-    # The blocks to copy.
     blocks_to_copy: Dict[int, List[int]]
     # The number of slots for lookahead decoding.
     num_lookahead_slots: int
@@ -229,17 +201,16 @@ class SchedulerSwappedInOutputs:
 
 @dataclass
 class SchedulerPrefillOutputs:
-    """The requests that are scheduled from a waiting queue.
+    """从waiting队列调度的序列组
 
-    Could contain a fresh prefill requests or preempted requests that need
-    to be recomputed from scratch.
+    可能包含新的预填充请求或被抢占的请求(抢占策略为重计算),这些请求需要从头重新计算
     """
     # Selected sequences for prefill.
     seq_groups: List[SequenceGroup]
     # Ignored sequence groups.
     ignored_seq_groups: List[SequenceGroup]
     num_lookahead_slots: int
-
+    # 创建一个对象
     @classmethod
     def create_empty(cls) -> "SchedulerPrefillOutputs":
         return SchedulerPrefillOutputs(
@@ -259,9 +230,7 @@ class Scheduler:
     ) -> None:
         self.scheduler_config = scheduler_config
         self.cache_config = cache_config
-        # Note for LoRA scheduling: the current policy is extremely
-        # simple and NOT fair. It can lead to starvation of some
-        # LoRAs. This should be improved in the future.
+        # LoRA 调度的说明：当前的策略非常简单且不公平,可能导致某些 LoRA 的饥饿问题
         self.lora_config = lora_config
 
         if self.scheduler_config.chunked_prefill_enabled:
@@ -275,7 +244,7 @@ class Scheduler:
             version="v2" if self.scheduler_config.
             use_v2_block_manager else "v1")
 
-        # Create the block space manager.
+        # 创建物理块管理器
         self.block_manager = BlockSpaceManagerImpl(
             block_size=self.cache_config.block_size,
             num_gpu_blocks=self.cache_config.num_gpu_blocks,
@@ -283,25 +252,18 @@ class Scheduler:
             sliding_window=self.cache_config.sliding_window,
             enable_caching=self.cache_config.enable_prefix_caching)
 
-        # Sequence groups in the WAITING state.
-        # Contain new prefill or preempted requests.
-        self.waiting: Deque[SequenceGroup] = deque()
-        # Sequence groups in the RUNNING state.
-        # Contain decode requests.
-        self.running: Deque[SequenceGroup] = deque()
-        # Sequence groups in the SWAPPED state.
-        # Contain decode requests that are swapped out.
+        # WAITING state.包含new prefill和重计算的序列组
+        self.waiting: Deque[SequenceGroup] = deque()  # waiting队列中的seq_group只有一个seq，即是原始的prompt
+        # RUNNING state. 包含decode requests或chunked prefill.
+        self.running: Deque[SequenceGroup] = deque()  
+        # SWAPPED state. 包含被换出的decode requests或者chunked prefill.
         self.swapped: Deque[SequenceGroup] = deque()
 
-        # Time at previous scheduling step
-        self.prev_time = 0.0
-        # Did we schedule a prompt at previous step?
-        self.prev_prompt = False
-        # Latency of the last prompt step
-        self.last_prompt_latency = 0.0
+        self.prev_time = 0.0   # 每执行1次推理阶段前，调度器都要做一次调度，这个变量存放的就是上次调度发起的时间点
+        self.prev_prompt = False  # 上一次调度时，调度器有从waiting队列中取出seq_group做推理，即为True，否则为False
+        self.last_prompt_latency = 0.0 # 当前调度时刻（now） - 最后一次有从waiting队列中取数做推理的那个调度时刻
 
-        # The following field is test-only. It is used to inject artificial
-        # preemption.
+        # 以下字段仅用于测试。它被用来注入人工抢占
         self.enable_artificial_preemption = ENABLE_ARTIFICIAL_PREEMPT
         self.artificial_preempt_cnt = (ARTIFICIAL_PREEMPTION_MAX_CNT
                                        if self.enable_artificial_preemption
@@ -317,21 +279,17 @@ class Scheduler:
         return 1
 
     def add_seq_group(self, seq_group: SequenceGroup) -> None:
-        # Add sequence groups to the waiting queue.
+        # 往waiting队列添加序列组
         self.waiting.append(seq_group)
 
     def abort_seq_group(self, request_id: Union[str, Iterable[str]]) -> None:
-        """Aborts a sequence group with the given ID.
+        """
+        中止给定 ID 的序列组
+        检查给定 ID 的序列组是否存在于任何状态队列中。
+        如果存在，从状态队列中移除该序列组。如果序列组中的任何序列尚未完成，则将该序列的状态设置为 FINISHED_ABORTED 并释放它
 
-        Check if the sequence group with the given ID
-            is present in any of the state queue.
-        If present, remove the sequence group from the state queue.
-            Also, if any of the sequences in the sequence group is not finished,
-                free the sequence with status `FINISHED_ABORTED`.
-        Otherwise, do nothing.
-
-        Args:
-            request_id: The ID(s) of the sequence group to abort.
+        参数：
+            request_id: 要中止的序列组的 ID
         """
         if isinstance(request_id, str):
             request_id = (request_id, )
@@ -357,10 +315,12 @@ class Scheduler:
                     self.free_seq(seq)
 
     def has_unfinished_seqs(self) -> bool:
+        '''是否还有没完成的序列'''
         return len(self.waiting) != 0 or len(self.running) != 0 or len(
             self.swapped) != 0
 
     def get_num_unfinished_seq_groups(self) -> int:
+        '''获取未完成的序列组'''
         return len(self.waiting) + len(self.running) + len(self.swapped)
 
     def _schedule_running(
@@ -371,7 +331,7 @@ class Scheduler:
         policy: Policy,
         enable_chunking: bool = False,
     ) -> Tuple[deque, SchedulerRunningOutputs]:
-        """Schedule sequence groups that are running.
+        """调度 running 队列中的SG
 
         Running queue should include decode and chunked prefill requests.
 
@@ -392,7 +352,7 @@ class Scheduler:
             A tuple of remaining running queue (should be always 0) after
             scheduling and SchedulerRunningOutputs.
         """
-        # Blocks that need to be swapped or copied before model execution.
+        # 模型执行前需要swap和copy的块
         blocks_to_swap_out: Dict[int, int] = {}
         blocks_to_copy: Dict[int, List[int]] = {}
 
@@ -401,10 +361,6 @@ class Scheduler:
         preempted: List[SequenceGroup] = []
         swapped_out: List[SequenceGroup] = []
 
-        # NOTE(woosuk): Preemption happens only when there is no available slot
-        # to keep all the sequence groups in the RUNNING state.
-        # In this case, the policy is responsible for deciding which sequence
-        # groups to preempt.
         now = time.time()
         running_queue = policy.sort_by_priority(now, running_queue)
         while running_queue:
@@ -430,16 +386,15 @@ class Scheduler:
                     victim_seq_group = running_queue.pop()
                     preempted_mode = self._preempt(victim_seq_group,
                                                    blocks_to_swap_out)
-                    if preempted_mode == PreemptionMode.RECOMPUTE:
+                    if preempted_mode == PreemptionStrategy.RECOMPUTE:
                         preempted.append(victim_seq_group)
                     else:
                         swapped_out.append(victim_seq_group)
                 else:
-                    # No other sequence groups can be preempted.
-                    # Preempt the current sequence group.
+                    # No other sequence groups can be preempted. Preempt the current sequence group.
                     preempted_mode = self._preempt(seq_group,
                                                    blocks_to_swap_out)
-                    if preempted_mode == PreemptionMode.RECOMPUTE:
+                    if preempted_mode == PreemptionStrategy.RECOMPUTE:
                         preempted.append(seq_group)
                     else:
                         swapped_out.append(seq_group)
@@ -458,10 +413,8 @@ class Scheduler:
                                                token_chunk_size=1))
                 budget.add_num_batched_tokens(seq_group.request_id,
                                               num_running_tokens)
-                # OPTIMIZATION:  Note that get_max_num_running_seqs is
-                # expensive. For the default scheduling chase where
-                # enable_chunking is False, num_seqs are updated before running
-                # this method, so we don't have to update it again here.
+                # 注意，get_max_num_running_seqs开销较大。在默认的调度策略中，当 enable_chunking为 False 时，
+                # num_seqs会在运行此方法之前更新，因此我们在这里不需要再次更新它。
                 if enable_chunking:
                     num_running_seqs = seq_group.get_max_num_running_seqs()
                     budget.add_num_seqs(seq_group.request_id, num_running_seqs)
@@ -486,7 +439,7 @@ class Scheduler:
         policy: Policy,
         enable_chunking: bool = False,
     ) -> Tuple[deque, SchedulerSwappedInOutputs]:
-        """Schedule sequence groups that are swapped out.
+        """调度被swap out的序列组
 
         It schedules swapped requests as long as it fits `budget` and
         curr_loras <= max_lora from the scheduling config. The input arguments
@@ -509,11 +462,13 @@ class Scheduler:
             A tuple of remaining swapped_queue after scheduling and
             SchedulerSwappedInOutputs.
         """
-        # Blocks that need to be swapped or copied before model execution.
+        # 模型执行前需要swap和copy的块
         blocks_to_swap_in: Dict[int, int] = {}
         blocks_to_copy: Dict[int, List[int]] = {}
+
         decode_seq_groups: List[ScheduledSequenceGroup] = []
         prefill_seq_groups: List[ScheduledSequenceGroup] = []
+
         now = time.time()
         swapped_queue = policy.sort_by_priority(now, swapped_queue)
         infeasible_seq_groups: List[SequenceGroup] = []
@@ -544,8 +499,7 @@ class Scheduler:
                 assert self.lora_config is not None
                 if (lora_int_id > 0 and (lora_int_id not in curr_loras)
                         and len(curr_loras) >= self.lora_config.max_loras):
-                    # We don't have a space for another LoRA, so
-                    # we ignore this request for now.
+                    # We don't have a space for another LoRA, so we ignore this request for now.
                     leftover_swapped.appendleft(seq_group)
                     swapped_queue.popleft()
                     continue
@@ -597,11 +551,7 @@ class Scheduler:
         curr_loras: Optional[Set[int]],
         enable_chunking: bool = False,
     ) -> Tuple[deque, SchedulerPrefillOutputs]:
-        """Schedule sequence groups that are in prefill stage.
-
-        Note that the current scheduler treats PREEMPTED_FOR_RECOMPUTE
-        as a new prefill (that starts from beginning -> most recently generated
-        tokens).
+        """调度prefill 阶段的序列组
 
         It schedules waiting requests as long as it fits `budget` and
         curr_loras <= max_lora from the scheduling config. The input arguments
@@ -712,26 +662,24 @@ class Scheduler:
             num_lookahead_slots=self._get_num_lookahead_slots(is_prefill=True))
 
     def _schedule_default(self) -> SchedulerOutputs:
-        """Schedule queued requests.
-        
-        The current policy is designed to optimize the throughput. First,
-        it batches as many prefill requests as possible. And it schedules
-        decodes. If there's a pressure on GPU memory, decode requests can
-        be swapped or preempted.
+        """默认:没有chunked prefill, running队列和swap队列全是decode阶段
+        优先级: prefill > decode  (waiting > running > swapped )
+        此策略旨在优化吞吐量。首先，它将尽可能多的预填充请求进行批处理。
+        然后它调度解码请求。如果 GPU 内存出现压力，解码请求可以被交换或抢占。 
         """
-        # Include running requests to the budget.
+        # 调度预算：主要关注tokens总数和seq总数
         budget = SchedulingBudget(
-            token_budget=self.scheduler_config.max_num_batched_tokens,
-            max_num_seqs=self.scheduler_config.max_num_seqs,
+            token_budget=self.scheduler_config.max_num_batched_tokens, # 最大：2048
+            max_num_seqs=self.scheduler_config.max_num_seqs, # 最大：256
         )
-        # Make sure we include num running seqs before scheduling prefill,
-        # so that we don't schedule beyond max_num_seqs for prefill.
+        # 确保在调度prefill请求之前包含当前运行中的序列数，  
+        # 以避免预填充的调度超出 `max_num_seqs` 的限制。
         for seq_group in self.running:
             budget.add_num_seqs(seq_group.request_id,
                                 seq_group.get_max_num_running_seqs())
         curr_loras = set(
             seq_group.lora_int_id
-            for seq_group in self.running) if self.lora_enabled else None
+            for seq_group in self.running) if self.lora_enabled else None     # 如果启用了LoRA
 
         remaining_waiting, prefills = (self.waiting,
                                        SchedulerPrefillOutputs.create_empty())
@@ -746,10 +694,10 @@ class Scheduler:
                 self.waiting, budget, curr_loras, enable_chunking=False)
 
         fcfs_policy = PolicyFactory.get_policy(policy_name="fcfs")
-        # Don't schedule decodes if prefills are scheduled.
-        # NOTE: If `_schedule_prefills` doesn't enable chunking, self.running
-        # only contains decode requests, not chunked prefills.
-        if len(prefills.seq_groups) == 0:
+        # 如果已经调度了预填充请求，则不要再调度解码请求
+        # 如果 _schedule_prefills 未启用分块模式（chunking），
+        # 那么self.running 中仅包含解码请求，而不包含分块的预填充请求
+        if len(prefills.seq_groups) == 0: # 没有调度prefill
             remaining_running, running_scheduled = self._schedule_running(
                 self.running,
                 budget,
@@ -757,35 +705,35 @@ class Scheduler:
                 fcfs_policy,
                 enable_chunking=False)
 
-            # If any sequence group is preempted, do not swap in any sequence
-            # group. because it means there's no slot for new running requests.
+            # 如果有任何序列组被抢占或换出，则不要swap in任何序列组，  
+            # 因为这意味着没有可用的插槽用于新的运行请求（running_scheduled.preempted存的是重计算的SG,running_scheduled.swapped_out存的是换出的SG）
             if len(running_scheduled.preempted) + len(
                     running_scheduled.swapped_out) == 0:
                 remaining_swapped, swapped_in = self._schedule_swapped(
                     self.swapped, budget, curr_loras, fcfs_policy)
-
+        # 确保预算内的token数和序列数没有超出限制
         assert (budget.num_batched_tokens <=
                 self.scheduler_config.max_num_batched_tokens)
         assert budget.num_curr_seqs <= self.scheduler_config.max_num_seqs
 
         # Update waiting requests.
         self.waiting = remaining_waiting
-        self.waiting.extendleft(running_scheduled.preempted)
+        self.waiting.extendleft(running_scheduled.preempted) # 重计算的SG加入到waiting队列最左侧
         # Update new running requests.
         self.running = remaining_running
-        self.running.extend([s.seq_group for s in prefills.seq_groups])
+        self.running.extend([s.seq_group for s in prefills.seq_groups]) # 
         self.running.extend(
             [s.seq_group for s in running_scheduled.decode_seq_groups])
         self.running.extend(
             [s.seq_group for s in swapped_in.decode_seq_groups])
         # Update swapped requests.
         self.swapped = remaining_swapped
-        self.swapped.extend(running_scheduled.swapped_out)
+        self.swapped.extend(running_scheduled.swapped_out) # 换出的SG加入到swapped队列
 
-        # There should be no prefill from running queue because this policy
-        # doesn't allow chunked prefills.
+        # 检查: 没开启chunked prefill时，running队列和swapped队列都应该不包含prefill阶段的SG
         assert len(running_scheduled.prefill_seq_groups) == 0
         assert len(swapped_in.prefill_seq_groups) == 0
+        # 包装一下调度结果并返回
         return SchedulerOutputs(
             scheduled_seq_groups=(prefills.seq_groups +
                                   running_scheduled.decode_seq_groups +
@@ -803,18 +751,16 @@ class Scheduler:
         )
 
     def _schedule_chunked_prefill(self):
-        """Schedule queued requests.
+        """使用chunked prefill时的调度
         
-        Chunked prefill allows to chunk prefill requests, batch them together
-        with decode requests. This policy 1. schedule as many decoding requests
-        as possible. 2. schedule chunked prefill requests that are not
-        finished. 3. schedule swapped request. 4. schedule new prefill
-        requests.
+        分块预填充(Chunked Prefill)允许将预填充请求拆分成块,与解码请求一起批量处理:
+        1. 调度尽可能多的解码请求
+        2. 调度未完成的分块预填充请求
+        3. 调度被交换(swapped)的请求
+        4. 调度新的预填充请求
 
-        The policy can sustain the high GPU utilization because it can put
-        prefill and decodes requests to the same batch, while it improves
-        inter token latency because decodes requests don't need to blocked
-        by prefill requests.
+        该策略能够维持较高的GPU利用率, 因为它可以将预填充请求与解码请求合并到同一批次中
+        同时,它还能提高每个token的延迟性能( inter-token latency), 因为解码请求无需被预填充请求阻塞
         """
         budget = SchedulingBudget(
             token_budget=self.scheduler_config.max_num_batched_tokens,
@@ -890,15 +836,14 @@ class Scheduler:
         )
 
     def _schedule(self) -> SchedulerOutputs:
-        """Schedule queued requests."""
-        if self.scheduler_config.chunked_prefill_enabled:
+        if self.scheduler_config.chunked_prefill_enabled: # 如何开启了分块预填充
             return self._schedule_chunked_prefill()
         else:
-            return self._schedule_default()
+            return self._schedule_default() # 默认不开启分块预填充
 
     def _can_append_slots(self, seq_group: SequenceGroup) -> bool:
-        """Determine whether or not we have enough space in the KV cache to
-        continue generation of the sequence group.
+        """
+        确定KV缓存中是否有足够的空间以继续生成序列组
         """
         # It is True only for testing case to trigger artificial preemption.
         if (self.enable_artificial_preemption
@@ -916,6 +861,9 @@ class Scheduler:
         )
 
     def schedule(self) -> Tuple[List[SequenceGroupMetadata], SchedulerOutputs]:
+        '''
+        调度器的调度入口，会把调度输出进行封装
+        '''
         scheduler_outputs = self._schedule() # 获取调度输出
         now = time.time()
 
@@ -992,10 +940,11 @@ class Scheduler:
         self.block_manager.fork(parent_seq, child_seq)
 
     def free_seq(self, seq: Sequence) -> None:
-        """Free a sequence from a block table."""
+        """释放一个序列"""
         self.block_manager.free(seq)
 
     def free_finished_seq_groups(self) -> None:
+        # 释放已经完成的序列组
         self.running = deque(seq_group for seq_group in self.running
                              if not seq_group.is_finished())
 
@@ -1033,40 +982,35 @@ class Scheduler:
         self,
         seq_group: SequenceGroup,
         blocks_to_swap_out: Dict[int, int],
-        preemption_mode: Optional[PreemptionMode] = None,
-    ) -> PreemptionMode:
-        # If preemption mode is not specified, we determine the mode as follows:
-        # We use recomputation by default since it incurs lower overhead than
-        # swapping. However, when the sequence group has multiple sequences
-        # (e.g., beam search), recomputation is not currently supported. In
-        # such a case, we use swapping instead.
-        # FIXME(woosuk): This makes our scheduling policy a bit bizarre.
-        # As swapped sequences are prioritized over waiting sequences,
-        # sequence groups with multiple sequences are implicitly prioritized
-        # over sequence groups with a single sequence.
-        # TODO(woosuk): Support recomputation for sequence groups with multiple
-        # sequences. This may require a more sophisticated CUDA kernel.
-        if preemption_mode is None:
+        preemption_strategy: Optional[PreemptionStrategy] = None,
+    ) -> PreemptionStrategy:
+        # 如果未指定抢占策略，将根据以下规则确定策略：
+        # 默认使用重计算，因为其开销比交换模式更低。然而，当序列组包含多个序列（例如，束搜索）时，使用交换模式。
+        # 缺陷：被交换的序列优先于等待的序列，所以包含多个序列的序列组隐式地优先于仅包含单个序列的序列组。
+        # 为包含多个序列的序列组支持重计算。这需要更复杂的CUDA内核支持
+        if preemption_strategy is None:
             if seq_group.get_max_num_running_seqs() == 1:
-                preemption_mode = PreemptionMode.RECOMPUTE
+                preemption_strategy = PreemptionStrategy.RECOMPUTE
             else:
-                preemption_mode = PreemptionMode.SWAP
-        if preemption_mode == PreemptionMode.RECOMPUTE:
+                preemption_strategy = PreemptionStrategy.SWAP
+        if preemption_strategy == PreemptionStrategy.RECOMPUTE:
             self._preempt_by_recompute(seq_group)
-        elif preemption_mode == PreemptionMode.SWAP:
+        elif preemption_strategy == PreemptionStrategy.SWAP:
             self._preempt_by_swap(seq_group, blocks_to_swap_out)
         else:
             raise AssertionError("Invalid preemption mode.")
-        return preemption_mode
+        return preemption_strategy
 
     def _preempt_by_recompute(
         self,
         seq_group: SequenceGroup,
     ) -> None:
-        seqs = seq_group.get_seqs(status=SequenceStatus.RUNNING)
-        assert len(seqs) == 1
+        seqs = seq_group.get_seqs(status=SequenceStatus.RUNNING)  # 获取这个seq_group下正在running的所有seqs
+        assert len(seqs) == 1 # 重计算时SG中的seq数量为1才正确
         for seq in seqs:
-            seq.status = SequenceStatus.WAITING
+            seq.status = SequenceStatus.WAITING 
+            # 释放这条seq对应的物理块
+            # 即将对应物理块的引用-1，如果此时引用数量为0，说明对应物理块完全自由了，需要再将其放入自由物理块列表中
             self.free_seq(seq)
             seq.reset_state_for_recompute()
 
@@ -1075,6 +1019,8 @@ class Scheduler:
         seq_group: SequenceGroup,
         blocks_to_swap_out: Dict[int, int],
     ) -> None:
+        # 释放该seq_group下所有seq的物理块，并为其分配对应的cpu物理块，
+        # 将seq的状态从running改成swapped
         self._swap_out(seq_group, blocks_to_swap_out)
 
     def _swap_in(
@@ -1089,28 +1035,42 @@ class Scheduler:
 
     def _swap_out(
         self,
-        seq_group: SequenceGroup,
+        seq_group: SequenceGroup,   # 需要被swap到cpu上的seq_group
         blocks_to_swap_out: Dict[int, int],
     ) -> None:
         if not self.block_manager.can_swap_out(seq_group):
-            # FIXME(woosuk): Abort the sequence group instead of aborting the
-            # entire engine.
+            # 检查是否可以将当前seq_group对应的物理块swap到cpu上
+            # 可以的条件：当前seq_group占用的gpu物理块数量 <= cpu上可用的物理块数量
             raise RuntimeError(
                 "Aborted due to the lack of CPU swap space. Please increase "
                 "the swap space to avoid this error.")
+        # 释放该seq_group下所有seq的gpu物理块，并为其创建对应的cpu块
+        # mapping：{gpu物理块id：cpu物理块id}
         mapping = self.block_manager.swap_out(seq_group)
         blocks_to_swap_out.update(mapping)
         for seq in seq_group.get_seqs(status=SequenceStatus.RUNNING):
-            seq.status = SequenceStatus.SWAPPED
+            seq.status = SequenceStatus.SWAPPED # 修改该seq_group下所有seq的状态：从running改成swapped
 
     def _passed_delay(self, now: float) -> bool:
+        """
+        判断当下是否可以从waiting队列中调度新请求
+        这个函数确保了在调度过程中不会频繁地处理新来的seq_group
+        
+        Args:
+            now: 当前调度时间点
+        """
         if self.prev_prompt:
             self.last_prompt_latency = now - self.prev_time
+        # 用当前调度时间更新prev_time
+        # 由于目前还不知道本次是否会从waiting队列中调度，因此prev_prompt先设为False
         self.prev_time, self.prev_prompt = now, False
         # Delay scheduling prompts to let waiting queue fill up
+        # delay_factor：用户配置的，用于调整调度间隔阈值的因子。大于0则意味着用户想开启阈值判断
         if self.scheduler_config.delay_factor > 0 and self.waiting:
+            # 计算在waiting队列中，最早到达的seq_group的到达时间
             earliest_arrival_time = min(
                 [e.metrics.arrival_time for e in self.waiting])
+            # 实际等待的时间 > 应该等待时间
             passed_delay = (
                 (now - earliest_arrival_time) >
                 (self.scheduler_config.delay_factor * self.last_prompt_latency)
@@ -1120,12 +1080,10 @@ class Scheduler:
         return passed_delay
 
     def _get_num_lookahead_slots(self, is_prefill: bool) -> int:
-        """The number of slots to allocate per sequence per step, beyond known
-        token ids. Speculative decoding uses these slots to store KV activations
-        of tokens which may or may not be accepted.
-
-        Speculative decoding does not yet support prefill, so we do not perform
-        lookahead allocation for prefill.
+        """
+        每个序列在每个步骤中分配的额外插槽数量, 用于存储除已知token ID以外的内容
+        推测性解码使用这些插槽来存储可能被接受或可能不被接受的token的KV激活
+        推测性解码目前尚不支持预填充, 因此我们不会为预填充执行前瞻性分配
         """
         if is_prefill:
             return 0
@@ -1135,24 +1093,19 @@ class Scheduler:
     def _get_num_new_tokens(self, seq_group: SequenceGroup,
                             status: SequenceStatus, enable_chunking: bool,
                             budget: SchedulingBudget) -> int:
-        """Get the next new tokens to compute for a given sequence group
-            that's in a given `status`.
-
-        The API could chunk the number of tokens to compute based on `budget`
-        if `enable_chunking` is True. If a sequence group has multiple
-        sequences (e.g., running beam search), it means it is in decoding
-        phase, so chunking doesn't happen.
-
-        Returns 0 if the new token cannot be computed due to token budget.
+        """
+            获取处于指定 status 下的序列组需要计算的下一个新 token
+            如果`enable_chunking`为True, API可以根据`budget`将需要计算的token数量分块
+            如果一个序列组包含多个序列（例如, 在运行束搜索时）, 则表明它处于解码阶段，因此不会进行分块
+            如果由于token预算限制无法计算新token, 则返回0。
         """
         num_new_tokens = 0
         seqs = seq_group.get_seqs(status=status)
         for seq in seqs:
             num_new_tokens += seq.get_num_new_tokens()
         assert num_new_tokens > 0
-        # Chunk if a running request cannot fit in.
-        # If number of seq > 1, it means it is doing beam search in a
-        # decode phase. Do not chunk in that case.
+        # 如果正在运行的请求无法容纳，则进行分块
+        # 如果序列数大于1，则表示正在解码阶段执行束搜索。在这种情况下，不进行分块。
         if enable_chunking and len(seqs) == 1:
             num_new_tokens = min(num_new_tokens,
                                  budget.remaining_token_budget())

@@ -24,47 +24,6 @@ def sinfer_engine__llm_engine__LLMEngine__add_request(
     lora_request: Optional[LoRARequest] = None,
     multi_modal_data: Optional[MultiModalData] = None,
 ) -> None:
-    """Add a request to the engine's request pool.
-
-    The request is added to the request pool and will be processed by the
-    scheduler as `engine.step()` is called. The exact scheduling policy is
-    determined by the scheduler.
-
-    Args:
-        request_id: The unique ID of the request.
-        prompt: The prompt string. Can be None if prompt_token_ids is
-            provided.
-        sampling_params: The sampling parameters for text generation.
-        prompt_token_ids: The token IDs of the prompt. If None, we
-            use the tokenizer to convert the prompts to token IDs.
-        arrival_time: The arrival time of the request. If None, we use
-            the current monotonic time.
-        multi_modal_data: Multi modal data per request.
-
-    Details:
-        - Set arrival_time to the current time if it is None.
-        - Set prompt_token_ids to the encoded prompt if it is None.
-        - Create `best_of` number of :class:`~sinfer.Sequence` objects.
-        - Create a :class:`~sinfer.SequenceGroup` object
-            from the list of :class:`~sinfer.Sequence`.
-        - Add the :class:`~sinfer.SequenceGroup` object to the scheduler.
-
-    Example:
-        >>> # initialize engine
-        >>> engine = LLMEngine.from_engine_args(engine_args)
-        >>> # set request arguments
-        >>> example_prompt = "Who is the president of the United States?"
-        >>> sampling_params = SamplingParams(temperature=0.0)
-        >>> request_id = 0
-        >>>
-        >>> # add the request to the engine
-        >>> engine.add_request(
-        >>>    str(request_id),
-        >>>    example_prompt,
-        >>>    SamplingParams(temperature=0.0))
-        >>> # continue the request processing
-        >>> ...
-    """
     if lora_request is not None and not self.lora_config:
         raise ValueError(f"Got lora_request {lora_request} but LoRA is "
                             "not enabled!")
@@ -83,7 +42,6 @@ def sinfer_engine__llm_engine__LLMEngine__add_request(
         prompt_token_ids=prompt_token_ids,
         lora_request=lora_request)
 
-    # Create the sequences.
     block_size = self.cache_config.block_size
     seq_id = next(self.seq_counter)
     eos_token_id = None
@@ -106,22 +64,13 @@ def sinfer_engine__llm_engine__LLMEngine__add_request(
     sampling_params.update_from_generation_config(
         self.generation_config_fields)
 
-    '''
-    =============================
-    Added by sinfer_mlu
-    =============================
-    @brief: check input_len + output_len <= block_size
-    '''
+   
+    # 检查 input_len + output_len <= block_size(非分页模式下，缓存的块大小能够容纳输入和输出的token)
     num_prompt_tokens = 0
-    out_len = sampling_params.max_tokens
+    out_len = sampling_params.max_tokens # 生成的最大token数量
     if (USE_PAGED == False and BlockSizeInfo.BLOCK_SIZE < out_len + seq.get_len()):
         raise ValueError("BLOCK_SIZE(" + str(BlockSizeInfo.BLOCK_SIZE) +
             ") can't smaller than input_len(" + str(seq.get_len()) + ") + output_len(" + str(out_len) + ").")
-    '''
-    ==================
-    End of modification
-    ==================
-    '''
 
     # Create the sequence group.
     seq_group = SequenceGroup(request_id, [seq], sampling_params,

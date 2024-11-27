@@ -48,35 +48,18 @@ def _load_generation_config_dict(model_config: ModelConfig):
 
 
 class LLMEngine:
-    """An LLM engine that receives requests and generates texts.
-
-    This is the main class for the SInfer engine. It receives requests
-    from clients and generates texts from the LLM. It includes a tokenizer, a
-    language model (possibly distributed across multiple GPUs), and GPU memory
-    space allocated for intermediate states (aka KV cache). This class utilizes
-    iteration-level scheduling and efficient memory management to maximize the
-    serving throughput.
-
-    The `LLM` class wraps this class for offline batched inference and the
-    `AsyncLLMEngine` class wraps this class for online serving.
-
-    NOTE: The config arguments are derived from the `EngineArgs` class. For the
-    comprehensive list of arguments, see `EngineArgs`.
-
-    Args:
-        model_config: The configuration related to the LLM model.
-        cache_config: The configuration related to the KV cache memory
-            management.
-        parallel_config: The configuration related to distributed execution.
-        scheduler_config: The configuration related to the request scheduler.
-        device_config: The configuration related to the device.
-        lora_config (Optional): The configuration related to serving multi-LoRA.
-        vision_language_config (Optional): The configuration related to vision
-            language models.
-        speculative_config (Optional): The configuration related to speculative
-            decoding.
-        executor_class: The model executor class for managing distributed
-            execution.
+    """
+    推理系统引擎
+    参数:
+        model_config: LLM model 配置.
+        cache_config: KV cache内存管理配置.
+        parallel_config: distributed execution配置.
+        scheduler_config: request scheduler配置.
+        device_config: device配置.
+        lora_config (Optional): serving multi-LoRA配置.
+        vision_language_config (Optional): vision language models配置
+        speculative_config (Optional): speculative decoding配置.
+        executor_class: The model executor class for managing distributed execution.
         log_stats: Whether to log statistics.
         usage_context: Specified entry point, used for usage info collection
     """
@@ -131,8 +114,6 @@ class LLMEngine:
             model_config.seed,
             model_config.served_model_name,
         )
-        # Print more configs in debug mode.
-
         self.model_config = model_config
         self.cache_config = cache_config
         self.lora_config = lora_config
@@ -207,8 +188,7 @@ class LLMEngine:
                 })
 
         if self.tokenizer:
-            # Ping the tokenizer to ensure liveness if it runs in a
-            # different process.
+            # Ping the tokenizer to ensure liveness if it runs in a different process.
             self.tokenizer.ping()
 
         # Create the scheduler.
@@ -271,10 +251,7 @@ class LLMEngine:
         engine_config = engine_args.create_engine_config()
 
         # 明确executor_class指向的执行器
-        if engine_config.device_config.device_type == "neuron":
-            from sinfer.executor.neuron_executor import NeuronExecutor
-            executor_class = NeuronExecutor
-        elif engine_config.device_config.device_type == "cpu":
+        if engine_config.device_config.device_type == "cpu":
             from sinfer.executor.cpu_executor import CPUExecutor
             executor_class = CPUExecutor
         elif engine_config.parallel_config.worker_use_ray:
@@ -297,13 +274,11 @@ class LLMEngine:
         return engine
 
     def __reduce__(self):
-        # This is to ensure that the LLMEngine is not referenced in
-        # the closure used to initialize Ray worker actors
+        # 确保 LLMEngine 对象不会被序列化
         raise RuntimeError("LLMEngine should not be pickled!")
 
     def __del__(self):
-        # Shutdown model executor when engine is garbage collected
-        # Use getattr since __init__ can fail before the field is set
+        # 当引擎被垃圾回收时关闭model executor
         if model_executor := getattr(self, "model_executor", None):
             model_executor.shutdown()
 
@@ -337,7 +312,7 @@ class LLMEngine:
 
     def encode_request(
         self,
-        request_id: str,  # pylint: disable=unused-argument
+        request_id: str,
         prompt: Optional[str],
         prompt_token_ids: Optional[List[int]] = None,
         lora_request: Optional[LoRARequest] = None,
@@ -359,46 +334,17 @@ class LLMEngine:
         lora_request: Optional[LoRARequest] = None,
         multi_modal_data: Optional[MultiModalData] = None,
     ) -> None:
-        """Add a request to the engine's request pool.
-
-        The request is added to the request pool and will be processed by the
-        scheduler as `engine.step()` is called. The exact scheduling policy is
-        determined by the scheduler.
+        """
+        将一个request添加给LLMEngine
 
         Args:
-            request_id: The unique ID of the request.
-            prompt: The prompt string. Can be None if prompt_token_ids is
-                provided.
-            sampling_params: The sampling parameters for text generation.
-            prompt_token_ids: The token IDs of the prompt. If None, we
-                use the tokenizer to convert the prompts to token IDs.
-            arrival_time: The arrival time of the request. If None, we use
-                the current monotonic time.
-            multi_modal_data: Multi modal data per request.
-
-        Details:
-            - Set arrival_time to the current time if it is None.
-            - Set prompt_token_ids to the encoded prompt if it is None.
-            - Create `best_of` number of :class:`~sinfer.Sequence` objects.
-            - Create a :class:`~sinfer.SequenceGroup` object
-              from the list of :class:`~sinfer.Sequence`.
-            - Add the :class:`~sinfer.SequenceGroup` object to the scheduler.
-
-        Example:
-            >>> # initialize engine
-            >>> engine = LLMEngine.from_engine_args(engine_args)
-            >>> # set request arguments
-            >>> example_prompt = "Who is the president of the United States?"
-            >>> sampling_params = SamplingParams(temperature=0.0)
-            >>> request_id = 0
-            >>>
-            >>> # add the request to the engine
-            >>> engine.add_request(
-            >>>    str(request_id),
-            >>>    example_prompt,
-            >>>    SamplingParams(temperature=0.0))
-            >>> # continue the request processing
-            >>> ...
+            request_id: 1条prompt算1个请求, 会附给1个请求id
+            prompt: prompt( str )
+            sampling_params: 采样参数(温度、topk等)
+            prompt_token_ids: prompt(token_id版), 没有提供的话会调用tokenizer来做
+            arrival_time: 请求到达的时间。如果是None,则用当前系统时间
+            lora_request: 如果是用lora模型做推理,相关的lora请求
+            multi_modal_data: 多模态数据
         """
         if lora_request is not None and not self.lora_config:
             raise ValueError(f"Got lora_request {lora_request} but LoRA is "
@@ -418,7 +364,7 @@ class LLMEngine:
             prompt_token_ids=prompt_token_ids,
             lora_request=lora_request)
 
-        # Create the sequences.
+        # 创建sequences.
         block_size = self.cache_config.block_size
         seq_id = next(self.seq_counter)
         eos_token_id = None
@@ -431,39 +377,25 @@ class LLMEngine:
         seq = Sequence(seq_id, prompt, prompt_token_ids, block_size,
                        eos_token_id, lora_request)
 
-        # Defensive copy of SamplingParams, which are used by the sampler,
-        # this doesn't deep-copy LogitsProcessor objects
+        # 对SamplingParams进行防御性拷贝，这些参数由采样器使用，但不会对LogitsProcessor对象进行深拷贝
         sampling_params = sampling_params.clone()
-        # Add the eos token id into the sampling_params to support min_tokens
-        # processing
+        
         if seq.eos_token_id is not None:
-            sampling_params.all_stop_token_ids.add(seq.eos_token_id)
+            sampling_params.all_stop_token_ids.add(seq.eos_token_id)  # 将eos token ID添加到sampling_params中，以支持min_tokens的处理
         sampling_params.update_from_generation_config(
             self.generation_config_fields)
 
-        # Create the sequence group.
+        # 创建序列组SG：每个prompt被包装成一个SequenceGroup实例
         seq_group = SequenceGroup(request_id, [seq], sampling_params,
                                   arrival_time, lora_request, multi_modal_data)
 
-        # Add the sequence group to the scheduler.
+        # 向调度器添加序列组, 添加进scheduler的self.waiting队列中
         self.scheduler.add_seq_group(seq_group)
 
     def abort_request(self, request_id: Union[str, Iterable[str]]) -> None:
-        """Aborts a request(s) with the given ID.
-
+        """中止给定 ID 的请求
         Args:
             request_id: The ID(s) of the request to abort.
-
-        Details:
-            - Refer to the
-              :meth:`~sinfer.core.scheduler.Scheduler.abort_seq_group`
-              from class :class:`~sinfer.core.scheduler.Scheduler`.
-
-        Example:
-            >>> # initialize engine and add a request with request_id
-            >>> request_id = str(0)
-            >>> # abort the request
-            >>> engine.abort_request(request_id)
         """
         self.scheduler.abort_seq_group(request_id)
 

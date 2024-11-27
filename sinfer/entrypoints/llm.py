@@ -16,7 +16,7 @@ from sinfer.utils import Counter
 
 class LLM:
     """
-    用于offline inference的用户接口类
+    包装LLMEngine, 用于离线推理的用户接口类
 
     参数:
         model: 模型名或路径.
@@ -113,17 +113,15 @@ class LLM:
             sampling_params: 为 None ,将使用默认的采样参数, 
                 当采样参数为单个值时,它将应用于每个提示(prompt)
                 当采样参数为列表时, 该列表的长度必须与提示的数量相同, 并且会与提示逐一配对使用
-            prompt_token_ids: 提示的token IDs列表. 如果为None, 我们将使用tokenizer将提示转换为token IDs
+            prompt_token_ids: 提示的token IDs列表. 如果为None, 将使用tokenizer将提示转换为token IDs
         """
         if prompts is None and prompt_token_ids is None:
             raise ValueError("Either prompts or prompt_token_ids must be "
                              "provided.")
-        if self.llm_engine.model_config.skip_tokenizer_init \
-            and prompts is not None:
+        if self.llm_engine.model_config.skip_tokenizer_init and prompts is not None:
             raise ValueError("prompts must be None if skip_tokenizer_init "
                              "is True")
         if isinstance(prompts, str):
-            # to list
             prompts = [prompts]
         if (prompts is not None and prompt_token_ids is not None
                 and len(prompts) != len(prompt_token_ids)):
@@ -139,8 +137,7 @@ class LLM:
         if sampling_params is None:
             sampling_params = SamplingParams()  # 使用默认采样参数
 
-        elif isinstance(sampling_params,
-                        list) and len(sampling_params) != num_requests:
+        elif isinstance(sampling_params,list) and len(sampling_params) != num_requests:
             raise ValueError("The lengths of prompts and sampling_params "
                              "must be the same.")
         if multi_modal_data:
@@ -170,7 +167,7 @@ class LLM:
         lora_request: Optional[LoRARequest] = None,
         multi_modal_data: Optional[MultiModalData] = None,
     ) -> None:
-        request_id = str(next(self.request_counter))
+        request_id = str(next(self.request_counter)) # request id 从 0 开始计数
         self.llm_engine.add_request(request_id,
                                     prompt,
                                     sampling_params,
@@ -187,7 +184,7 @@ class LLM:
         # 运行引擎
         outputs: List[RequestOutput] = []
         while self.llm_engine.has_unfinished_requests():
-            step_outputs = self.llm_engine.step()
+            step_outputs = self.llm_engine.step()     # iteration level
             for output in step_outputs:
                 if output.finished:
                     outputs.append(output)
