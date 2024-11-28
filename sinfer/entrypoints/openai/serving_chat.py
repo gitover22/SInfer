@@ -25,7 +25,7 @@ from sinfer.utils import random_uuid
 logger = init_logger(__name__)
 
 
-@final  # So that it should be compatible with Dict[str, str]
+@final  
 class ConversationMessage(TypedDict):
     role: str
     content: str

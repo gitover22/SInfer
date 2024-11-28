@@ -5,7 +5,6 @@ README.md
 pyproject.toml
 requirements-common.txt
 requirements-cpu.txt
-requirements-cuda.txt
 setup.py
 cmake/cpu_extension.cmake
 cmake/utils.cmake
@@ -37,7 +36,6 @@ sinfer/attention/backends/__init__.py
 sinfer/attention/backends/abstract.py
 sinfer/attention/backends/flash_attn.py
 sinfer/attention/backends/flashinfer.py
-sinfer/attention/backends/rocm_flash_attn.py
 sinfer/attention/backends/torch_sdpa.py
 sinfer/attention/backends/xformers.py
 sinfer/attention/ops/__init__.py

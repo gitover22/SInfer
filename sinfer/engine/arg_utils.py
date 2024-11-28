@@ -93,7 +93,7 @@ class EngineArgs:
     @staticmethod
     def add_cli_args(
             parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
-        """Shared CLI arguments for SInfer engine."""
+        """SInfer 引擎的通用命令行参数"""
 
         parser.add_argument(
             '--model',
@@ -200,8 +200,7 @@ class EngineArgs:
             'KV cache dtype is FP8. Otherwise, KV cache scaling factors '
             'default to 1.0, which may cause accuracy issues. '
             'FP8_E5M2 (without scaling) is only supported on cuda version'
-            'greater than 11.8. On ROCm (AMD GPU), FP8_E4M3 is instead '
-            'supported for common inference criteria.')
+            'greater than 11.8.  ')
         parser.add_argument('--max-model-len',
                             type=int,
                             default=EngineArgs.max_model_len,
@@ -405,7 +404,7 @@ class EngineArgs:
         parser.add_argument("--device",
                             type=str,
                             default=EngineArgs.device,
-                            choices=["auto", "cuda", "neuron", "cpu"],
+                            choices=["auto", "cuda", "cpu"],
                             help='Device type for SInfer execution.')
         # Related to Vision-language models such as llava
         parser.add_argument(

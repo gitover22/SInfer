@@ -1,4 +1,4 @@
-import asyncio
+import asyncio  # 用于管理异步任务
 import importlib
 import inspect
 import re
@@ -28,19 +28,19 @@ from sinfer.entrypoints.openai.serving_completion import OpenAIServingCompletion
 from sinfer.logger import init_logger
 from sinfer.usage.usage_lib import UsageContext
 
-TIMEOUT_KEEP_ALIVE = 5  # seconds
+TIMEOUT_KEEP_ALIVE = 5   # 连接的保活超时时间 second
 
 openai_serving_chat: OpenAIServingChat
 openai_serving_completion: OpenAIServingCompletion
 logger = init_logger(__name__)
 
-_running_tasks: Set[asyncio.Task[Any]] = set()
+_running_tasks: Set[asyncio.Task[Any]] = set()  # 用于跟踪异步任务
 
 
 @asynccontextmanager
 async def lifespan(app: fastapi.FastAPI):
 
-    async def _force_log():
+    async def _force_log(): # 每隔 10 秒记录一次推理引擎的统计信息
         while True:
             await asyncio.sleep(10)
             await engine.do_log_stats()
@@ -56,9 +56,9 @@ async def lifespan(app: fastapi.FastAPI):
 app = fastapi.FastAPI(lifespan=lifespan)
 
 
-def parse_args():
-    parser = make_arg_parser()
-    return parser.parse_args()
+# def parse_args():
+#     parser = make_arg_parser()
+#     return parser.parse_args()
 
 
 # Add prometheus asgi middleware to route /metrics requests
@@ -73,26 +73,25 @@ async def validation_exception_handler(_, exc):
     err = openai_serving_chat.create_error_response(message=str(exc))
     return JSONResponse(err.model_dump(), status_code=HTTPStatus.BAD_REQUEST)
 
-
+# 推理引擎健康检查
 @app.get("/health")
 async def health() -> Response:
-    """Health check."""
     await openai_serving_chat.engine.check_health()
     return Response(status_code=200)
 
-
+# 展示可用模型
 @app.get("/v1/models")
 async def show_available_models():
     models = await openai_serving_chat.show_available_models()
     return JSONResponse(content=models.model_dump())
 
-
+# 返回版本信息
 @app.get("/version")
 async def show_version():
     ver = {"version": sinfer.__version__}
     return JSONResponse(content=ver)
 
-
+# 聊天
 @app.post("/v1/chat/completions")
 async def create_chat_completion(request: ChatCompletionRequest,
                                  raw_request: Request):
@@ -108,7 +107,7 @@ async def create_chat_completion(request: ChatCompletionRequest,
         assert isinstance(generator, ChatCompletionResponse)
         return JSONResponse(content=generator.model_dump())
 
-
+# 文本补全
 @app.post("/v1/completions")
 async def create_completion(request: CompletionRequest, raw_request: Request):
     generator = await openai_serving_completion.create_completion(
@@ -124,8 +123,8 @@ async def create_completion(request: CompletionRequest, raw_request: Request):
 
 
 if __name__ == "__main__":
-    args = parse_args()
-
+    parser = make_arg_parser()
+    args = parser.parse_args()
     app.add_middleware(  # 添加 CORS 中间件
         CORSMiddleware,
         allow_origins=args.allowed_origins,
@@ -164,9 +163,9 @@ if __name__ == "__main__":
         served_model_names = args.served_model_name
     else:
         served_model_names = [args.model]
-    engine_args = AsyncEngineArgs.from_cli_args(args)
+    engine_args = AsyncEngineArgs.from_cli_args(args)  # 创建异步AsyncEngineArgs实例
     engine = AsyncLLMEngine.from_engine_args(
-        engine_args, usage_context=UsageContext.OPENAI_API_SERVER)
+        engine_args, usage_context=UsageContext.OPENAI_API_SERVER) # 创建AsyncLLMEngine实例
     openai_serving_chat = OpenAIServingChat(engine, served_model_names,
                                             args.response_role,
                                             args.lora_modules,

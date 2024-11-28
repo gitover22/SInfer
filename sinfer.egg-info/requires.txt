@@ -19,6 +19,10 @@ outlines==0.0.34
 typing_extensions
 filelock>=3.10.4
 tensorizer
+aiohttp
+pytest
+pytest-asyncio
+tiktoken
 yapf==0.32.0
 toml==0.10.2
 tomli==2.0.1

@@ -528,10 +528,9 @@ def async_tensor_h2d(
     return t.to(device=target_device, non_blocking=True)
 
 
-def maybe_expand_dim(tensor: torch.Tensor,
+def expand_dim(tensor: torch.Tensor,
                      target_dims: int,
                      size: int = 1) -> torch.Tensor:
-    """Expand the tensor to the target_dims."""
     if tensor.ndim < target_dims:
         tensor = tensor.view(-1, *([size] * (target_dims - tensor.ndim)))
     return tensor
@@ -539,9 +538,9 @@ def maybe_expand_dim(tensor: torch.Tensor,
 
 def merge_dicts(dict1: Dict[Any, List[Any]],
                 dict2: Dict[Any, List[Any]]) -> Dict[Any, List[Any]]:
-    """Merge 2 dicts that have key -> List of items.
-    
-    When a key conflicts, the values in dict1 is prioritized.
+    """
+    合并两个字典, 这两个字典的值是以列表形式存储的
+    当键冲突时, 优先保留字典 `dict1` 中的值。
     """
     merged_dict = defaultdict(list)
 

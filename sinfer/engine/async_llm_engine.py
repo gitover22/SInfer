@@ -278,13 +278,10 @@ class _AsyncLLMEngine(LLMEngine):
 class AsyncLLMEngine:
     """对LLMEngine的异步包装
 
-    This class is used to wrap the LLMEngine class to make it asynchronous. It
-    uses asyncio to create a background loop that keeps processing incoming
-    requests. The LLMEngine is kicked by the generate method when there
-    are requests in the waiting queue. The generate method yields the outputs
-    from the LLMEngine to the caller.
-
-    NOTE: For the comprehensive list of arguments, see `LLMEngine`.
+    这个类用于封装 LLMEngine 类，使其支持异步操作。  
+    它使用 asyncio 创建一个后台循环，用于持续处理传入的请求。  
+    当等待队列中有请求时，通过调用 generate 方法唤醒 LLMEngine 
+    generate 方法会将 LLMEngine 的输出逐步传递给调用者。
 
     Args:
         worker_use_ray: Whether to use Ray for model workers. Required for

@@ -8,8 +8,7 @@ import torch
 from sinfer.model_executor.layers.ops.sample import get_num_triton_sampler_splits
 from sinfer.sampling_params import SamplingParams, SamplingType
 from sinfer.sequence import SequenceData, SequenceGroupMetadata
-from sinfer.utils import (async_tensor_h2d, is_pin_memory_available,
-                        maybe_expand_dim)
+from sinfer.utils import (async_tensor_h2d, is_pin_memory_available,expand_dim)
 
 _SAMPLING_EPS = 1e-5
 _SEED_0_REPLACEMENT = 3403598558
@@ -121,7 +120,7 @@ class SamplingMetadata:
                                                   target_device=device,
                                                   pin_memory=pin_memory)
         categorized_sample_indices = {
-            t: maybe_expand_dim(
+            t: expand_dim(
                 async_tensor_h2d(seq_ids,
                                  dtype=torch.int,
                                  target_device=device,

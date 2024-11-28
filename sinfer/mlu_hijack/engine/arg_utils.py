@@ -41,13 +41,13 @@ def sinfer__engine__arg_utils__EngineArgs__create_engine_config(self, ) -> Engin
 @staticmethod
 def sinfer__engine__arg_utils__EngineArgs__add_cli_args(
         parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
-    """Shared CLI arguments for SInfer engine."""
+    """通用CLI命令行接口"""
     parser = sinfer__engine__arg_utils__EngineArgs__add_cli_args_org(parser)
-    # remove block_size choices, set default value to -1
+    # remove block_size choices
     for action in parser._actions:
         if action.dest == "block_size":
             action.choices = None
-            action.default = -1
+            action.default = -1  # 设为-1
 
     parser.add_argument('--max-batch_size-to-capture',
                         type=int,

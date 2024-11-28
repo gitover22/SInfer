@@ -1,8 +1,6 @@
 
 """
-This file contains the command line arguments for the SInfer's
-OpenAI-compatible server. It is kept in a separate file for documentation
-purposes.
+包含了SInfer的命令行参数OpenAI兼容的服务器
 """
 
 import argparse

@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: sinfer
-Version: 1.0.0+mlu.fa706aa
+Version: 1.0.0+mlu.33dd2d4
 Summary: A smart inference framework for LLMs on MLU backend
 Home-page: 
 Author: huafeng
@@ -35,6 +35,10 @@ Requires-Dist: outlines==0.0.34
 Requires-Dist: typing_extensions
 Requires-Dist: filelock>=3.10.4
 Requires-Dist: tensorizer
+Requires-Dist: aiohttp
+Requires-Dist: pytest
+Requires-Dist: pytest-asyncio
+Requires-Dist: tiktoken
 Requires-Dist: yapf==0.32.0
 Requires-Dist: toml==0.10.2
 Requires-Dist: tomli==2.0.1

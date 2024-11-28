@@ -201,8 +201,7 @@ class OpenAIServingCompletion(OpenAIServing):
 
                 for output in res.outputs:
                     i = output.index + prompt_idx * request.n
-                    # TODO(simon): optimize the performance by avoiding full
-                    # text O(n^2) sending.
+                    # optimize the performance by avoiding full text O(n^2) sending.
 
                     assert request.max_tokens is not None
                     if request.echo and request.max_tokens == 0:

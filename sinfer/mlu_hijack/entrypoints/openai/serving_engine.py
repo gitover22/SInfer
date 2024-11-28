@@ -19,19 +19,12 @@ async def sinfer__entrypoints__openai__serving_engine__OpenAIServing___check_mod
     if request.model in [lora.lora_name for lora in self.lora_requests]:
         return None
     '''
-    =============================
-    Modify by sinfer_mlu
-    =============================
     @brief: when client send a request with model=save_scheduler_view,
             scheduler will dump profile data.
     '''
     if request.model == "save_scheduler_view":
         self.engine.save_scheduler_view()
-    '''
-    ==================
-    End of MLU Hijack
-    ==================
-    '''
+    
     return self.create_error_response(
         message=f"The model `{request.model}` does not exist.",
         err_type="NotFoundError",
