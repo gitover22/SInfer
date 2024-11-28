@@ -94,7 +94,7 @@ class CacheEngine:
         value_cache_block = key_cache_block
         total = num_layers * (key_cache_block + value_cache_block)
         if cache_config.cache_dtype == "auto":
-            dtype = model_config.dtype
+            dtype = model_config.dtype # 不设置kv cache的数据类型时，默认为模型权重类型
         else:
             dtype = STR_DTYPE_TO_TORCH_DTYPE[cache_config.cache_dtype]
         dtype_size = _get_dtype_size(dtype)

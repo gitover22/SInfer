@@ -8,8 +8,6 @@ from sinfer.model_executor.layers.linear import LinearBase
 from sinfer.model_executor.layers.quantization.base_config import (
     QuantizationConfig, QuantizeMethodBase)
 from sinfer.model_executor.utils import set_weight_attrs
-from sinfer.utils import is_hip
-
 
 class SqueezeLLMConfig(QuantizationConfig):
     """Config class for SqueezeLLM.
@@ -123,14 +121,10 @@ class SqueezeLLMLinearMethod(QuantizeMethodBase):
         lookup_table = layer.lookup_table
         out_shape = x.shape[:-1] + (qweight.shape[-1], )
         reshaped_x = x.reshape(-1, x.shape[-1])
-        if is_hip():
-            out_f = torch.zeros(out_shape, dtype=torch.float)
-            ops.squeezellm_gemm(reshaped_x, qweight, out_f, lookup_table)
-            out = out_f.to(dtype=torch.float16)
-        else:
-            # NOTE: The output tensor should be zero-initialized.
-            out = torch.zeros(out_shape, dtype=torch.float16)
-            ops.squeezellm_gemm(reshaped_x, qweight, out, lookup_table)
+        
+        # NOTE: The output tensor should be zero-initialized.
+        out = torch.zeros(out_shape, dtype=torch.float16)
+        ops.squeezellm_gemm(reshaped_x, qweight, out, lookup_table)
 
         if bias is not None:
             out.add_(bias)

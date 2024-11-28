@@ -8,7 +8,7 @@ from xformers import ops as xops
 from xformers.ops.fmha.attn_bias import BlockDiagonalCausalMask
 
 from sinfer import _custom_ops as ops
-from sinfer.utils import get_max_shared_memory_bytes, is_hip
+from sinfer.utils import get_max_shared_memory_bytes
 
 FLOAT32_BYTES = torch.finfo(torch.float).bits // 8
 # This will change depending on the compute capability.
@@ -19,16 +19,14 @@ MAX_SEQ_LEN = get_max_shared_memory_bytes() // FLOAT32_BYTES - 512
 NUM_BLOCKS = 4321  # Arbitrary values for testing
 PARTITION_SIZE = 512
 # flshattF and tritonflashattF supported: {torch.float16, torch.bfloat16}
-DTYPES = [torch.half, torch.bfloat16, torch.float
-          ] if not is_hip() else [torch.half, torch.bfloat16]
+DTYPES = [torch.half, torch.bfloat16, torch.float]
 NUM_GEN_SEQS = [7]  # Arbitrary values for testing
 NUM_PREFILL_SEQS = [3]  # Arbitrary values for testing
 NUM_HEADS = [(40, 40), (64, 8)]  # Arbitrary values for testing
 
 # FlashAttention forward only supports head dimension at most 128
 # https://github.com/ROCmSoftwarePlatform/flash-attention/blob/3d2b6f5d037782cc2c906909a46fb7e2e1b48b25/csrc/flash_attn_rocm/flash_api.cpp#L62
-HEAD_SIZES = [64, 80, 96, 112, 128, 256
-              ] if not is_hip() else [64, 80, 96, 112, 128]
+HEAD_SIZES = [64, 80, 96, 112, 128, 256]
 
 BLOCK_SIZES = [16, 32]
 USE_ALIBI = [False, True]
@@ -262,8 +260,8 @@ def test_paged_attention(
     # NOTE(woosuk): Due to the kernel-level differences in the two
     # implementations, there is a small numerical difference in the two
     # outputs. Thus, we use a relaxed tolerance for the test.
-    atol = get_default_atol(output) if is_hip() else 1e-3
-    rtol = get_default_rtol(output) if is_hip() else 1e-5
+    atol = 1e-3
+    rtol = 1e-5
 
     # NOTE(zhaoyang): FP8 KV Cache will introduce quantization error,
     # so we use a relaxed tolerance for the test.
@@ -371,6 +369,6 @@ def test_multi_query_kv_attention(
         scale,
         dtype,
     )
-    atol = get_default_atol(output) if is_hip() else 1e-3
-    rtol = get_default_rtol(output) if is_hip() else 1e-5
+    atol = 1e-3
+    rtol = 1e-5
     assert torch.allclose(output, ref_output, atol=atol, rtol=rtol)

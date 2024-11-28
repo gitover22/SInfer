@@ -6,7 +6,6 @@ import torch
 
 from sinfer import _custom_ops as ops
 from sinfer._C import cache_ops
-from sinfer.utils import is_hip
 
 COPYING_DIRECTION = [('cuda', 'cpu'), ('cuda', 'cuda'), ('cpu', 'cuda')]
 DTYPES = [torch.half, torch.bfloat16, torch.float]
@@ -121,7 +120,7 @@ def test_reshape_and_cache(
     device: str,
     kv_cache_dtype: str,
 ) -> None:
-    if not is_hip() and kv_cache_dtype == "fp8":
+    if kv_cache_dtype == "fp8":
         pytest.skip()  # This test is not tuned for e5m2 cuda precision
     random.seed(seed)
     torch.random.manual_seed(seed)
@@ -294,7 +293,7 @@ def test_swap_blocks(
 ) -> None:
     if kv_cache_dtype == "fp8" and "cpu" in direction:
         pytest.skip()
-    if not is_hip() and kv_cache_dtype == "fp8":
+    if kv_cache_dtype == "fp8":
         pytest.skip()  # This test is not tuned for e5m2 cuda precision
     random.seed(seed)
     torch.random.manual_seed(seed)
@@ -338,7 +337,7 @@ def test_swap_blocks(
                               dist_value_caches[0][dst].cpu())
 
 
-@pytest.mark.skipif(not is_hip(), reason="FP8 conversion test requires e4m3")
+@pytest.mark.skipif(True, reason="FP8 conversion test requires e4m3")
 @pytest.mark.parametrize("num_heads", NUM_HEADS)
 @pytest.mark.parametrize("head_size", HEAD_SIZES)
 @pytest.mark.parametrize("block_size", BLOCK_SIZES)

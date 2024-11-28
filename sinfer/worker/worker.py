@@ -134,15 +134,15 @@ class Worker(WorkerBase):
         # cache blocks that can be allocated with the remaining free memory.
         torch.cuda.empty_cache()
 
-        # Execute a forward pass with dummy inputs to profile the memory usage
-        # of the model.
+        
+        # 执行一次前向传递，使用虚拟输入以分析模型的内存使用情况。
         self.model_runner.profile_run()
 
         # Calculate the number of blocks that can be allocated with the
         # profiled peak memory.
         torch.cuda.synchronize()
         free_gpu_memory, total_gpu_memory = torch.cuda.mem_get_info()
-        # NOTE(woosuk): Here we assume that the other processes using the same
+        # Here we assume that the other processes using the same
         # GPU did not change their memory usage during the profiling.
         peak_memory = self.init_gpu_memory - free_gpu_memory
         assert peak_memory > 0, (
@@ -271,7 +271,7 @@ class Worker(WorkerBase):
         return self.model_runner.vocab_size
 
     def get_cache_block_size_bytes(self) -> int:
-        """Get the size of the KV cache block size in bytes.
+        """获取kv cache的块大小bytes.
         """
         return CacheEngine.get_cache_block_size(self.cache_config,
                                                 self.model_config,

@@ -4,7 +4,6 @@ from typing import Dict, List, Optional, Type
 import torch.nn as nn
 
 from sinfer.logger import init_logger
-from sinfer.utils import is_hip
 
 logger = init_logger(__name__)
 
@@ -85,15 +84,6 @@ class ModelRegistry:
             return _OOT_MODELS[model_arch]
         if model_arch not in _MODELS:
             return None
-        if is_hip():
-            if model_arch in _ROCM_UNSUPPORTED_MODELS:
-                raise ValueError(
-                    f"Model architecture {model_arch} is not supported by "
-                    "ROCm for now.")
-            if model_arch in _ROCM_PARTIALLY_SUPPORTED_MODELS:
-                logger.warning(
-                    "Model architecture %s is partially supported by ROCm: %s",
-                    model_arch, _ROCM_PARTIALLY_SUPPORTED_MODELS[model_arch])
 
         module_name, model_cls_name = _MODELS[model_arch]
         module = importlib.import_module(

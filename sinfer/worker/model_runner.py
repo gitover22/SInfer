@@ -24,7 +24,7 @@ from sinfer.model_executor.model_loader import get_model
 from sinfer.sampling_params import SamplingParams
 from sinfer.sequence import (MultiModalData, SamplerOutput, SequenceData,
                            SequenceGroupMetadata)
-from sinfer.utils import (CudaMemoryProfiler, get_kv_cache_torch_dtype, is_hip,
+from sinfer.utils import (CudaMemoryProfiler, get_kv_cache_torch_dtype,
                         is_pin_memory_available, make_tensor_with_pad)
 
 logger = init_logger(__name__)
@@ -191,23 +191,8 @@ class ModelRunner:
                 self.model.embedding_padding_modules)
             self.model = self.lora_manager.create_lora_manager(self.model)
 
-        if self.kv_cache_dtype == "fp8" and is_hip():
-            # Currently scaled KV cache is only enabled on ROCm
-            if self.model_config.quantization_param_path is not None:
-                if callable(getattr(self.model, "load_kv_cache_scales", None)):
-                    self.model.load_kv_cache_scales(
-                        self.model_config.quantization_param_path)
-                else:
-                    raise RuntimeError(
-                        "Using FP8 KV cache and scaling factors provided but "
-                        "model %s does not support loading scaling factors.",
-                        self.model.__class__)
-            else:
-                logger.warning(
-                    "Using FP8 KV cache but no scaling factors "
-                    "provided. Defaulting to scaling factors of 1.0. "
-                    "This may lead to less accurate results!")
-        elif self.model_config.quantization_param_path is not None:
+        
+        if self.model_config.quantization_param_path is not None:
             logger.warning("KV cache scaling factors provided, "
                            "but the KV cache data type is not FP8. "
                            "KV cache scaling factors will not be used.")

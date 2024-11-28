@@ -7,7 +7,7 @@ from sinfer.usage.usage_lib import UsageContext
 from sinfer.utils import Counter
 
 
-def sinfer__entrypoints__llm__LLM____init___wraper(
+def _LLM_init_(
     self,
     model: str,
     tokenizer: Optional[str] = None,
@@ -21,42 +21,24 @@ def sinfer__entrypoints__llm__LLM____init___wraper(
     tokenizer_revision: Optional[str] = None,
     seed: int = 0,
     gpu_memory_utilization: float = 0.9,
-    swap_space: int = 4,
+    swap_space: int = 64,
     enforce_eager: bool = False,
     max_context_len_to_capture: Optional[int] = None,
     max_seq_len_to_capture: int = 8192,
     disable_custom_all_reduce: bool = False,
     **kwargs,
 ) -> None:
-    '''
-    =============================
-    Modify by sinfer_mlu
-    =============================
-    @brief: Support user to define the max capture batch size
-    '''
+    # Support user to define the max capture batch size
     if "max_batch_size_to_capture" in kwargs:
         max_batch_size_to_capture = kwargs.pop("max_batch_size_to_capture")
         if max_batch_size_to_capture:
             set_batch_sizes_to_capture(max_batch_size_to_capture)
-    '''
-    ==================
-    End of MLU Hijack
-    ==================
-    '''    
-    '''
-    ==========================
-    Modify by Context Parallel
-    ==========================
-    @brief: pop context_parallel_size
-    '''
+       
+    # pop context_parallel_size
     context_parallel_size = 1
     if "context_parallel_size" in kwargs:
         context_parallel_size = kwargs.pop("context_parallel_size")
-        '''
-    =======================
-    End of Context Parallel
-    =======================
-    '''
+
     if "disable_log_stats" not in kwargs:
             kwargs["disable_log_stats"] = True
     engine_args = EngineArgs(
@@ -80,18 +62,8 @@ def sinfer__entrypoints__llm__LLM____init___wraper(
         **kwargs,
     )
 
-    '''
-    ==========================
-    Modify by Context Parallel
-    ==========================
-    @brief: set context_parallel_size to engine_args
-    '''
+    # set context_parallel_size to engine_args
     setattr(engine_args, 'context_parallel_size', context_parallel_size)
-    '''
-    =======================
-    End of Context Parallel
-    =======================
-    '''
     
     self.llm_engine = LLMEngine.from_engine_args(
         engine_args, usage_context=UsageContext.LLM_CLASS)
@@ -99,4 +71,4 @@ def sinfer__entrypoints__llm__LLM____init___wraper(
 
 MluHijackObject.add_hijack_object(LLM,
                                   LLM.__init__,
-                                  sinfer__entrypoints__llm__LLM____init___wraper)
+                                  _LLM_init_)

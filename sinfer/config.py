@@ -12,8 +12,7 @@ from sinfer.logger import init_logger
 from sinfer.model_executor.layers.quantization import (QUANTIZATION_METHODS,
                                                      get_quantization_config)
 from sinfer.transformers_utils.config import get_config, get_hf_text_config
-from sinfer.utils import (get_cpu_memory, get_nvcc_cuda_version, is_cpu, is_hip,
-                        is_neuron)
+from sinfer.utils import (get_cpu_memory, get_nvcc_cuda_version, is_cpu)
 
 GPTQMarlinConfig = get_quantization_config("gptq_marlin")
 
@@ -196,11 +195,6 @@ class ModelConfig:
                 raise ValueError(
                     f"Unknown quantization method: {self.quantization}. Must "
                     f"be one of {supported_quantization}.")
-            if is_hip(
-            ) and self.quantization not in rocm_supported_quantization:
-                raise ValueError(
-                    f"{self.quantization} quantization is currently not "
-                    f"supported in ROCm.")
             if (self.quantization not in ["marlin", "gptq_marlin"]):
                 logger.warning(
                     "%s quantization is not fully "
@@ -369,13 +363,12 @@ class CacheConfig:
         if self.cache_dtype == "auto":
             pass
         elif self.cache_dtype == "fp8":
-            if not is_hip():
-                nvcc_cuda_version = get_nvcc_cuda_version()
-                if nvcc_cuda_version is not None \
-                        and nvcc_cuda_version < Version("11.8"):
-                    raise ValueError(
-                        "FP8 is not supported when cuda version is"
-                        "lower than 11.8.")
+            nvcc_cuda_version = get_nvcc_cuda_version()
+            if nvcc_cuda_version is not None \
+                    and nvcc_cuda_version < Version("11.8"):
+                raise ValueError(
+                    "FP8 is not supported when cuda version is"
+                    "lower than 11.8.")
             logger.info(
                 "Using fp8 data type to store kv cache. It reduces the GPU "
                 "memory footprint and boosts the performance. "
@@ -505,15 +498,6 @@ class LoadConfig:
         self.load_format = LoadFormat(load_format)
 
         rocm_not_supported_load_format: List[str] = []
-        if is_hip() and load_format in rocm_not_supported_load_format:
-            rocm_supported_load_format = [
-                f for f in LoadFormat.__members__
-                if (f not in rocm_not_supported_load_format)
-            ]
-            raise ValueError(
-                f"load format '{load_format}' is not supported in ROCm. "
-                f"Supported load formats are "
-                f"{rocm_supported_load_format}")
 
 
 class ParallelConfig:
@@ -566,12 +550,7 @@ class ParallelConfig:
             raise NotImplementedError(
                 "Pipeline parallelism is not supported yet.")
         if not self.disable_custom_all_reduce and self.world_size > 1:
-            if is_hip():
-                self.disable_custom_all_reduce = True
-                logger.info(
-                    "Disabled the custom all-reduce kernel because it is not "
-                    "supported on AMD GPUs.")
-            elif self.pipeline_parallel_size > 1:
+            if self.pipeline_parallel_size > 1:
                 self.disable_custom_all_reduce = True
                 logger.info(
                     "Disabled the custom all-reduce kernel because it is not "
@@ -664,9 +643,7 @@ class DeviceConfig:
     def __init__(self, device: str = "auto") -> None:
         if device == "auto":
             # Automated device type detection
-            if is_neuron():
-                self.device_type = "neuron"
-            elif is_cpu():
+            if is_cpu():
                 self.device_type = "cpu"
             else:
                 # We don't call torch.cuda.is_available() here to
@@ -1064,14 +1041,6 @@ def _get_and_verify_dtype(
         torch_dtype = dtype
     else:
         raise ValueError(f"Unknown dtype: {dtype}")
-
-    if is_hip() and torch_dtype == torch.float32:
-        rocm_supported_dtypes = [
-            k for k, v in _STR_DTYPE_TO_TORCH_DTYPE.items()
-            if (k not in _ROCM_NOT_SUPPORTED_DTYPE)
-        ]
-        raise ValueError(f"dtype '{dtype}' is not supported in ROCm. "
-                         f"Supported dtypes are {rocm_supported_dtypes}")
 
     # Verify the dtype.
     if torch_dtype != config_dtype:

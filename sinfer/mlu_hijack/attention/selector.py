@@ -4,7 +4,7 @@ import torch
 import sinfer
 import sinfer.envs as envs
 from sinfer.logger import init_logger
-from sinfer.utils import is_cpu, is_hip
+from sinfer.utils import is_cpu
 from sinfer.mlu_hijack.mlu_hijack_utils import MluHijackObject
 from sinfer.attention.selector import _Backend
 
@@ -20,12 +20,6 @@ def sinfer__attention__selector___which_attn_to_use(dtype: torch.dtype) -> _Back
     if 3 <= torch.mlu.get_device_capability()[0] <= 5 and dtype in (torch.float16, torch.bfloat16):
         logger.info("Use mlu flash_atten as Attention backend.")
         return _Backend.FLASH_ATTN
-    if is_hip():
-        # AMD GPUs.
-        if torch.cuda.get_device_capability()[0] != 9:
-            # not Instinct series GPUs.
-            logger.info("flash_atten is not supported on NAVI GPUs.")
-        return _Backend.ROCM_FLASH
 
     # NVIDIA GPUs.
     if torch.cuda.get_device_capability()[0] < 8:

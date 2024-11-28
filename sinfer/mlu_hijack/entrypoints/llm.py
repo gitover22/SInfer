@@ -15,9 +15,9 @@ logger = init_logger(__name__)
 LLM.metric = LLMMetric()
 LLM.dump_info = LLMDumpInfo()
 
-sinfer__entrypoints__llm__LLM____init__org = LLM.__init__
+LLM__init__original = LLM.__init__
 
-def sinfer__entrypoints__llm__LLM____init__(
+def adapter_LLM__init__(
     self,
     model: str,
     tokenizer: Optional[str] = None,
@@ -31,7 +31,7 @@ def sinfer__entrypoints__llm__LLM____init__(
     tokenizer_revision: Optional[str] = None,
     seed: int = 0,
     gpu_memory_utilization: float = 0.9,
-    swap_space: int = 4,
+    swap_space: int = 64,
     enforce_eager: bool = False,
     max_context_len_to_capture: Optional[int] = None,
     max_seq_len_to_capture: int = 8192,
@@ -52,7 +52,7 @@ def sinfer__entrypoints__llm__LLM____init__(
                model=model, trust_remote_code=kwargs.get('trust_remote_code', 'default_value'))
     
     # 调用原来的构造函数
-    sinfer__entrypoints__llm__LLM____init__org(
+    LLM__init__original(
         self=self,
         model=model,
         tokenizer=tokenizer,
@@ -77,7 +77,7 @@ def sinfer__entrypoints__llm__LLM____init__(
     LLM.dump_info.memory_usage()
     
 
-def sinfer__entrypoints__llm__LLM__get_metrics(
+def adapter_LLM_get_metrics(
     self,
     metrics_idx_start,
     only_average,
@@ -105,7 +105,7 @@ def sinfer__entrypoints__llm__LLM__get_metrics(
         print("Warnning:please set SINFER_LATENCY_DEBUG=true!")
 
 
-def sinfer__entrypoints__llm__LLM___run_engine(self, use_tqdm: bool) -> List[RequestOutput]:
+def adapter_LLM_run_engine(self, use_tqdm: bool) -> List[RequestOutput]:
     if use_tqdm:
         num_requests = self.llm_engine.get_num_unfinished_requests()
         pbar = tqdm(total=num_requests,
@@ -152,12 +152,6 @@ def sinfer__entrypoints__llm__LLM___run_engine(self, use_tqdm: bool) -> List[Req
     outputs = sorted(outputs, key=lambda x: int(x.request_id))
     return outputs
 
-MluHijackObject.add_hijack_object(LLM,
-                                  LLM.__init__,
-                                  sinfer__entrypoints__llm__LLM____init__)
-MluHijackObject.add_hijack_object(LLM,
-                                  "get_metrics",
-                                  sinfer__entrypoints__llm__LLM__get_metrics)
-MluHijackObject.add_hijack_object(LLM,
-                                  LLM._run_engine,
-                                  sinfer__entrypoints__llm__LLM___run_engine)
+MluHijackObject.add_hijack_object(LLM, LLM.__init__, adapter_LLM__init__)
+MluHijackObject.add_hijack_object(LLM,"get_metrics", adapter_LLM_get_metrics)
+MluHijackObject.add_hijack_object(LLM,LLM._run_engine, adapter_LLM_run_engine)

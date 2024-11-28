@@ -120,11 +120,6 @@ class LRUCache(Generic[T]):
             self.remove_oldest()
         self.cache.clear()
 
-
-def is_hip() -> bool:
-    return torch.version.hip is not None
-
-
 @lru_cache(maxsize=None)
 def is_cpu() -> bool:
     from importlib.metadata import PackageNotFoundError, version
@@ -132,16 +127,6 @@ def is_cpu() -> bool:
         return "cpu" in version("sinfer")
     except PackageNotFoundError:
         return False
-
-
-@lru_cache(maxsize=None)
-def is_neuron() -> bool:
-    try:
-        import transformers_neuronx
-    except ImportError:
-        transformers_neuronx = None
-    return transformers_neuronx is not None
-
 
 @lru_cache(maxsize=None)
 def get_max_shared_memory_bytes(gpu: int = 0) -> int:
@@ -472,9 +457,6 @@ def is_pin_memory_available() -> bool:
         print_warning_once("Using 'pin_memory=False' as WSL is detected. "
                            "This may slow down the performance.")
         return False
-    elif is_neuron():
-        print_warning_once("Pin memory is not supported on Neuron.")
-        return False
     elif is_cpu():
         return False
     return True
@@ -654,7 +636,7 @@ def find_nccl_library():
         elif torch.version.hip is not None:
             so_file = find_library("librccl.so.1")
         else:
-            raise ValueError("NCCL only supports CUDA and ROCm backends.")
+            raise ValueError("NCCL only supports CUDA backends.")
         logger.info("Found nccl from library %s", so_file)
     return so_file
 

@@ -16,31 +16,16 @@ sinfer__engine__arg_utils__AsyncEngineArgs__from_cli_args_org = AsyncEngineArgs.
 sinfer_engine__arg_utils__EngineArgs____post_init__org = EngineArgs.__post_init__
 
 def sinfer_engine__arg_utils__EngineArgs____post_init__(self,) -> None:
-    '''
-    =============================
-    Add by sinfer_mlu
-    =============================
-    @brief: In MLU3XX device, when the tensor_parallel_size > 1, the enforce_eager is forced to set False
-    '''
+    # In MLU3XX device, when the tensor_parallel_size > 1, the enforce_eager is forced to set False
     unsupport_device = "3" in torch.cuda.get_device_name(0)
     if unsupport_device and self.tensor_parallel_size > 1 and self.enforce_eager == False:
         self.enforce_eager = True
         logger.warning("The current device only support enforce_eager = True, when the tensor_parallel_size > 1. "
                        "The param enforce_eager is forced to set True")
-    '''
-    ==================
-    End of MLU Hijack
-    ==================
-    '''
     sinfer_engine__arg_utils__EngineArgs____post_init__org(self)
     
 def sinfer__engine__arg_utils__EngineArgs__create_engine_config(self, ) -> EngineConfig:
-    '''
-    =============================
-    Modify by sinfer_mlu
-    =============================
-    @brief: disable custom_all_reduce, re-set block_size to support paged and unpaged mode
-    '''
+    # disable custom_all_reduce, re-set block_size to support paged and unpaged mode
     # MLU not support custom all reduce
     self.disable_custom_all_reduce = True
     BlockSizeInfo.set_block_size(self.block_size)
@@ -49,11 +34,7 @@ def sinfer__engine__arg_utils__EngineArgs__create_engine_config(self, ) -> Engin
 
     engine_config = sinfer__engine__arg_utils__EngineArgs__create_engine_config_org(self)
     engine_config.cache_config.block_size = BlockSizeInfo.BLOCK_SIZE
-    '''
-    ==================
-    End of MLU Hijack
-    ==================
-    '''
+    
     return engine_config
 
 
@@ -62,12 +43,7 @@ def sinfer__engine__arg_utils__EngineArgs__add_cli_args(
         parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
     """Shared CLI arguments for SInfer engine."""
     parser = sinfer__engine__arg_utils__EngineArgs__add_cli_args_org(parser)
-    '''
-    =============================
-    Modify by sinfer_mlu
-    =============================
-    @brief: remove block_size choices, set default value to -1
-    '''
+    # remove block_size choices, set default value to -1
     for action in parser._actions:
         if action.dest == "block_size":
             action.choices = None
@@ -77,11 +53,6 @@ def sinfer__engine__arg_utils__EngineArgs__add_cli_args(
                         type=int,
                         default=None,
                         help='The max batch size to capture MLUGraph.')
-    '''
-    ==================
-    End of MLU Hijack
-    ==================
-    '''
     return parser
 
 

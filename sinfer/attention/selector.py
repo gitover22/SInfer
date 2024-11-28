@@ -7,7 +7,7 @@ import torch
 import sinfer.envs as envs
 from sinfer.attention.backends.abstract import AttentionBackend
 from sinfer.logger import init_logger
-from sinfer.utils import is_cpu, is_hip
+from sinfer.utils import is_cpu
 
 logger = init_logger(__name__)
 
@@ -55,13 +55,6 @@ def get_attn_backend(dtype: torch.dtype) -> Type[AttentionBackend]:
 def _which_attn_to_use(dtype: torch.dtype) -> _Backend:
     if is_cpu():
         return _Backend.TORCH_SDPA
-
-    if is_hip():
-        # AMD GPUs.
-        if torch.cuda.get_device_capability()[0] != 9:
-            # not Instinct series GPUs.
-            logger.info("flash_atten is not supported on NAVI GPUs.")
-        return _Backend.ROCM_FLASH
 
     # NVIDIA GPUs.
     if torch.cuda.get_device_capability()[0] < 8:

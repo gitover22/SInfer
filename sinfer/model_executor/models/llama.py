@@ -47,7 +47,6 @@ from sinfer.model_executor.model_loader.weight_utils import (
     default_weight_loader, kv_cache_scales_loader)
 from sinfer.model_executor.sampling_metadata import SamplingMetadata
 from sinfer.sequence import SamplerOutput
-from sinfer.utils import is_hip
 
 
 class LlamaMLP(nn.Module):
@@ -429,12 +428,6 @@ class LlamaForCausalLM(nn.Module):
                 self.config.__class__.model_type):
             layer_self_attn = self.model.layers[layer_idx].self_attn
 
-            if is_hip():
-                # The scaling factor convention we are assuming is
-                # quantized_value * scaling_factor ~= true_value
-                # which is consistent with the practice of setting
-                # scaling_factor = tensor_amax / FPtype_max
-                scaling_factor *= 2
             if hasattr(layer_self_attn, "kv_scale"):
                 layer_self_attn.kv_scale = scaling_factor
             else:

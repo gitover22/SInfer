@@ -5,7 +5,7 @@ python -m sinfer.entrypoints.openai.api_server \
     --dtype float16 \
     --tensor-parallel-size 4 \
     --gpu-memory-utilization 0.9 \
-    --swap-space 4 \
+    --swap-space 64 \
     --api-key token-abc123 \
     # --device cuda
     # --enable-prefix-caching \
