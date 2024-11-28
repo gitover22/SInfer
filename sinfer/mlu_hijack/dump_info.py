@@ -52,7 +52,8 @@ class LLMDumpInfo:
             from sinfer.mlu_hijack.device_info import get_info_inner
             self.so_file,self.dev_info,self.cpu_info,self.lib = get_info_inner(self.so_file, self.dev_info, self.cpu_info, self.lib)
         except:
-            logger.info("Cannot get device info")
+            # logger.info("Cannot get device info")
+            pass
     
     def init_param(self,
                    tensor_parallel_size=None,

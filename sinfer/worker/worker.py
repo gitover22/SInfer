@@ -81,19 +81,15 @@ class Worker(WorkerBase):
             is_driver_worker=is_driver_worker,
             vision_language_config=vision_language_config,
         )
-        # Uninitialized cache engine. Will be initialized by
-        # initialize_cache.
-        self.cache_engine: CacheEngine
+
+        self.cache_engine: CacheEngine  # 没初始化
         self.gpu_cache: List[torch.Tensor]
 
     def init_device(self) -> None:
         if self.device_config.device.type == "cuda":
-            # torch.distributed.all_reduce does not free the input tensor until
-            # the synchronization point. This causes the memory usage to grow
-            # as the number of all_reduce calls increases. This env var disables
-            # this behavior.
-            # Related issue:
-            # https://discuss.pytorch.org/t/cuda-allocation-lifetime-for-inputs-to-distributed-all-reduce/191573
+            # torch.distributed.all_reduce 在同步点之前不会释放输入张量
+            # 这会导致随着 all_reduce 调用次数的增加，内存使用量不断增长。
+            # 通过设置该环境变量可以禁用这种行为
             os.environ["TORCH_NCCL_AVOID_RECORD_STREAMS"] = "1"
 
             # This env var set by Ray causes exceptions with graph building.
@@ -119,16 +115,9 @@ class Worker(WorkerBase):
 
     @torch.inference_mode()
     def determine_num_available_blocks(self) -> Tuple[int, int]:
-        """Profiles the peak memory usage of the model to determine how many
-        KV blocks may be allocated without OOMs.
-
-        The engine will first conduct a profiling of the existing memory usage.
-        Then, it calculate the maximum possible number of GPU and CPU blocks
-        that can be allocated with the remaining free memory.
-
-        .. tip::
-            You may limit the usage of GPU memory
-            by adjusting the `gpu_memory_utilization` parameter.
+        """
+            分析模型的峰值内存使用情况, 以确定可以分配多少个 KV 块而不会发生内存溢出(OOM)
+            引擎会首先对现有的内存使用情况进行分析,然后计算在剩余的可用内存中设备可分配的最大块数量。
         """
         # Profile the memory usage of the model and get the maximum number of
         # cache blocks that can be allocated with the remaining free memory.
@@ -189,8 +178,7 @@ class Worker(WorkerBase):
     def _warm_up_model(self) -> None:
         if not self.model_config.enforce_eager:
             self.model_runner.capture_model(self.gpu_cache)
-        # Reset the seed to ensure that the random state is not affected by
-        # the model initialization and profiling.
+        # 重置随机数种子，以确保随机状态不受模型初始化和分析的影响。
         set_random_seed(self.model_config.seed)
 
     def cache_swap(
@@ -199,8 +187,7 @@ class Worker(WorkerBase):
         blocks_to_swap_out: Dict[int, int],
         blocks_to_copy: Dict[int, List[int]],
     ) -> None:
-        # Issue cache operations.
-        # TODO(woosuk): Profile swapping overhead and optimize if needed.
+        # 
         if blocks_to_swap_in:
             self.cache_engine.swap_in(blocks_to_swap_in)
         if blocks_to_swap_out:
@@ -232,9 +219,9 @@ class Worker(WorkerBase):
                 "blocks_to_swap_out": blocks_to_swap_out,
                 "blocks_to_copy": blocks_to_copy,
             }
-            broadcast_tensor_dict(data, src=0)
+            broadcast_tensor_dict(data, src=0) # 广播给其他 Worker
         else:
-            data = broadcast_tensor_dict(src=0)
+            data = broadcast_tensor_dict(src=0) # 接收 Driver 广播的数据
             num_seq_groups = data["num_seq_groups"]
             blocks_to_swap_in = data["blocks_to_swap_in"]
             blocks_to_swap_out = data["blocks_to_swap_out"]
@@ -242,15 +229,14 @@ class Worker(WorkerBase):
 
         self.cache_swap(blocks_to_swap_in, blocks_to_swap_out, blocks_to_copy)
 
-        # If there is no input, we don't need to execute the model.
+        # 没有输入数据，直接返回空列表
         if num_seq_groups == 0:
             return []
-
+        # 调用ModelRunner执行模型
         output = self.model_runner.execute_model(seq_group_metadata_list,
                                                  self.gpu_cache)
 
-        # Worker only supports single-step execution. Wrap the output in a list
-        # to conform to interface.
+        # Worker 仅支持单步执行，将输出包装为一个列表以符合接口要求
         return [output]
 
     def add_lora(self, lora_request: LoRARequest) -> bool:

@@ -12,11 +12,8 @@ logger = init_logger(__name__)
 
 
 class CacheEngine:
-    """Manages the KV cache.
-
-    This class is responsible for initializing and managing the GPU and CPU KV
-    caches. It also provides methods for performing KV cache operations, such
-    as swapping and copying.
+    """
+        负责初始化和管理 GPU/CPU 的 KV 缓存，同时提供用于执行 KV 缓存操作的方法，例如交换和拷贝操作
     """
 
     def __init__(
@@ -42,10 +39,10 @@ class CacheEngine:
         else:
             self.dtype = STR_DTYPE_TO_TORCH_DTYPE[cache_config.cache_dtype]
 
-        # Get attention backend.
+        # 获取attention后端
         self.attn_backend = get_attn_backend(model_config.dtype)
 
-        # Initialize the cache.
+        # 在设备上分配kv cache空间
         self.gpu_cache = self._allocate_kv_cache(self.num_gpu_blocks, "cuda")
         self.cpu_cache = self._allocate_kv_cache(self.num_cpu_blocks, "cpu")
 
@@ -54,7 +51,6 @@ class CacheEngine:
         num_blocks: int,
         device: str,
     ) -> List[torch.Tensor]:
-        """Allocates KV cache on the specified device."""
         kv_cache_shape = self.attn_backend.get_kv_cache_shape(
             num_blocks, self.block_size, self.num_heads, self.head_size)
         pin_memory = is_pin_memory_available() if device == "cpu" else False

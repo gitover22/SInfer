@@ -121,7 +121,7 @@ class ModelRunner:
         self.is_driver_worker = is_driver_worker
 
         # model_config can be None in tests/samplers/test_sampler.py.
-        # FIXME(woosuk): This is a hack to make the tests work. Refactor this.
+        # This is a hack to make the tests work. Refactor this.
         self.sliding_window = (model_config.get_sliding_window()
                                if model_config is not None else None)
         self.device_config = (device_config
@@ -867,10 +867,10 @@ class ModelRunner:
             )
             seqs.append(seq)
 
-        # Run the model with the dummy inputs.
+        
         num_layers = self.model_config.get_num_layers(self.parallel_config)
         kv_caches = [None] * num_layers
-        self.execute_model(seqs, kv_caches)
+        self.execute_model(seqs, kv_caches) # 用假数据运行模型
         torch.cuda.synchronize()
         return
 
@@ -902,20 +902,19 @@ class ModelRunner:
 
     @torch.inference_mode()
     def capture_model(self, kv_caches: List[torch.Tensor]) -> None:
-        """Cuda graph capture a model.
-
-        Note that CUDA graph's performance gain is negligible if number
-        of batched tokens are larger than 200. And since CUDA graph
-        requires fixed sized tensors, supporting large/variable batch
-        size requires high GPU memory overhead. Thus, SInfer only captures
-        decoding requests. Mixed batch (chunked prefill + decoding) or
-        prefill requests are not captured.
-
-        Since it is used for decoding-only, it assumes there's only 1 token
-        per sequence in the batch.
         """
-        # NOTE(woosuk): This is a hack to ensure that the NCCL backend is never
-        # deleted before the CUDA graphs.
+        使用 CUDA 图捕获模型。
+
+        注意：
+        - 当批量 token 数量大于 200 时，CUDA 图的性能提升可以忽略不计。
+        - CUDA 图需要固定大小的张量，因此支持大批量或动态批量大小会占用大量 GPU 内存。
+        - SInfer 仅对解码请求进行捕获，不支持混合批次（预填充 + 解码）或仅预填充请求。
+        - 假定解码时每个序列的批次中只有一个 token。
+
+        参数：
+            kv_caches (List[torch.Tensor]): KV 缓存张量列表。
+        """
+        # 确保 NCCL 后端在 CUDA 图删除之前不会被销毁
         self.pynccl_backend = pynccl_utils.get_nccl_backend()
 
         assert not self.model_config.enforce_eager
@@ -930,30 +929,26 @@ class ModelRunner:
                     "to decrease memory usage.")
         start_time = time.perf_counter()
 
-        # Prepare dummy inputs. These will be reused for all batch sizes.
+        # 准备虚拟输入数据，用于所有批次大小的捕获
         max_batch_size = max(_BATCH_SIZES_TO_CAPTURE)
-        input_tokens = torch.zeros(max_batch_size, dtype=torch.long).cuda()
-        input_positions = torch.zeros(max_batch_size, dtype=torch.long).cuda()
-        slot_mapping = torch.empty(max_batch_size, dtype=torch.long).cuda()
+        input_tokens = torch.zeros(max_batch_size, dtype=torch.long).cuda() # 虚拟 token 输入
+        input_positions = torch.zeros(max_batch_size, dtype=torch.long).cuda()# 虚拟位置输入
+        slot_mapping = torch.empty(max_batch_size, dtype=torch.long).cuda()  # 虚拟槽位映射
         slot_mapping.fill_(_PAD_SLOT_ID)
         seq_lens = torch.ones(max_batch_size, dtype=torch.int32).cuda()
         block_tables = torch.from_numpy(self.graph_block_tables).cuda()
-
+        # 获取图捕获的批次大小
         graph_batch_size = _get_graph_batch_size(
             self.scheduler_config.max_num_seqs)
         batch_size_capture_list = [
             bs for bs in _BATCH_SIZES_TO_CAPTURE if bs <= graph_batch_size
         ]
 
-        # NOTE(woosuk): There are 3 backends for all-reduce: custom all-reduce
-        # kernel, pynccl, and PyTorch NCCL. When using CUDA graph, we use
-        # either custom all-reduce kernel or pynccl. When not using CUDA
-        # graph, we use either custom all-reduce kernel or PyTorch NCCL.
-        # We always prioritize using custom all-reduce kernel but fall back
-        # to PyTorch or pynccl if it is disabled or not supported.
+        # all-reduce有 3 种后端：自定义、pynccl 和 PyTorch NCCL
+        # 当使用 CUDA 图时，使用自定义或 pynccl；当不使用 CUDA 图时，使用自定义或 PyTorch NCCL
+        # 始终优先使用自定义，但如果该内核被禁用或不支持，则回退到 PyTorch NCCL 或 pynccl
         with custom_all_reduce.capture():
-            # NOTE: Capturing the largest batch size first may help reduce the
-            # memory usage of CUDA graph.
+            # Capturing the largest batch size first may help reduce the memory usage of CUDA graph.
             for batch_size in reversed(batch_size_capture_list):
                 # Create dummy attn_metadata.
                 decode_metadata = self.attn_backend.make_metadata(
@@ -1002,12 +997,7 @@ class ModelRunner:
         logger.info("Graph capturing finished in %.0f secs.", elapsed_time)
 
     def __del__(self) -> None:
-        # Delete the CUDA graphs before deleting the pynccl communicator.
-        # NOTE(woosuk): This is necessary because otherwise deadlocks can
-        # happen.
-        # FIXME(woosuk): This is a bit hacky. Find a more robust solution.
-        # TODO(youkaichao): when we get enough user feedback that pynccl is
-        # more stable than cupy, we can remove this, e.g. in v0.4.1.
+        # 必须先删除 CUDA 图，否则可能会发生死锁
         self.graph_runners.clear()
         self.pynccl_backend = None
 
@@ -1040,9 +1030,8 @@ class CUDAGraphRunner:
         **kwargs,
     ) -> None:
         assert self._graph is None
-        # Run the model once without capturing the graph.
-        # This is to make sure that the captured graph does not include the
-        # kernel launches for initial benchmarking (e.g., Triton autotune).
+        # 在不捕获图的情况下先运行一次模型
+        # 这是为了确保捕获的图中不包含用于初始基准测试的内核启动
         with _maybe_pynccl():
             self.model(
                 input_ids,
@@ -1054,10 +1043,8 @@ class CUDAGraphRunner:
         torch.cuda.synchronize()
 
         # Capture the graph.
-        # NOTE(woosuk): Python 3.8 does not support multi-line with statements.
-        # https://stackoverflow.com/questions/31039022/python-multi-line-with-statement
         self._graph = torch.cuda.CUDAGraph()
-        with torch.cuda.graph(self._graph, pool=memory_pool):  # noqa: SIM117
+        with torch.cuda.graph(self._graph, pool=memory_pool):
             with _maybe_pynccl():
                 hidden_states = self.model(
                     input_ids,

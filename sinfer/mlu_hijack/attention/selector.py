@@ -15,8 +15,7 @@ def sinfer__attention__selector___which_attn_to_use(dtype: torch.dtype) -> _Back
     """Returns which flash attention backend to use."""
     if is_cpu():
         return _Backend.TORCH_SDPA
-    # add flash_attn backend on mlu device
-    # Cambricon MLUs.
+    # add flash_attn backend on mlu device Cambricon MLUs.
     if 3 <= torch.mlu.get_device_capability()[0] <= 5 and dtype in (torch.float16, torch.bfloat16):
         logger.info("Use mlu flash_atten as Attention backend.")
         return _Backend.FLASH_ATTN

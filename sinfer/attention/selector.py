@@ -15,7 +15,6 @@ logger = init_logger(__name__)
 class _Backend(enum.Enum):
     FLASH_ATTN = enum.auto()
     XFORMERS = enum.auto()
-    ROCM_FLASH = enum.auto()
     TORCH_SDPA = enum.auto()
     FLASHINFER = enum.auto()
 
@@ -33,11 +32,6 @@ def get_attn_backend(dtype: torch.dtype) -> Type[AttentionBackend]:
         from sinfer.attention.backends.xformers import (  # noqa: F401
             XFormersBackend)
         return XFormersBackend
-    elif backend == _Backend.ROCM_FLASH:
-        logger.info("Using ROCmFlashAttention backend.")
-        from sinfer.attention.backends.rocm_flash_attn import (  # noqa: F401
-            ROCmFlashAttentionBackend)
-        return ROCmFlashAttentionBackend
     elif backend == _Backend.TORCH_SDPA:
         logger.info("Using Torch SDPA backend.")
         from sinfer.attention.backends.torch_sdpa import TorchSDPABackend
@@ -69,7 +63,7 @@ def _which_attn_to_use(dtype: torch.dtype) -> _Backend:
         return _Backend.XFORMERS
 
     try:
-        import flash_attn  # noqa: F401
+        import flash_attn
     except ImportError:
         logger.info(
             "Cannot use FlashAttention-2 backend because the flash_attn "

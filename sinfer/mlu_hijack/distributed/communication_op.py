@@ -26,9 +26,6 @@ def sinfer__distributed__communication_op__tensor_model_parallel_gather(
         # Convert negative dim to positive.
         dim += input_.dim()
     '''
-    =============================
-    Modify by sinfer_mlu
-    =============================
     @brief: use p2p communication to reduce gather host time for non driver worker.
     NOTE: this hijack function should be REMOVED when torch upgrade to 2.4.0
     '''
@@ -61,11 +58,7 @@ def sinfer__distributed__communication_op__tensor_model_parallel_gather(
     reqs = torch.distributed.batch_isend_irecv(send_recv_op_list)
     for req in reqs:
         req.wait()
-    '''
-    ==================
-    End of MLU Hijack
-    ==================
-    '''
+
     if get_tensor_model_parallel_rank() == dst:
         output_tensor = torch.cat(gather_list, dim=dim)
     else:

@@ -1,4 +1,3 @@
-
 import os
 import time
 import torch
@@ -183,9 +182,6 @@ def sinfer__worker__model_runner__ModelRunner___prepare_prompt(
     # Prepare prefix block tables
     max_prompt_block_table_len = max(len(t) for t in prefix_block_tables)
     '''
-    =============================
-    Modify by sinfer_mlu
-    =============================
     @brief: use optimize make_tensor_with_pad function
     ''' 
     block_tables = make_tensor_with_pad(
@@ -195,11 +191,6 @@ def sinfer__worker__model_runner__ModelRunner___prepare_prompt(
         dtype=torch.int,
         device=self.device,
     )
-    '''
-    ==================
-    End of MLU Hijack
-    ==================
-    '''
 
     # Query length can be shorter than key (i.e., prompt) when prefill
     # is chunked or prefix cached.
@@ -356,18 +347,11 @@ def sinfer__worker__model_runner__ModelRunner___prepare_decode(
 
     if use_captured_graph:
         '''
-        =============================
-        Modify by sinfer_mlu
-        =============================
         @brief: Use the refact function to get right batch size to inference
         ''' 
         graph_batch_size = \
             sinfer__worker__model_runner__ModelRunner___get_graph_batch_size(batch_size)
-        '''
-        ==================
-        End of MLU Hijack
-        ==================
-        '''
+        
         assert graph_batch_size >= batch_size
         for _ in range(graph_batch_size - batch_size):
             input_tokens.append(0)
@@ -399,12 +383,7 @@ def sinfer__worker__model_runner__ModelRunner___prepare_decode(
     else:
         max_block_table_len = max(
             len(block_table) for block_table in block_tables)
-        '''
-        =============================
-        Modify by sinfer_mlu
-        =============================
-        @brief: support unpaged mode, use optimize make_tensor_with_pad function
-        ''' 
+        # support unpaged mode, use optimize make_tensor_with_pad function
         if USE_PAGED:
             block_tables = make_tensor_with_pad(
                 block_tables,
@@ -419,11 +398,6 @@ def sinfer__worker__model_runner__ModelRunner___prepare_decode(
                 dtype=torch.int,
                 device=self.device,
             )
-        '''
-        ==================
-        End of MLU Hijack
-        ==================
-        '''
 
     if self.attn_backend is FlashInferBackend:
         if not hasattr(self, "flashinfer_workspace_buffer"):
@@ -495,8 +469,7 @@ def sinfer__worker__model_runner__ModelRunner__capture_model(self, kv_caches: Li
     Since it is used for decoding-only, it assumes there's only 1 token
     per sequence in the batch.
     """
-    # NOTE(woosuk): This is a hack to ensure that the NCCL backend is never
-    # deleted before the CUDA graphs.
+    # This is a hack to ensure that the NCCL backend is never deleted before the CUDA graphs.
     self.pynccl_backend = pynccl_utils.get_nccl_backend()
 
     assert not self.model_config.enforce_eager
@@ -512,9 +485,6 @@ def sinfer__worker__model_runner__ModelRunner__capture_model(self, kv_caches: Li
     start_time = time.perf_counter()
 
     '''
-    =============================
-    Modify by sinfer_mlu
-    =============================
     @brief: add num_gpu_blocks for mlu graph capture, change torch.long to torch.int32, support unpaged mode
     '''  
     # Prepare dummy inputs. These will be reused for all batch sizes.
@@ -534,18 +504,9 @@ def sinfer__worker__model_runner__ModelRunner__capture_model(self, kv_caches: Li
         bs for bs in _BATCH_SIZES_TO_CAPTURE if bs <= graph_batch_size
     ]
 
-    # NOTE: Added by sinfer_mlu
-    # Set the graph_batch_size into capture list, it always happends when
-    # using unpaged mode
     if graph_batch_size not in batch_size_capture_list:
         batch_size_capture_list.append(graph_batch_size)
 
-    # NOTE(woosuk): There are 3 backends for all-reduce: custom all-reduce
-    # kernel, pynccl, and PyTorch NCCL. When using CUDA graph, we use
-    # either custom all-reduce kernel or pynccl. When not using CUDA
-    # graph, we use either custom all-reduce kernel or PyTorch NCCL.
-    # We always prioritize using custom all-reduce kernel but fall back
-    # to PyTorch or pynccl if it is disabled or not supported.
     with custom_all_reduce.capture():
         # NOTE: Capturing the largest batch size first may help reduce the
         # memory usage of CUDA graph.
@@ -600,11 +561,6 @@ def sinfer__worker__model_runner__ModelRunner__capture_model(self, kv_caches: Li
     # NOTE: Added by sinfer_mlu
     # Set the actually capture batch list to _BATCH_SIZES_TO_CAPTURE
     _BATCH_SIZES_TO_CAPTURE = batch_size_capture_list
-    '''
-    ==================
-    End of MLU Hijack
-    ==================
-    '''
 
 @torch.inference_mode()
 def sinfer__worker__model_runner__ModelRunner__execute_model(
@@ -614,7 +570,7 @@ def sinfer__worker__model_runner__ModelRunner__execute_model(
 ) -> Optional[SamplerOutput]:
     (input_tokens, input_positions, attn_metadata, sampling_metadata,
         lora_requests, lora_mapping, multi_modal_input
-        ) = self.prepare_input_tensors(seq_group_metadata_list)
+        ) = self.prepare_input_tensors(seq_group_metadata_list) # 准备输入张量
 
     if self.lora_config:
         self.set_active_loras(lora_requests, lora_mapping)
@@ -622,7 +578,7 @@ def sinfer__worker__model_runner__ModelRunner__execute_model(
     # 目前cuda graph 只支持 decode 阶段.
     prefill_meta = attn_metadata.prefill_metadata
     decode_meta = attn_metadata.decode_metadata
-    if prefill_meta is None and decode_meta.use_cuda_graph:
+    if prefill_meta is None and decode_meta.use_cuda_graph: # 如果是 decode 阶段并启用了 CUDA 图，选择与当前 batch 大小匹配的 CUDA 图执行器
         graph_batch_size = input_tokens.shape[0]
         model_executable = self.graph_runners[graph_batch_size]
     else:
@@ -636,7 +592,7 @@ def sinfer__worker__model_runner__ModelRunner__execute_model(
     if self.vision_language_config:
         execute_model_kwargs.update({"image_input": multi_modal_input})
 
-    # insert timestamp markers
+    # 插入时间戳标记
     if check_latency_debug_with_device():
         use_cuda_graph = (prefill_meta is None and decode_meta.use_cuda_graph)
         # if use_cuda_graph, the start timestamp will be inserted inside CUDAGraphRunner.forward()
@@ -646,10 +602,10 @@ def sinfer__worker__model_runner__ModelRunner__execute_model(
    
     hidden_states = model_executable(**execute_model_kwargs)
 
-    # Compute the logits.
+    # 基于隐藏状态 hidden_states 和采样元数据 sampling_metadata，计算 logits
     logits = self.model.compute_logits(hidden_states, sampling_metadata)
 
-    # introduce a new instance variable time_markers and set it
+    # 引入一个新的实例变量time_markers并设置
     if check_latency_debug_with_device():
         end_marker = torch.cuda.Event(enable_timing=True)
         end_marker.record()
@@ -658,11 +614,11 @@ def sinfer__worker__model_runner__ModelRunner__execute_model(
         else:
             self.time_markers = (start, end_marker)
 
-    # Only perform sampling in the driver worker.
+    # 只有driver worker才进行采样
     if not self.is_driver_worker:
         return None
 
-    # Sample the next token.
+    # 对概率分布采样下一个token
     output = self.model.sample(
         logits=logits,
         sampling_metadata=sampling_metadata,
@@ -679,9 +635,6 @@ def sinfer__worker__model_runner__ModelRunner___get_graph_batch_size(batch_size:
     """
 
     '''
-    =============================
-    Modify by sinfer_mlu
-    =============================
     @brief: refact the '_get_graph_batch_size' function to get right batch size to inference
     '''  
     # Given batch size is larger than max capture batch size, it should never
@@ -693,11 +646,6 @@ def sinfer__worker__model_runner__ModelRunner___get_graph_batch_size(batch_size:
     for capture_batch_size in _BATCH_SIZES_TO_CAPTURE:
         if capture_batch_size >= batch_size:
             return capture_batch_size
-    '''
-    ==================
-    End of MLU Hijack
-    ==================
-    '''
 
 def sinfer__worker__model_runner__CUDAGraphRunner__forward(
     self,

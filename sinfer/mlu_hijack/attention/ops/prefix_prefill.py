@@ -26,17 +26,10 @@ if triton.__version__ >= "2.1.0":
                               sliding_window=None):
 
         '''
-        =============================
-        Modify by sinfer_mlu
-        =============================
         @brief: use to many memory when block is 64
         '''
         BLOCK = 16
-        '''
-        ==================
-        End of MLU Hijack
-        ==================
-        '''
+
         # shape constraints
         Lq, Lk, Lv = q.shape[-1], k.shape[-1], v.shape[-1]
         assert Lq == Lk and Lk == Lv

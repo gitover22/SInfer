@@ -148,11 +148,11 @@ class LLMEngine:
             vision_language_config=vision_language_config,
             speculative_config=speculative_config,
             load_config=load_config,
-        )
+        ) # 实例化GPUExecutor , 实例化Worker，ModelRunner(初始化kv cache时实例化),加载模型权重
 
-        self._initialize_kv_caches()
+        self._initialize_kv_caches() # 初始化kv cache缓存，ModelRunner
 
-        # If usage stat is enabled, collect relevant info.
+        # 收集信息
         if is_usage_stats_enabled():
             from sinfer.model_executor.model_loader import (
                 get_architecture_class_name)
@@ -191,9 +191,7 @@ class LLMEngine:
             # Ping the tokenizer to ensure liveness if it runs in a different process.
             self.tokenizer.ping()
 
-        # Create the scheduler.
-        # NOTE: the cache_config here have been updated with the numbers of
-        # GPU and CPU blocks, which are profiled in the distributed executor.
+        # 创建调度器
         self.scheduler = Scheduler(scheduler_config, cache_config, lora_config)
 
         # Metric Logging.
@@ -204,8 +202,7 @@ class LLMEngine:
                 max_model_len=self.model_config.max_model_len)
             self.stat_logger.info("cache_config", self.cache_config)
 
-        # Create sequence output processor, e.g. for beam search or
-        # speculative decoding.
+        # 创建序列输出处理器
         self.output_processor = (
             SequenceGroupOutputProcessor.create_output_processor(
                 self.scheduler_config,
@@ -220,11 +217,6 @@ class LLMEngine:
             ))
 
     def _initialize_kv_caches(self) -> None:
-        """Initialize the KV cache in the worker(s).
-
-        The workers will determine the number of blocks in both the GPU cache
-        and the swap CPU cache.
-        """
         num_gpu_blocks, num_cpu_blocks = (
             self.model_executor.determine_num_available_blocks())
 

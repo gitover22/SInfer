@@ -93,12 +93,8 @@ class LoraNotSupportedWorkerBase(WorkerBase):
 
 class WorkerWrapperBase:
     """
-    The whole point of this class is to lazily initialize the worker.
-    We first instantiate the WorkerWrapper, which remembers the worker module
-    and class name. Then, when we call `update_environment_variables`, and the
-    real initialization happens in `init_worker`.
+    这个类的主要目的是延迟初始化worker  
     """
-
     def __init__(self,
                  worker_module_name=None,
                  worker_class_name=None,
@@ -107,7 +103,6 @@ class WorkerWrapperBase:
         self.worker_class_name = worker_class_name
         self.worker = None
         if trust_remote_code:
-            # note: lazy import to avoid importing torch before initializing
             from sinfer.utils import init_cached_hf_modules
             init_cached_hf_modules()
 
@@ -115,22 +110,19 @@ class WorkerWrapperBase:
     def update_environment_variables(envs: Dict[str, str]) -> None:
         key = 'MLU_VISIBLE_DEVICES'
         if key in envs and key in os.environ:
-            # overwriting CUDA_VISIBLE_DEVICES is desired behavior
-            # suppress the warning in `update_environment_variables`
             del os.environ[key]
         update_environment_variables(envs)
 
     def init_worker(self, *args, **kwargs):
         """
-        Actual initialization of the worker class, and set up
-       function tracing if required.
-        Arguments are passed to the worker class constructor.
+        实际初始化worker, 并在需要时设置函数跟踪。  
+        参数会被传递给worker的构造函数
         """
         enable_trace_function_call_for_thread()
 
         mod = importlib.import_module(self.worker_module_name)
         worker_class = getattr(mod, self.worker_class_name)
-        self.worker = worker_class(*args, **kwargs)
+        self.worker = worker_class(*args, **kwargs) # 实例化worker
 
     def execute_method(self, method, *args, **kwargs):
         try:
@@ -138,10 +130,6 @@ class WorkerWrapperBase:
             executor = getattr(target, method)
             return executor(*args, **kwargs)
         except Exception as e:
-            # if the driver worker also execute methods,
-            # exceptions in the rest worker may cause deadlock in rpc like ray
-            # see https://github.com/sinfer-project/sinfer/issues/3455
-            # print the error and inform the user to solve the error
             msg = (f"Error executing method {method}. "
                    "This might cause deadlock in distributed execution.")
             logger.exception(msg)
