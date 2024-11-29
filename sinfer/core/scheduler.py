@@ -575,8 +575,8 @@ class Scheduler:
         """
         ignored_seq_groups: List[SequenceGroup] = []
         seq_groups: List[SequenceGroup] = []
-        # We don't sort waiting queue because we assume it is sorted.
-        # Copy the queue so that the input queue is not modified.
+        # 不对等待队列进行排序，因为假设它已经是有序的
+        # 复制该队列以确保输入队列不会被修改
         waiting_queue = deque([s for s in waiting_queue])
 
         leftover_waiting_sequences: Deque[SequenceGroup] = deque()
@@ -605,7 +605,7 @@ class Scheduler:
                 waiting_queue.popleft()
                 continue
 
-            # If the sequence group cannot be allocated, stop.
+            # 判断能不能给这个SG分配
             can_allocate = self.block_manager.can_allocate(seq_group)
             if can_allocate == AllocStatus.LATER:
                 break
@@ -640,18 +640,18 @@ class Scheduler:
                                                num_new_seqs=num_new_seqs)):
                 break
 
-            # Can schedule this request.
+            # 可以调度这个序列
             if curr_loras is not None and lora_int_id > 0:
                 curr_loras.add(lora_int_id)
             waiting_queue.popleft()
-            self._allocate_and_set_running(seq_group)
+            self._allocate_and_set_running(seq_group) # 实际分配
             seq_groups.append(
                 ScheduledSequenceGroup(seq_group=seq_group,
                                        token_chunk_size=num_new_tokens))
             budget.add_num_batched_tokens(seq_group.request_id, num_new_tokens)
             budget.add_num_seqs(seq_group.request_id, num_new_seqs)
 
-        # Queue requests that couldn't be scheduled.
+        # 将无法被调度的请求重新加入队列中
         waiting_queue.extendleft(leftover_waiting_sequences)
         if len(seq_groups) > 0:
             self.prev_prompt = True
@@ -716,21 +716,21 @@ class Scheduler:
                 self.scheduler_config.max_num_batched_tokens)
         assert budget.num_curr_seqs <= self.scheduler_config.max_num_seqs
 
-        # Update waiting requests.
+        # Update
         self.waiting = remaining_waiting
         self.waiting.extendleft(running_scheduled.preempted) # 重计算的SG加入到waiting队列最左侧
-        # Update new running requests.
+        # 
         self.running = remaining_running
-        self.running.extend([s.seq_group for s in prefills.seq_groups]) # 
+        self.running.extend([s.seq_group for s in prefills.seq_groups])
         self.running.extend(
             [s.seq_group for s in running_scheduled.decode_seq_groups])
         self.running.extend(
             [s.seq_group for s in swapped_in.decode_seq_groups])
-        # Update swapped requests.
+        # 
         self.swapped = remaining_swapped
         self.swapped.extend(running_scheduled.swapped_out) # 换出的SG加入到swapped队列
 
-        # 检查: 没开启chunked prefill时，running队列和swapped队列都应该不包含prefill阶段的SG
+        # 没开启chunked prefill时，running队列和swapped队列都不应该包含prefill阶段的SG
         assert len(running_scheduled.prefill_seq_groups) == 0
         assert len(swapped_in.prefill_seq_groups) == 0
         # 包装一下调度结果并返回
@@ -836,7 +836,7 @@ class Scheduler:
         )
 
     def _schedule(self) -> SchedulerOutputs:
-        if self.scheduler_config.chunked_prefill_enabled: # 如何开启了分块预填充
+        if self.scheduler_config.chunked_prefill_enabled: # 如果开启了分块预填充
             return self._schedule_chunked_prefill()
         else:
             return self._schedule_default() # 默认不开启分块预填充
@@ -868,6 +868,7 @@ class Scheduler:
         now = time.time()
 
         seq_group_metadata_list: List[SequenceGroupMetadata] = []
+        # 依次遍历每一个序列组
         for i, scheduled_seq_group in enumerate(
                 scheduler_outputs.scheduled_seq_groups):
             seq_group = scheduled_seq_group.seq_group
@@ -878,7 +879,7 @@ class Scheduler:
             seq_data: Dict[int, SequenceData] = {}
             # seq_id -> physical block numbers
             block_tables: Dict[int, List[int]] = {}
-
+            # 依次遍历SG中的所有seq
             for seq in seq_group.get_seqs(status=SequenceStatus.RUNNING):
                 seq_id = seq.seq_id
                 seq_data[seq_id] = seq.data
@@ -892,13 +893,8 @@ class Scheduler:
             do_sample = True
             if seq_group.is_prefill():
                 seqs = seq_group.get_seqs()
-                # Prefill has only 1 sequence.
-                assert len(seqs) == 1
-                # In the next iteration, all prompt tokens are not computed.
-                # It means the prefill is chunked, and we don't need sampling.
-                # NOTE: We use get_len instead of get_prompt_len because when
-                # a sequence is preempted, prefill includes previous generated
-                # output tokens.
+                assert len(seqs) == 1  # Prefill 阶段只有一个seq
+                # chunked prefill不需要进行采样。  
                 if (token_chunk_size + seqs[0].data.get_num_computed_tokens() <
                         seqs[0].data.get_len()):
                     do_sample = False
@@ -926,10 +922,8 @@ class Scheduler:
             )
             seq_group_metadata_list.append(seq_group_metadata)
 
-        # Now that the batch has been created, we can assume all blocks in the
-        # batch will have been computed before the next scheduling invocation.
-        # This is because the engine assumes that a failure in model execution
-        # will crash the SInfer instance / will not retry.
+        # 假设批次中的所有块都会在下次调度调用之前完成计算
+        # 这是因为模型执行中的失败会导致 SInfer 实例崩溃，而不会进行重试
         for scheduled_seq_group in scheduler_outputs.scheduled_seq_groups:
             self.block_manager.mark_blocks_as_computed(
                 scheduled_seq_group.seq_group)

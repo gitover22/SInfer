@@ -55,17 +55,17 @@ async def lifespan(app: fastapi.FastAPI):
 # 实例化FastAPI
 app = fastapi.FastAPI(lifespan=lifespan)
 
-
-# def parse_args():
-#     parser = make_arg_parser()
-#     return parser.parse_args()
-
-
 # Add prometheus asgi middleware to route /metrics requests
 route = Mount("/metrics", make_asgi_app())
 # Workaround for 307 Redirect for /metrics
 route.path_regex = re.compile('^/metrics(?P<path>.*)$')
 app.routes.append(route)
+
+
+
+
+
+
 
 
 @app.exception_handler(RequestValidationError)
@@ -91,7 +91,7 @@ async def show_version():
     ver = {"version": sinfer.__version__}
     return JSONResponse(content=ver)
 
-# 聊天
+# 聊天补全 ( 最常用 )
 @app.post("/v1/chat/completions")
 async def create_chat_completion(request: ChatCompletionRequest,
                                  raw_request: Request):

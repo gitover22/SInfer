@@ -226,7 +226,7 @@ class UncachedBlockAllocator(BlockAllocatorBase):
 
 
 class BlockSpaceManagerV1(BlockSpaceManager):
-    """Manages the mapping between logical and physical token blocks."""
+    """管理逻辑块和物理块之间的映射"""
 
     def __init__(
         self,
@@ -260,7 +260,7 @@ class BlockSpaceManagerV1(BlockSpaceManager):
         # 设置水位线block的目的是不要一下打满设备中的物理块，留一些buffer，避免后续频繁地发生swap
         self.watermark_blocks = int(watermark * num_gpu_blocks)
 
-        # 根据是否做了prefix caching限制，来选择不同的allocator
+        # 根据是否开启了prefix caching，来选择不同的allocator
         if self.enable_caching:
             logger.info("Automatic prefix caching is enabled.")
             self.gpu_allocator: BlockAllocatorBase = CachedBlockAllocator(
@@ -273,7 +273,7 @@ class BlockSpaceManagerV1(BlockSpaceManager):
             self.cpu_allocator = UncachedBlockAllocator(
                 Device.CPU, block_size, num_cpu_blocks)
             
-        # Mapping: seq_id -> BlockTable.维护每个seq下的物理块列表
+        # seq_id -> BlockTable.维护每个seq下的物理块列表
         self.block_tables: Dict[int, BlockTable] = {}
 
     def can_allocate(self, seq_group: SequenceGroup) -> AllocStatus:

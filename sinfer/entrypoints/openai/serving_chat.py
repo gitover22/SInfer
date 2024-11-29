@@ -108,7 +108,7 @@ class OpenAIServingChat(OpenAIServing):
         try:
             # Tokenize/detokenize depending on prompt format (string/token list)
             prompt_ids, prompt_text = self._validate_prompt_and_tokenize(
-                request, prompt=prompt)
+                request, prompt=prompt) # 对 prompt 进行分词, 返回token ids
             sampling_params = request.to_sampling_params()
             lora_request = self._maybe_get_lora(request)
             decoding_config = await self.engine.get_decoding_config()
@@ -129,7 +129,7 @@ class OpenAIServingChat(OpenAIServing):
         result_generator = self.engine.generate(prompt_text, sampling_params,
                                                 request_id, prompt_ids,
                                                 lora_request)
-        # Streaming response
+        # 流式回复
         if request.stream:
             return self.chat_completion_stream_generator(
                 request, result_generator, request_id, conversation)
@@ -361,7 +361,7 @@ class OpenAIServingChat(OpenAIServing):
 
     async def _load_chat_template(self, chat_template: Optional[str]):
         while self.tokenizer is None:
-            # Give the parent class time to load the tokenizer
+            # 给父类时间加载分词器
             await asyncio.sleep(0.1)
         tokenizer = self.tokenizer
 

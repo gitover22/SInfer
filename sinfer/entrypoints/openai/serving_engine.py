@@ -28,7 +28,7 @@ class LoRAModulePath:
 
 
 class OpenAIServing:
-
+    '''用于管理模型的初始化、配置、请求验证以及相关服务功能。 '''
     def __init__(self,
                  engine: AsyncLLMEngine,
                  served_model_names: List[str],
@@ -57,8 +57,8 @@ class OpenAIServing:
             event_loop = None
 
         if event_loop is not None and event_loop.is_running():
-            # If the current is instanced by Ray Serve,
-            # there is already a running event loop
+            #
+            # 如果当前是由 Ray Serve 实例化的，那么已经有一个正在运行的事件循环。
             event_loop.create_task(self._post_init(await_post_init))
         else:
             # When using single SInfer without engine_use_ray

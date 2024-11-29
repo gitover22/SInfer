@@ -16,7 +16,7 @@ class OpenAIBaseModel(BaseModel):
     # OpenAI API does not allow extra fields
     model_config = ConfigDict(extra="forbid")
 
-
+# 表示错误响应的结构，包含错误信息和类型
 class ErrorResponse(OpenAIBaseModel):
     object: str = "error"
     message: str
@@ -24,7 +24,7 @@ class ErrorResponse(OpenAIBaseModel):
     param: Optional[str] = None
     code: int
 
-
+# 描述模型权限信息
 class ModelPermission(OpenAIBaseModel):
     id: str = Field(default_factory=lambda: f"modelperm-{random_uuid()}")
     object: str = "model_permission"
@@ -39,22 +39,22 @@ class ModelPermission(OpenAIBaseModel):
     group: Optional[str] = None
     is_blocking: bool = False
 
-
+# 模型信息元数据
 class ModelCard(OpenAIBaseModel):
     id: str
     object: str = "model"
-    created: int = Field(default_factory=lambda: int(time.time()))
+    created: int = Field(default_factory=lambda: int(time.time())) # 模型创建时间
     owned_by: str = "sinfer"
     root: Optional[str] = None
     parent: Optional[str] = None
     permission: List[ModelPermission] = Field(default_factory=list)
 
-
+# 描述模型列表的结构
 class ModelList(OpenAIBaseModel):
     object: str = "list"
     data: List[ModelCard] = Field(default_factory=list)
 
-
+# token 使用情况
 class UsageInfo(OpenAIBaseModel):
     prompt_tokens: int = 0
     total_tokens: int = 0
@@ -62,10 +62,9 @@ class UsageInfo(OpenAIBaseModel):
 
 
 class ResponseFormat(OpenAIBaseModel):
-    # type must be "json_object" or "text"
     type: Literal["text", "json_object"]
 
-
+# 聊天补全chatCompletion的请求封装
 class ChatCompletionRequest(OpenAIBaseModel):
     # Ordered by official OpenAI API documentation
     # https://platform.openai.com/docs/api-reference/chat/create
@@ -216,7 +215,7 @@ class ChatCompletionRequest(OpenAIBaseModel):
                 "('guided_json', 'guided_regex' or 'guided_choice').")
         return data
 
-
+# 文本补全Completion的请求封装
 class CompletionRequest(OpenAIBaseModel):
     # Ordered by official OpenAI API documentation
     # https://platform.openai.com/docs/api-reference/completions/create
@@ -363,12 +362,13 @@ class CompletionRequest(OpenAIBaseModel):
         return data
 
 
+
+# 描述文本补全的响应结构
 class LogProbs(OpenAIBaseModel):
     text_offset: List[int] = Field(default_factory=list)
     token_logprobs: List[Optional[float]] = Field(default_factory=list)
     tokens: List[str] = Field(default_factory=list)
     top_logprobs: Optional[List[Optional[Dict[str, float]]]] = None
-
 
 class CompletionResponseChoice(OpenAIBaseModel):
     index: int
@@ -383,16 +383,15 @@ class CompletionResponseChoice(OpenAIBaseModel):
             "including encountering the EOS token"),
     )
 
-
 class CompletionResponse(OpenAIBaseModel):
     id: str = Field(default_factory=lambda: f"cmpl-{random_uuid()}")
     object: str = "text_completion"
     created: int = Field(default_factory=lambda: int(time.time()))
     model: str
-    choices: List[CompletionResponseChoice]
-    usage: UsageInfo
+    choices: List[CompletionResponseChoice] # 生成的结果
+    usage: UsageInfo 
 
-
+# 文本补全的流式响应
 class CompletionResponseStreamChoice(OpenAIBaseModel):
     index: int
     text: str
@@ -406,7 +405,6 @@ class CompletionResponseStreamChoice(OpenAIBaseModel):
             "including encountering the EOS token"),
     )
 
-
 class CompletionStreamResponse(OpenAIBaseModel):
     id: str = Field(default_factory=lambda: f"cmpl-{random_uuid()}")
     object: str = "text_completion"
@@ -416,10 +414,11 @@ class CompletionStreamResponse(OpenAIBaseModel):
     usage: Optional[UsageInfo] = Field(default=None)
 
 
+
+# 以下三各数据结构，定义了ChatCompletion的响应
 class ChatMessage(OpenAIBaseModel):
     role: str
     content: str
-
 
 class ChatCompletionResponseChoice(OpenAIBaseModel):
     index: int
@@ -427,7 +426,6 @@ class ChatCompletionResponseChoice(OpenAIBaseModel):
     logprobs: Optional[LogProbs] = None
     finish_reason: Optional[str] = None
     stop_reason: Optional[Union[int, str]] = None
-
 
 class ChatCompletionResponse(OpenAIBaseModel):
     id: str = Field(default_factory=lambda: f"chatcmpl-{random_uuid()}")
@@ -438,10 +436,11 @@ class ChatCompletionResponse(OpenAIBaseModel):
     usage: UsageInfo
 
 
+
+# 以下三个类是用于聊天补全流式响应的
 class DeltaMessage(OpenAIBaseModel):
     role: Optional[str] = None
     content: Optional[str] = None
-
 
 class ChatCompletionResponseStreamChoice(OpenAIBaseModel):
     index: int
@@ -449,7 +448,6 @@ class ChatCompletionResponseStreamChoice(OpenAIBaseModel):
     logprobs: Optional[LogProbs] = None
     finish_reason: Optional[str] = None
     stop_reason: Optional[Union[int, str]] = None
-
 
 class ChatCompletionStreamResponse(OpenAIBaseModel):
     id: str = Field(default_factory=lambda: f"chatcmpl-{random_uuid()}")

@@ -199,7 +199,7 @@ class _AsyncLLMEngine(LLMEngine):
     """对原始的 LLMEngine 类进行扩展，增加了异步方法，核心目的是实现异步推理支持"""
 
     async def step_async(self) -> List[RequestOutput]:
-        """执行一次解码迭代并返回新生成的结果。
+        """异步执行一次解码迭代并返回新生成的结果。
         该函数执行引擎的一次解码迭代。首先，它会调度下一次迭代中需要执行的序列以及需要交换（载入/移出/复制）的 token 块。然后，执行模型推理，并使用模型的输出更新调度器。最后，它对序列进行解码并返回新生成的结果
         """
         seq_group_metadata_list, scheduler_outputs = self.scheduler.schedule()
@@ -431,15 +431,15 @@ class AsyncLLMEngine:
         return engine_class(*args, **kwargs)
 
     async def engine_step(self) -> bool:
-        """Kick the engine to process the waiting requests.
+        """触发引擎处理tracker中的请求
 
-        Returns True if there are in-progress requests."""
+        如果有正在处理的请求，则返回 True"""
 
         new_requests, finished_requests = (
             self._request_tracker.get_new_and_finished_requests())
 
         for new_request in new_requests:
-            # Add the request into the SInfer engine's waiting queue.
+            # 将请求添加到 SInfer 引擎的等待队列中
             # TODO: Maybe add add_request_batch to reduce Ray overhead
             try:
                 if self.engine_use_ray:
@@ -649,8 +649,7 @@ class AsyncLLMEngine:
             async for request_output in stream:
                 yield request_output
         except (Exception, asyncio.CancelledError) as e:
-            # If there is an exception or coroutine is cancelled, abort the
-            # request.
+            # If there is an exception or coroutine is cancelled, abort the request.
             self._abort(request_id)
             raise e
 

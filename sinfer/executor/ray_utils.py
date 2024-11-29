@@ -17,10 +17,8 @@ try:
 
         def __init__(self, *args, **kwargs) -> None:
             super().__init__(*args, **kwargs)
-            # Since the compiled DAG runs a main execution
-            # in a different thread that calls cuda.set_device.
-            # The flag indicates is set_device is called on
-            # that thread.
+            # 由于已编译的 DAG 在不同的线程中运行主执行过程，并在该线程中调用了 cuda.set_device
+            # 该标志用于指示是否在该线程中调用了 set_device
             self.compiled_dag_cuda_device_set = False
 
         def get_node_ip(self) -> str:
@@ -46,8 +44,8 @@ except ImportError as e:
     logger.warning(
         "Failed to import Ray with %r. For distributed inference, "
         "please install Ray with `pip install ray`.", e)
-    ray = None  # type: ignore
-    RayWorkerWrapper = None  # type: ignore
+    ray = None  
+    RayWorkerWrapper = None 
 
 
 def initialize_ray_cluster(

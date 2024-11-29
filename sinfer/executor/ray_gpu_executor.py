@@ -6,7 +6,7 @@ from itertools import islice, repeat
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 import sinfer.envs as envs
-from sinfer.executor.distributed_gpu_executor import (  # yapf: disable
+from sinfer.executor.distributed_gpu_executor import (
     DistributedGPUExecutor, DistributedGPUExecutorAsync)
 from sinfer.executor.ray_utils import RayWorkerWrapper, ray
 from sinfer.logger import init_logger

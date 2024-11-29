@@ -21,7 +21,7 @@ class LoRAParserAction(argparse.Action):
         setattr(namespace, self.dest, lora_list)
 
 
-def make_arg_parser():
+def make_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="SInfer OpenAI-Compatible RESTful API server.")
     parser.add_argument("--host",

@@ -51,32 +51,32 @@ def sinfer_engine__llm_engine__LLMEngine__add_request(
     else:
         logger.warning("Use None for EOS token id because tokenizer is "
                         "not initialized")
-    seq = Sequence(seq_id, prompt, prompt_token_ids, block_size,
+    seq = Sequence(seq_id, prompt, prompt_token_ids, block_size, 
                     eos_token_id, lora_request)
 
     # Defensive copy of SamplingParams, which are used by the sampler,
     # this doesn't deep-copy LogitsProcessor objects
     sampling_params = sampling_params.clone()
-    # Add the eos token id into the sampling_params to support min_tokens
-    # processing
+    # Add the eos token id into the sampling_params to support min_tokens processing
+    # 
     if seq.eos_token_id is not None:
         sampling_params.all_stop_token_ids.add(seq.eos_token_id)
     sampling_params.update_from_generation_config(
         self.generation_config_fields)
 
    
-    # 检查 input_len + output_len <= block_size(非分页模式下，缓存的块大小能够容纳输入和输出的token)
+    # 检查 input_len + output_len <= block_size(非分页模式下，缓存的块大小需要能够容纳输入和输出的token)
     num_prompt_tokens = 0
     out_len = sampling_params.max_tokens # 生成的最大token数量
     if (USE_PAGED == False and BlockSizeInfo.BLOCK_SIZE < out_len + seq.get_len()):
         raise ValueError("BLOCK_SIZE(" + str(BlockSizeInfo.BLOCK_SIZE) +
             ") can't smaller than input_len(" + str(seq.get_len()) + ") + output_len(" + str(out_len) + ").")
 
-    # Create the sequence group.
+    # 创建SG
     seq_group = SequenceGroup(request_id, [seq], sampling_params,
                                 arrival_time, lora_request, multi_modal_data)
 
-    # Add the sequence group to the scheduler.
+    # 添加SG到调度器waiting队列.
     self.scheduler.add_seq_group(seq_group)
 
 

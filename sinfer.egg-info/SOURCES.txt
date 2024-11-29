@@ -226,7 +226,6 @@ sinfer/model_executor/layers/quantization/schema.py
 sinfer/model_executor/layers/quantization/squeezellm.py
 sinfer/model_executor/model_loader/__init__.py
 sinfer/model_executor/model_loader/loader.py
-sinfer/model_executor/model_loader/neuron.py
 sinfer/model_executor/model_loader/tensorizer.py
 sinfer/model_executor/model_loader/utils.py
 sinfer/model_executor/model_loader/weight_utils.py
@@ -294,8 +293,6 @@ sinfer/worker/cache_engine.py
 sinfer/worker/cpu_model_runner.py
 sinfer/worker/cpu_worker.py
 sinfer/worker/model_runner.py
-sinfer/worker/neuron_model_runner.py
-sinfer/worker/neuron_worker.py
 sinfer/worker/worker.py
 sinfer/worker/worker_base.py
 tests/test_cache_block_hashing.py
