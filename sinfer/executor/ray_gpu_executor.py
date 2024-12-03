@@ -34,12 +34,12 @@ class RayGPUExecutor(DistributedGPUExecutor):
         assert self.parallel_config.worker_use_ray
         placement_group = self.parallel_config.placement_group
 
-        # Disable Ray usage stats collection.
+        # 禁用 Ray 使用统计信息的收集
         ray_usage = os.environ.get("RAY_USAGE_STATS_ENABLED", "0")
         if ray_usage != "1":
             os.environ["RAY_USAGE_STATS_ENABLED"] = "0"
 
-        # Create the parallel GPU workers.
+        # 初始化GPU workers.
         self._init_workers_ray(placement_group)
 
         self.forward_dag = None
@@ -64,35 +64,36 @@ class RayGPUExecutor(DistributedGPUExecutor):
     def _init_workers_ray(self, placement_group: "PlacementGroup",
                           **ray_remote_kwargs):
         if self.parallel_config.tensor_parallel_size == 1:
-            # For single GPU case, we use a ray worker with constrained memory.
+            # 对于单 GPU 情况，使用一个带有受限内存的 Ray 工作进程
             num_gpus = self.cache_config.gpu_memory_utilization
         else:
-            # Otherwise, the ray workers are allocated with a full GPU.
-            num_gpus = 1
+            # 对于多 GPU 情况，分配完整的 GPU
+            num_gpus = 1 
 
-        # The driver dummy worker does not actually use any resources.
-        # It holds the resource for the driver worker.
+
+        # 主节点
         self.driver_dummy_worker: Optional[RayWorkerWrapper] = None
-        # The remaining workers are the actual ray actors.
+        # 工作节点
         self.workers: List[RayWorkerWrapper] = []
 
         if self.parallel_config.ray_workers_use_nsight:
             ray_remote_kwargs = self._configure_ray_workers_use_nsight(
                 ray_remote_kwargs)
 
-        # Create the workers.
-        driver_ip = get_ip()
+        driver_ip = get_ip()  # 驱动节点的 IP 地址 10.208.48.249
+
         for bundle_id, bundle in enumerate(placement_group.bundle_specs):
             if not bundle.get("GPU", 0):
                 continue
-            scheduling_strategy = PlacementGroupSchedulingStrategy(
+            # 置换组调度策略
+            scheduling_strategy = PlacementGroupSchedulingStrategy( 
                 placement_group=placement_group,
                 placement_group_capture_child_tasks=True,
                 placement_group_bundle_index=bundle_id,
             )
             worker = ray.remote(
-                num_cpus=0,
-                num_gpus=num_gpus,
+                num_cpus=0,  # 分配的 CPU 数
+                num_gpus=num_gpus,  # 分配的 GPU 数
                 scheduling_strategy=scheduling_strategy,
                 **ray_remote_kwargs,
             )(RayWorkerWrapper).remote(
@@ -103,8 +104,7 @@ class RayGPUExecutor(DistributedGPUExecutor):
 
             worker_ip = ray.get(worker.get_node_ip.remote())
             if worker_ip == driver_ip and self.driver_dummy_worker is None:
-                # If the worker is on the same node as the driver, we use it
-                # as the resource holder for the driver process.
+                # 如果worker node与driver node位于同一节点
                 self.driver_dummy_worker = worker
                 self.driver_worker = RayWorkerWrapper(
                     worker_module_name="sinfer.worker.worker",
@@ -112,7 +112,6 @@ class RayGPUExecutor(DistributedGPUExecutor):
                     trust_remote_code=self.model_config.trust_remote_code,
                 )
             else:
-                # Else, added to the list of workers.
                 self.workers.append(worker)
 
         if self.driver_dummy_worker is None:
@@ -121,13 +120,12 @@ class RayGPUExecutor(DistributedGPUExecutor):
                 "adjusting the Ray placement group or running the driver on a "
                 "GPU node.")
 
-        # Get the set of GPU IDs used on each node.
+        # 获取所有节点的id
         worker_node_and_gpu_ids = self._run_workers("get_node_and_gpu_ids",
                                                     use_dummy_driver=True)
 
         node_workers = defaultdict(list)
         node_gpus = defaultdict(list)
-
         for i, (node_id, gpu_ids) in enumerate(worker_node_and_gpu_ids):
             node_workers[node_id].append(i)
             node_gpus[node_id].extend(gpu_ids)
@@ -136,7 +134,7 @@ class RayGPUExecutor(DistributedGPUExecutor):
 
         SINFER_INSTANCE_ID = get_sinfer_instance_id()
 
-        # Set environment variables for the driver and workers.
+        # 为主节点和工作节点设置环境变量
         all_args_to_update_environment_variables = [({
             "MLU_VISIBLE_DEVICES":
             ",".join(map(str, node_gpus[node_id])),
@@ -155,7 +153,7 @@ class RayGPUExecutor(DistributedGPUExecutor):
         distributed_init_method = get_distributed_init_method(
             driver_ip, get_open_port())
 
-        # Initialize the actual workers inside worker wrapper.
+        # 节点配置参数
         init_worker_all_kwargs = [
             self._get_worker_kwargs(
                 local_rank=node_workers[node_id].index(rank),
@@ -163,7 +161,7 @@ class RayGPUExecutor(DistributedGPUExecutor):
                 distributed_init_method=distributed_init_method,
             ) for rank, (node_id, _) in enumerate(worker_node_and_gpu_ids)
         ]
-        self._run_workers("init_worker", all_kwargs=init_worker_all_kwargs)
+        self._run_workers("init_worker", all_kwargs=init_worker_all_kwargs) # 实例化节点
 
         self._run_workers("init_device")
         self._run_workers("load_model",
@@ -177,8 +175,7 @@ class RayGPUExecutor(DistributedGPUExecutor):
             "execute_model",
             driver_kwargs={"execute_model_req": execute_model_req},
             use_ray_compiled_dag=USE_RAY_COMPILED_DAG)
-
-        # Only the driver worker returns the sampling results.
+        # 只有主节点返回采样结果
         return all_outputs[0]
 
     def _run_workers(
@@ -194,14 +191,11 @@ class RayGPUExecutor(DistributedGPUExecutor):
         use_ray_compiled_dag: bool = False,
         **kwargs,
     ) -> Any:
-        """Runs the given method on all workers. Can be used in the following
-        ways:
+        """在所有worker上运行指定的方法参数通过以下方式使用:
 
-        - args/kwargs: All workers share the same args/kwargs
-        - args/kwargs and driver_args/driver_kwargs: Driver worker has
-          different args
-        - all_args/all_kwargs: args/kwargs for each worker are specified
-          individually
+        - args/kwargs: 所有工作进程共享的相同参数和关键字参数
+        - args/kwargs and driver_args/driver_kwargs: 驱动进程使用不同的参数
+        - all_args/all_kwargs: 每个工作进程可以使用的独立参数和关键字参数
         """
 
         if max_concurrent_workers:
@@ -213,19 +207,19 @@ class RayGPUExecutor(DistributedGPUExecutor):
         if driver_kwargs is None:
             driver_kwargs = kwargs if all_kwargs is None else all_kwargs[0]
 
-        count = len(self.workers)
+        count = len(self.workers) # 获取工作进程的数量
+        # 如果 `all_args` 为空，则所有工作进程共享相同的参数；否则，每个工作进程有独立的参数
         all_worker_args = repeat(args, count) if all_args is None \
             else islice(all_args, 1, None)
         all_worker_kwargs = repeat(kwargs, count) if all_kwargs is None \
             else islice(all_kwargs, 1, None)
 
         if use_ray_compiled_dag:
-            # Right now, compiled DAG can only accept a single
-            # input. TODO(sang): Fix it.
+            # Right now, compiled DAG can only accept a single input. 
             assert self.forward_dag is not None
             output_channels = self.forward_dag.execute(1)
         else:
-            # Start the ray workers first.
+            # 启动所有 Ray 工作进程，并远程调用指定方法
             ray_worker_outputs = [
                 worker.execute_method.remote(method, *worker_args,
                                              **worker_kwargs)
@@ -233,7 +227,7 @@ class RayGPUExecutor(DistributedGPUExecutor):
                      ) in zip(self.workers, all_worker_args, all_worker_kwargs)
             ]
 
-        # Start the driver worker after all the ray workers.
+        # 执行主节点的方法
         if not use_dummy_driver:
             driver_worker_output = self.driver_worker.execute_method(
                 method, *driver_args, **driver_kwargs)
@@ -242,7 +236,7 @@ class RayGPUExecutor(DistributedGPUExecutor):
             driver_worker_output = ray.get(
                 self.driver_dummy_worker.execute_method.remote(
                     method, *driver_args, **driver_kwargs))
-        # Get the results of the ray workers.
+        # 获取所有 Ray 工作进程的执行结果
         if self.workers:
             if use_ray_compiled_dag:
                 try:
@@ -270,15 +264,15 @@ class RayGPUExecutor(DistributedGPUExecutor):
         from ray.dag import InputNode, MultiOutputNode
         assert self.parallel_config.worker_use_ray
 
-        # Right now, compiled DAG requires at least 1 arg. We send
-        # a dummy value for now. It will be fixed soon.
+        # 目前编译的 DAG 至少需要一个参数,暂时传递一个占位值,这个问题很快会被修复
         with InputNode() as input_data:
             forward_dag = MultiOutputNode([
                 worker.execute_model_compiled_dag_remote.
-                bind(  # type: ignore[attr-defined]
-                    input_data) for worker in self.workers
+                bind(input_data) for worker in self.workers
             ])
         return forward_dag.experimental_compile()
+
+
 
     def check_health(self) -> None:
         """Raises an error if engine is unhealthy."""
@@ -287,19 +281,16 @@ class RayGPUExecutor(DistributedGPUExecutor):
     def _check_if_any_actor_is_dead(self):
         if not self.workers:
             return
-
         dead_actors = []
         for actor in self.workers:
-            actor_state = ray.state.actors(actor._ray_actor_id.hex())  # pylint: disable=protected-access
+            actor_state = ray.state.actors(actor._ray_actor_id.hex())
             if actor_state["State"] == "DEAD":
                 dead_actors.append(actor)
         if dead_actors:
             raise RuntimeError("At least one Worker is dead. "
                                f"Dead Workers: {dead_actors}. ")
 
-
 class RayGPUExecutorAsync(RayGPUExecutor, DistributedGPUExecutorAsync):
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.driver_executor = make_async(self.driver_worker.execute_method)
@@ -312,7 +303,7 @@ class RayGPUExecutorAsync(RayGPUExecutor, DistributedGPUExecutorAsync):
         driver_kwargs: Optional[Dict[str, Any]] = None,
         **kwargs,
     ) -> Any:
-        """Runs the given method on all workers."""
+        """在所有的workers上运行给定的method"""
         coros = []
 
         if driver_args is None:
@@ -323,7 +314,7 @@ class RayGPUExecutorAsync(RayGPUExecutor, DistributedGPUExecutorAsync):
         coros.append(
             self.driver_executor(method, *driver_args, **driver_kwargs))
 
-        # Run the ray workers asynchronously.
+        # 异步运行
         for worker in self.workers:
             coros.append(worker.execute_method.remote(method, *args, **kwargs))
 

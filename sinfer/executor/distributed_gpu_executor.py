@@ -9,26 +9,22 @@ from sinfer.sequence import SamplerOutput
 
 logger = init_logger(__name__)
 
-
 class DistributedGPUExecutor(GPUExecutor):
-    """Abstract superclass of multi-GPU executor implementations."""
-
+    """多 GPU 执行器实现的抽象父类"""
     def determine_num_available_blocks(self) -> Tuple[int, int]:
-        """Determine the number of available KV blocks.
+        """ 确定可用的 KV 缓存块数量
 
-        This invokes `determine_num_available_blocks` on each worker and takes
-        the min of the results, guaranteeing that the selected cache sizes are
-        compatible with all workers.
+        此方法会在每个节点上调用 `determine_num_available_blocks`，并取结果的最小值，
+        从而保证所选的缓存大小对所有节点来说都是兼容的。
 
         Returns:
-            - tuple[num_gpu_blocks, num_cpu_blocks]
+            - tuple[num_gpu_blocks, num_cpu_blocks] GPU 和 CPU 上的可用块数量
         """
-        # Get the maximum number of blocks that can be allocated on GPU and CPU.
+        # 获取 GPU 和 CPU 上可以分配的最大块数量
         num_blocks = self._run_workers("determine_num_available_blocks", )
 
-        # Since we use a shared centralized controller, we take the minimum
-        # number of blocks across all workers to make sure all the memory
-        # operators can be applied to all workers.
+        # 由于使用的是共享的集中控制器，这里取所有节点的块数量的最小值，
+        # 确保所有内存算子可以应用于所有节点
         num_gpu_blocks = min(b[0] for b in num_blocks)
         num_cpu_blocks = min(b[1] for b in num_blocks)
 
@@ -36,12 +32,9 @@ class DistributedGPUExecutor(GPUExecutor):
 
     def initialize_cache(self, num_gpu_blocks: int,
                          num_cpu_blocks: int) -> None:
-        """Initialize the KV cache in all workers.
+        """在所有节点中初始化 KV 缓存
         """
 
-        # NOTE: We log here to avoid multiple logs when number of workers is
-        # greater than one. We could log in the engine, but not all executors
-        # have GPUs.
         logger.info("# GPU blocks: %d, # CPU blocks: %d", num_gpu_blocks,
                     num_cpu_blocks)
 
@@ -56,8 +49,7 @@ class DistributedGPUExecutor(GPUExecutor):
         all_outputs = self._run_workers("execute_model",
                                         driver_args=args,
                                         driver_kwargs=kwargs)
-
-        # Only the driver worker returns the sampling results.
+        # 只有主节点返回
         return all_outputs[0]
 
     def add_lora(self, lora_request: LoRARequest) -> bool:
@@ -87,12 +79,10 @@ class DistributedGPUExecutor(GPUExecutor):
         max_concurrent_workers: Optional[int] = None,
         **kwargs,
     ) -> Any:
-        """Runs the given method on all workers."""
+        # 在所有节点上运行method
         raise NotImplementedError
 
-
 class DistributedGPUExecutorAsync(DistributedGPUExecutor, ExecutorAsyncBase):
-
     @abstractmethod
     async def _run_workers_async(
         self,
@@ -102,7 +92,7 @@ class DistributedGPUExecutorAsync(DistributedGPUExecutor, ExecutorAsyncBase):
         driver_kwargs: Optional[Dict[str, Any]] = None,
         **kwargs,
     ) -> Any:
-        """Runs the given method on all workers."""
+        """让所有节点运行method方法"""
         raise NotImplementedError
 
     async def execute_model_async(self, *args,
@@ -110,6 +100,5 @@ class DistributedGPUExecutorAsync(DistributedGPUExecutor, ExecutorAsyncBase):
         all_outputs = await self._run_workers_async("execute_model",
                                                     driver_args=args,
                                                     driver_kwargs=kwargs)
-
-        # Only the driver worker returns the sampling results.
+        # 只有主节点返回结果
         return all_outputs[0]

@@ -52,11 +52,8 @@ def initialize_ray_cluster(
     parallel_config: ParallelConfig,
     ray_address: Optional[str] = None,
 ):
-    """Initialize the distributed cluster with Ray.
-
-    it will connect to the Ray cluster and create a placement group
-    for the workers, which includes the specification of the resources
-    for each distributed worker.
+    """使用 Ray 初始化分布式集群
+    它将连接到 Ray 集群并为worker创建一个 placement group, 该组包括每个分布式worker进程的资源规范。
 
     Args:
         parallel_config: The configurations for parallel execution.
@@ -72,7 +69,6 @@ def initialize_ray_cluster(
     ray.init(address=ray_address, ignore_reinit_error=True)
 
     if parallel_config.placement_group:
-        # Placement group is already set.
         return
 
     # Create placement group for worker processes
