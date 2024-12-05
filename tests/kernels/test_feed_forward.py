@@ -3,7 +3,7 @@ import numpy
 import torch
 from sinfer.config import ParallelConfig
 from sinfer.model_executor.model_loader.weight_utils import default_weight_loader, initialize_dummy_weights
-from sinfer.mlu_hijack.model_executor.layers.feed_forward import FeedForward
+from sinfer.Intercept.model_executor.layers.feed_forward import FeedForward
 from sinfer.model_executor.model_loader.utils import set_default_torch_dtype
 from sinfer.model_executor.utils import set_random_seed
 from sinfer.test_utils import init_test_distributed_environment

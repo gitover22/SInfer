@@ -6,7 +6,7 @@ import time
 import pytest
 import torch
 
-from sinfer.mlu_hijack.attention.ops.triton_flash_attention import triton_attention
+from sinfer.Intercept.attention.ops.triton_flash_attention import triton_attention
 class SelfAttention(torch.nn.Module):
     """Implement the scaled dot product attention with softmax.
     Arguments

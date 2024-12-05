@@ -1,1 +1,1 @@
-import sinfer.mlu_hijack.mlu_hijack
+import sinfer.Intercept.mlu_hijack
