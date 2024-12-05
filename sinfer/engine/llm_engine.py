@@ -507,8 +507,6 @@ class LLMEngine:
         """
         now = time.time()
 
-        # System State
-        #   Scheduler State
         num_running_sys = len(self.scheduler.running)
         num_swapped_sys = len(self.scheduler.swapped)
         num_waiting_sys = len(self.scheduler.waiting)

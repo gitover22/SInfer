@@ -4,5 +4,3 @@ include requirements-cuda.txt
 include requirements-cpu.txt
 include CMakeLists.txt
 
-recursive-include cmake *
-recursive-include csrc *
