@@ -7,7 +7,7 @@ import argparse
 import json
 import ssl
 
-from sinfer.engine.arg_utils import AsyncEngineArgs, nullable_str
+from sinfer.sys.arg_utils import AsyncEngineArgs, nullable_str
 from sinfer.entrypoints.openai.serving_engine import LoRAModulePath
 
 

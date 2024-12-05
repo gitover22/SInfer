@@ -4,8 +4,8 @@ import torch
 from tqdm import tqdm
 from transformers import PreTrainedTokenizer, PreTrainedTokenizerFast
 
-from sinfer.engine.arg_utils import EngineArgs
-from sinfer.engine.llm_engine import LLMEngine
+from sinfer.sys.arg_utils import EngineArgs
+from sinfer.sys.runtime import LLMRuntime
 from sinfer.lora.request import LoRARequest
 from sinfer.outputs import RequestOutput
 from sinfer.sampling_params import SamplingParams
@@ -16,7 +16,7 @@ from sinfer.utils import Counter
 
 class LLM:
     """
-    包装LLMEngine, 用于离线推理的用户接口类
+    包装LLMRuntime, 用于离线推理的用户接口类
 
     参数:
         model: 模型名或路径.
@@ -83,7 +83,7 @@ class LLM:
             disable_custom_all_reduce=disable_custom_all_reduce,
             **kwargs,
         )
-        self.llm_engine = LLMEngine.from_engine_args(
+        self.llm_engine = LLMRuntime.from_engine_args(
             engine_args, usage_context=UsageContext.LLM_CLASS)
         self.request_counter = Counter()
 

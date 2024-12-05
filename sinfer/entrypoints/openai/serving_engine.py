@@ -8,7 +8,7 @@ from pydantic import Field
 from transformers import PreTrainedTokenizer, PreTrainedTokenizerFast
 from typing_extensions import Annotated
 
-from sinfer.engine.async_llm_engine import AsyncLLMEngine
+from sinfer.sys.async_runtime import AsyncLLMEngine
 from sinfer.entrypoints.openai.protocol import (ChatCompletionRequest,
                                               CompletionRequest, ErrorResponse,
                                               LogProbs, ModelCard, ModelList,

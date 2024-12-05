@@ -3,7 +3,7 @@ from dataclasses import dataclass
 
 import pytest
 
-from sinfer.engine.async_llm_engine import AsyncLLMEngine
+from sinfer.sys.async_runtime import AsyncLLMEngine
 
 
 @dataclass

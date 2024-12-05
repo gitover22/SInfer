@@ -8,7 +8,7 @@ from fastapi import Request
 from openai.types.chat import (ChatCompletionContentPartParam,
                                ChatCompletionRole)
 
-from sinfer.engine.async_llm_engine import AsyncLLMEngine
+from sinfer.sys.async_runtime import AsyncLLMEngine
 from sinfer.entrypoints.openai.protocol import (
     ChatCompletionRequest, ChatCompletionResponse,
     ChatCompletionResponseChoice, ChatCompletionResponseStreamChoice,

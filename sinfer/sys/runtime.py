@@ -10,12 +10,12 @@ from sinfer.config import (CacheConfig, DecodingConfig, DeviceConfig, LoadConfig
                          VisionLanguageConfig)
 from sinfer.core.scheduler import (ScheduledSequenceGroup, Scheduler,
                                  SchedulerOutputs)
-from sinfer.engine.arg_utils import EngineArgs
-from sinfer.engine.metrics import StatLogger, Stats
-from sinfer.engine.output_processor.interfaces import (
+from sinfer.sys.arg_utils import EngineArgs
+from sinfer.sys.metrics import StatLogger, Stats
+from sinfer.sys.output_processor.interfaces import (
     SequenceGroupOutputProcessor)
-from sinfer.engine.output_processor.stop_checker import StopChecker
-from sinfer.engine.output_processor.util import create_output_by_sequence_group
+from sinfer.sys.output_processor.stop_checker import StopChecker
+from sinfer.sys.output_processor.util import create_output_by_sequence_group
 from sinfer.executor.executor_base import ExecutorBase
 from sinfer.executor.ray_utils import initialize_ray_cluster
 from sinfer.logger import init_logger
@@ -47,7 +47,7 @@ def _load_generation_config_dict(model_config: ModelConfig):
         return {}
 
 
-class LLMEngine:
+class LLMRuntime:
     """
     推理系统引擎
     参数:
@@ -238,7 +238,7 @@ class LLMEngine:
         cls,
         engine_args: EngineArgs,
         usage_context: UsageContext = UsageContext.ENGINE_CONTEXT,
-    ) -> "LLMEngine":
+    ) -> "LLMRuntime":
         # 创建engine的配置
         engine_config = engine_args.create_engine_config()
 
@@ -266,8 +266,8 @@ class LLMEngine:
         return engine
 
     def __reduce__(self):
-        # 确保 LLMEngine 对象不会被序列化
-        raise RuntimeError("LLMEngine should not be pickled!")
+        # 确保 LLMRuntime 对象不会被序列化
+        raise RuntimeError("LLMRuntime should not be pickled!")
 
     def __del__(self):
         # 当引擎被垃圾回收时关闭model executor
@@ -327,7 +327,7 @@ class LLMEngine:
         multi_modal_data: Optional[MultiModalData] = None,
     ) -> None:
         """
-        将一个request添加给LLMEngine
+        将一个request添加给LLMRuntime
 
         Args:
             request_id: 1条prompt算1个请求, 会附给1个请求id
@@ -506,6 +506,7 @@ class LLMEngine:
                 which are created by the workers.
         """
         now = time.time()
+
 
         num_running_sys = len(self.scheduler.running)
         num_swapped_sys = len(self.scheduler.swapped)

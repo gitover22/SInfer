@@ -11,8 +11,8 @@ from pynvml import (nvmlDeviceGetHandleByIndex, nvmlDeviceGetMemoryInfo,
 
 from tests.conftest import cleanup
 from sinfer import LLM
-from sinfer.engine.arg_utils import AsyncEngineArgs
-from sinfer.engine.async_llm_engine import AsyncLLMEngine
+from sinfer.sys.arg_utils import AsyncEngineArgs
+from sinfer.sys.async_runtime import AsyncLLMEngine
 from sinfer.lora.request import LoRARequest
 from sinfer.model_executor.utils import set_random_seed
 from sinfer.outputs import RequestOutput

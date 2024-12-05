@@ -9,8 +9,8 @@ from transformers import PreTrainedTokenizer
 import sinfer.envs as envs
 from sinfer.config import DecodingConfig, ModelConfig
 from sinfer.core.scheduler import SchedulerOutputs
-from sinfer.engine.arg_utils import AsyncEngineArgs
-from sinfer.engine.llm_engine import LLMEngine
+from sinfer.sys.arg_utils import AsyncEngineArgs
+from sinfer.sys.runtime import LLMRuntime
 from sinfer.executor.ray_utils import initialize_ray_cluster, ray
 from sinfer.logger import init_logger
 from sinfer.lora.request import LoRARequest
@@ -195,8 +195,8 @@ class RequestTracker:
         return not self._new_requests.empty()
 
 
-class _AsyncLLMEngine(LLMEngine):
-    """对原始的 LLMEngine 类进行扩展，增加了异步方法，核心目的是实现异步推理支持"""
+class _AsyncLLMRuntime(LLMRuntime):
+    """对原始的 LLMRuntime 类进行扩展，增加了异步方法，核心目的是实现异步推理支持"""
 
     async def step_async(self) -> List[RequestOutput]:
         """异步执行一次解码迭代并返回新生成的结果。
@@ -299,7 +299,7 @@ class AsyncLLMEngine:
         **kwargs: Arguments for LLMEngine.
     """
 
-    _engine_class: Type[_AsyncLLMEngine] = _AsyncLLMEngine
+    _engine_class: Type[_AsyncLLMRuntime] = _AsyncLLMRuntime
 
     def __init__(self,
                  worker_use_ray: bool,
@@ -412,7 +412,7 @@ class AsyncLLMEngine:
         self.background_loop = asyncio.shield(self._background_loop_unshielded)
 
     def _init_engine(self, *args,
-                     **kwargs) -> Union[_AsyncLLMEngine, "ray.ObjectRef"]:
+                     **kwargs) -> Union[_AsyncLLMRuntime, "ray.ObjectRef"]:
         if not self.engine_use_ray:
             engine_class = self._engine_class
         elif self.worker_use_ray:

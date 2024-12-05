@@ -10,7 +10,7 @@ from sinfer.model_executor.sampling_metadata import SamplingMetadata
 from sinfer.model_executor.utils import set_random_seed
 from sinfer.sequence import SamplingParams, SequenceData, SequenceGroupMetadata
 from sinfer.worker.model_runner import ModelRunner
-from sinfer.engine.arg_utils import ModelConfig
+from sinfer.sys.arg_utils import ModelConfig
 
 import os
 

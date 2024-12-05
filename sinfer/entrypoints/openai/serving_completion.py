@@ -4,7 +4,7 @@ from typing import (AsyncGenerator, AsyncIterator, Callable, Dict, List,
 
 from fastapi import Request
 
-from sinfer.engine.async_llm_engine import AsyncLLMEngine
+from sinfer.sys.async_runtime import AsyncLLMEngine
 from sinfer.entrypoints.openai.protocol import (CompletionRequest,
                                               CompletionResponse,
                                               CompletionResponseChoice,

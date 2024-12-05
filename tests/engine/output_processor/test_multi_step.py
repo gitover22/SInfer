@@ -6,8 +6,8 @@ from transformers import PreTrainedTokenizer
 
 from tests.core.utils import create_seq_group
 from sinfer.core.scheduler import Scheduler
-from sinfer.engine.output_processor.multi_step import MultiStepOutputProcessor
-from sinfer.engine.output_processor.stop_checker import StopChecker
+from sinfer.sys.output_processor.multi_step import MultiStepOutputProcessor
+from sinfer.sys.output_processor.stop_checker import StopChecker
 from sinfer.sampling_params import SamplingParams
 from sinfer.sequence import (Logprob, SequenceGroupOutput, SequenceOutput,
                            SequenceStatus)

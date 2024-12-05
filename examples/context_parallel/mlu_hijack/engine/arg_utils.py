@@ -1,11 +1,11 @@
 import argparse
 import torch
 from sinfer.config import EngineConfig, ParallelConfig
-from sinfer.engine.arg_utils import EngineArgs, AsyncEngineArgs
+from sinfer.sys.arg_utils import EngineArgs, AsyncEngineArgs
 from sinfer.mlu_hijack.mlu_hijack_utils import MluHijackObject, set_batch_sizes_to_capture
-from sinfer.mlu_hijack.engine.arg_utils import sinfer__engine__arg_utils__EngineArgs__create_engine_config
-from sinfer.mlu_hijack.engine.arg_utils import sinfer__engine__arg_utils__EngineArgs__add_cli_args
-from sinfer.mlu_hijack.engine.arg_utils import sinfer__engine__arg_utils__EngineArgs__from_cli_args
+from sinfer.mlu_hijack.sys.arg_utils import sinfer__engine__arg_utils__EngineArgs__create_engine_config
+from sinfer.mlu_hijack.sys.arg_utils import sinfer__engine__arg_utils__EngineArgs__add_cli_args
+from sinfer.mlu_hijack.sys.arg_utils import sinfer__engine__arg_utils__EngineArgs__from_cli_args
 
 sinfer__engine__arg_utils__EngineArgs__from_cli_args_org = EngineArgs.from_cli_args
 sinfer__engine__arg_utils__AsyncEngineArgs__from_cli_args_org = AsyncEngineArgs.from_cli_args

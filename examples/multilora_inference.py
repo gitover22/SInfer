@@ -9,7 +9,7 @@ from typing import List, Optional, Tuple
 
 from huggingface_hub import snapshot_download
 
-from sinfer import EngineArgs, LLMEngine, RequestOutput, SamplingParams
+from sinfer import EngineArgs, LLMRuntime, RequestOutput, SamplingParams
 from sinfer.lora.request import LoRARequest
 
 
@@ -72,7 +72,7 @@ def create_test_prompts(
     ]
 
 
-def process_requests(engine: LLMEngine,
+def process_requests(engine: LLMRuntime,
                      test_prompts: List[Tuple[str, SamplingParams,
                                               Optional[LoRARequest]]]):
     """Continuously process a list of prompts and handle the outputs."""
@@ -94,8 +94,8 @@ def process_requests(engine: LLMEngine,
                 print(request_output)
 
 
-def initialize_engine() -> LLMEngine:
-    """Initialize the LLMEngine."""
+def initialize_engine() -> LLMRuntime:
+    """Initialize the LLMRuntime."""
     # max_loras: controls the number of LoRAs that can be used in the same
     #   batch. Larger numbers will cause higher memory usage, as each LoRA
     #   slot requires its own preallocated tensor.
@@ -109,7 +109,7 @@ def initialize_engine() -> LLMEngine:
                              max_lora_rank=8,
                              max_cpu_loras=2,
                              max_num_seqs=256)
-    return LLMEngine.from_engine_args(engine_args)
+    return LLMRuntime.from_engine_args(engine_args)
 
 
 def main():

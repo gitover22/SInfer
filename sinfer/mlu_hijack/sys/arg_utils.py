@@ -1,7 +1,7 @@
 import argparse
 import torch
 from sinfer.config import EngineConfig
-from sinfer.engine.arg_utils import EngineArgs, AsyncEngineArgs
+from sinfer.sys.arg_utils import EngineArgs, AsyncEngineArgs
 from sinfer.mlu_hijack.mlu_definitions import BlockSizeInfo, USE_PAGED
 from sinfer.mlu_hijack.mlu_hijack_utils import MluHijackObject, set_batch_sizes_to_capture
 from sinfer.logger import init_logger

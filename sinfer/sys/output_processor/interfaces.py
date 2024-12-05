@@ -5,7 +5,7 @@ from transformers import PreTrainedTokenizer
 
 from sinfer.config import SchedulerConfig
 from sinfer.core.scheduler import Scheduler
-from sinfer.engine.output_processor.stop_checker import StopChecker
+from sinfer.sys.output_processor.stop_checker import StopChecker
 from sinfer.sequence import Sequence, SequenceGroup, SequenceGroupOutput
 from sinfer.transformers_utils.detokenizer import Detokenizer
 from sinfer.utils import Counter
@@ -39,7 +39,7 @@ class SequenceGroupOutputProcessor(ABC):
         """
         if scheduler_config.num_lookahead_slots == 0:
             # Importing here to avoid cycle.
-            from sinfer.engine.output_processor.single_step import (
+            from sinfer.sys.output_processor.single_step import (
                 SingleStepOutputProcessor)
             return SingleStepOutputProcessor(
                 scheduler_config,
@@ -50,7 +50,7 @@ class SequenceGroupOutputProcessor(ABC):
             )
         else:
             # Importing here to avoid cycle.
-            from sinfer.engine.output_processor.multi_step import (
+            from sinfer.sys.output_processor.multi_step import (
                 MultiStepOutputProcessor)
             return MultiStepOutputProcessor(
                 detokenizer,

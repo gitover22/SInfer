@@ -14,8 +14,8 @@ from tensorizer.utils import convert_bytes, get_mem_usage, no_init_or_tensor
 from transformers import AutoConfig, PretrainedConfig
 
 from sinfer.distributed import initialize_model_parallel
-from sinfer.engine.arg_utils import EngineArgs
-from sinfer.engine.llm_engine import LLMEngine
+from sinfer.sys.arg_utils import EngineArgs
+from sinfer.sys.runtime import LLMRuntime
 from sinfer.model_executor.model_loader.tensorizer import TensorizerArgs
 from sinfer.model_executor.models import ModelRegistry
 
@@ -183,7 +183,7 @@ def serialize():
     eng_args_dict = {f.name: getattr(args, f.name) for f in
                      dataclasses.fields(EngineArgs)}
     engine_args = EngineArgs.from_cli_args(argparse.Namespace(**eng_args_dict))
-    engine = LLMEngine.from_engine_args(engine_args)
+    engine = LLMRuntime.from_engine_args(engine_args)
 
     model = (engine.model_executor.driver_worker.
              model_runner.model)

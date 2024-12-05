@@ -1,6 +1,6 @@
 import torch
 
-from sinfer.engine.arg_utils import EngineArgs
+from sinfer.sys.arg_utils import EngineArgs
 from sinfer.sequence import ExecuteModelRequest
 from sinfer.utils import get_distributed_init_method, get_ip, get_open_port
 from sinfer.worker.worker import Worker

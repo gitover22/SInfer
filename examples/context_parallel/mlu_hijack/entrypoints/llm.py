@@ -1,8 +1,8 @@
 from typing import Optional
 from sinfer.entrypoints.llm import LLM
 from sinfer.mlu_hijack.mlu_hijack_utils import MluHijackObject, set_batch_sizes_to_capture
-from sinfer.engine.arg_utils import EngineArgs
-from sinfer.engine.llm_engine import LLMEngine
+from sinfer.sys.arg_utils import EngineArgs
+from sinfer.sys.runtime import LLMRuntime
 from sinfer.usage.usage_lib import UsageContext
 from sinfer.utils import Counter
 
@@ -65,7 +65,7 @@ def _LLM_init_(
     # set context_parallel_size to engine_args
     setattr(engine_args, 'context_parallel_size', context_parallel_size)
     
-    self.llm_engine = LLMEngine.from_engine_args(
+    self.llm_engine = LLMRuntime.from_engine_args(
         engine_args, usage_context=UsageContext.LLM_CLASS)
     self.request_counter = Counter()
 

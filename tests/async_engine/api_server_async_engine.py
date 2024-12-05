@@ -6,8 +6,8 @@ import uvicorn
 from fastapi.responses import JSONResponse, Response
 
 import sinfer.entrypoints.api_server
-from sinfer.engine.arg_utils import AsyncEngineArgs
-from sinfer.engine.async_llm_engine import AsyncLLMEngine
+from sinfer.sys.arg_utils import AsyncEngineArgs
+from sinfer.sys.async_runtime import AsyncLLMEngine
 
 app = sinfer.entrypoints.api_server.app
 

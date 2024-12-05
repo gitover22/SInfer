@@ -1,7 +1,7 @@
 import pytest
 
-from sinfer.engine.arg_utils import EngineArgs
-from sinfer.engine.llm_engine import LLMEngine
+from sinfer.sys.arg_utils import EngineArgs
+from sinfer.sys.runtime import LLMRuntime
 from sinfer.sampling_params import SamplingParams
 
 import os
@@ -26,7 +26,7 @@ def test_computed_prefix_blocks(model: str, block_size: int):
                              block_size=block_size,
                              enable_prefix_caching=False)
 
-    engine = LLMEngine.from_engine_args(engine_args)
+    engine = LLMRuntime.from_engine_args(engine_args)
     sampling_params = SamplingParams()
 
     engine.add_request("0", prompt + prompt2, sampling_params)

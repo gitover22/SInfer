@@ -1,6 +1,6 @@
 import time
 from typing import Optional, List
-from sinfer.engine.llm_engine import LLMEngine
+from sinfer.sys.runtime import LLMRuntime
 from sinfer.mlu_hijack.mlu_definitions import USE_PAGED, BlockSizeInfo
 from sinfer.mlu_hijack.mlu_hijack_utils import MluHijackObject
 from sinfer.sampling_params import SamplingParams
@@ -11,10 +11,10 @@ from sinfer.logger import init_logger
 logger = init_logger(__name__)
 
 
-sinfer_engine__llm_engine__LLMEngine__add_request_org = LLMEngine.add_request
+sinfer_engine__llm_engine__LLMRuntime__add_request_org = LLMRuntime.add_request
 
 
-def sinfer_engine__llm_engine__LLMEngine__add_request(
+def sinfer_engine__llm_engine__LLMRuntime__add_request(
     self,
     request_id: str,
     prompt: Optional[str],
@@ -80,14 +80,14 @@ def sinfer_engine__llm_engine__LLMEngine__add_request(
     self.scheduler.add_seq_group(seq_group)
 
 
-def sinfer__engine__llm_engine__LLMEngine__get_latency(self):
+def sinfer__engine__llm_engine__LLMRuntime__get_latency(self):
     latency = self.model_executor.get_latency()
     return latency
 
 
-MluHijackObject.add_hijack_object(LLMEngine,
-                                  LLMEngine.add_request,
-                                  sinfer_engine__llm_engine__LLMEngine__add_request)
-MluHijackObject.add_hijack_object(LLMEngine,
+MluHijackObject.add_hijack_object(LLMRuntime,
+                                  LLMRuntime.add_request,
+                                  sinfer_engine__llm_engine__LLMRuntime__add_request)
+MluHijackObject.add_hijack_object(LLMRuntime,
                                   "get_latency",
-                                  sinfer__engine__llm_engine__LLMEngine__get_latency)
+                                  sinfer__engine__llm_engine__LLMRuntime__get_latency)

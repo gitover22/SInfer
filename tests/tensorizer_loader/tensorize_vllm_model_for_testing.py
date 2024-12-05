@@ -14,8 +14,8 @@ from transformers import AutoConfig, PretrainedConfig
 
 from sinfer.distributed import (init_distributed_environment,
                               initialize_model_parallel)
-from sinfer.engine.arg_utils import EngineArgs
-from sinfer.engine.llm_engine import LLMEngine
+from sinfer.sys.arg_utils import EngineArgs
+from sinfer.sys.runtime import LLMRuntime
 from sinfer.model_executor.model_loader.tensorizer import TensorizerArgs
 from sinfer.model_executor.models import ModelRegistry
 
@@ -69,8 +69,7 @@ For more information on the available arguments, run
 def parse_args():
     parser = argparse.ArgumentParser(
         description="An example script that can be used to serialize and "
-                    "deserialize SInfer
-                      models. These models "
+                    "deserialize SInfer models. These models "
                     "can be loaded using tensorizer directly to the GPU "
                     "extremely quickly. Tensor encryption and decryption is "
                     "also supported, although libsodium must be installed to "
@@ -147,7 +146,7 @@ def serialize():
     eng_args_dict = {f.name: getattr(args, f.name) for f in
                      dataclasses.fields(EngineArgs)}
     engine_args = EngineArgs.from_cli_args(argparse.Namespace(**eng_args_dict))
-    engine = LLMEngine.from_engine_args(engine_args)
+    engine = LLMRuntime.from_engine_args(engine_args)
 
     model = (engine.model_executor.driver_worker.
              model_runner.model)

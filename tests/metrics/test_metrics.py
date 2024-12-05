@@ -4,8 +4,8 @@ import pytest
 from prometheus_client import REGISTRY
 
 from sinfer import EngineArgs, LLMEngine
-from sinfer.engine.arg_utils import AsyncEngineArgs
-from sinfer.engine.async_llm_engine import AsyncLLMEngine
+from sinfer.sys.arg_utils import AsyncEngineArgs
+from sinfer.sys.async_runtime import AsyncLLMEngine
 from sinfer.sampling_params import SamplingParams
 
 import os

@@ -1,6 +1,6 @@
 import pytest
 
-from sinfer.engine.async_llm_engine import RequestTracker
+from sinfer.sys.async_runtime import RequestTracker
 from sinfer.outputs import RequestOutput
 
 

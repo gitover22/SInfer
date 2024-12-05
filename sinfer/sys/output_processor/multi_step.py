@@ -4,9 +4,9 @@ from typing import Callable, List
 from transformers import PreTrainedTokenizer
 
 from sinfer.core.scheduler import Scheduler
-from sinfer.engine.output_processor.interfaces import (
+from sinfer.sys.output_processor.interfaces import (
     SequenceGroupOutputProcessor)
-from sinfer.engine.output_processor.stop_checker import StopChecker
+from sinfer.sys.output_processor.stop_checker import StopChecker
 from sinfer.logger import init_logger
 from sinfer.sampling_params import SamplingParams
 from sinfer.sequence import (Sequence, SequenceGroup, SequenceGroupOutput,

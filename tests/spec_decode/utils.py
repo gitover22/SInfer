@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 
 import torch
 
-from sinfer.engine.arg_utils import EngineArgs
+from sinfer.sys.arg_utils import EngineArgs
 from sinfer.model_executor.utils import set_random_seed
 from sinfer.sampling_params import SamplingParams
 from sinfer.sequence import (Logprob, SamplerOutput, SequenceData,

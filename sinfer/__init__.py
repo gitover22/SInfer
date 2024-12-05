@@ -1,7 +1,7 @@
 
-from sinfer.engine.arg_utils import AsyncEngineArgs, EngineArgs
-from sinfer.engine.async_llm_engine import AsyncLLMEngine
-from sinfer.engine.llm_engine import LLMEngine
+from sinfer.sys.arg_utils import AsyncEngineArgs, EngineArgs
+from sinfer.sys.async_runtime import AsyncLLMEngine
+from sinfer.sys.runtime import LLMRuntime
 from sinfer.entrypoints.llm import LLM
 from sinfer.executor.ray_utils import initialize_ray_cluster
 from sinfer.model_executor.models import ModelRegistry
@@ -41,7 +41,7 @@ __all__ = [
     "SamplingParams",
     "RequestOutput",
     "CompletionOutput",
-    "LLMEngine",
+    "LLMRuntime",
     "EngineArgs",
     "AsyncLLMEngine",
     "AsyncEngineArgs",

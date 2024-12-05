@@ -26,10 +26,10 @@ class SinferMluHijack:
         import sinfer.mlu_hijack.core
         if check_scheduler_profile_enable():
             import sinfer.mlu_hijack.core.scheduler
-            import sinfer.mlu_hijack.engine.async_llm_engine
+            import sinfer.mlu_hijack.sys.async_llm_engine
             import sinfer.mlu_hijack.entrypoints.openai.serving_engine
         import sinfer.mlu_hijack.distributed
-        import sinfer.mlu_hijack.engine
+        import sinfer.mlu_hijack.sys
         import sinfer.mlu_hijack.entrypoints
         import sinfer.mlu_hijack.executor
         import sinfer.mlu_hijack.model_executor
