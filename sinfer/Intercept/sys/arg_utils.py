@@ -1,7 +1,7 @@
 import argparse
 import torch
 from sinfer.config import EngineConfig
-from sinfer.sys.arg_utils import EngineArgs, AsyncEngineArgs
+from sinfer.sys.arg_utils import RuntimeArgs, AsyncRuntimeArgs
 from sinfer.Intercept.mlu_definitions import BlockSizeInfo, USE_PAGED
 from sinfer.Intercept.mlu_hijack_utils import MluHijackObject, set_batch_sizes_to_capture
 from sinfer.logger import init_logger
@@ -9,11 +9,11 @@ from sinfer.logger import init_logger
 logger = init_logger(__name__)
 
 
-sinfer__engine__arg_utils__EngineArgs__create_engine_config_org = EngineArgs.create_engine_config
-sinfer__engine__arg_utils__EngineArgs__add_cli_args_org = EngineArgs.add_cli_args
-sinfer__engine__arg_utils__EngineArgs__from_cli_args_org = EngineArgs.from_cli_args
-sinfer__engine__arg_utils__AsyncEngineArgs__from_cli_args_org = AsyncEngineArgs.from_cli_args
-sinfer_engine__arg_utils__EngineArgs____post_init__org = EngineArgs.__post_init__
+sinfer__engine__arg_utils__EngineArgs__create_engine_config_org = RuntimeArgs.create_engine_config
+sinfer__engine__arg_utils__EngineArgs__add_cli_args_org = RuntimeArgs.add_cli_args
+sinfer__engine__arg_utils__EngineArgs__from_cli_args_org = RuntimeArgs.from_cli_args
+sinfer__engine__arg_utils__AsyncEngineArgs__from_cli_args_org = AsyncRuntimeArgs.from_cli_args
+sinfer_engine__arg_utils__EngineArgs____post_init__org = RuntimeArgs.__post_init__
 
 def sinfer_engine__arg_utils__EngineArgs____post_init__(self,) -> None:
     # In MLU3XX device, when the tensor_parallel_size > 1, the enforce_eager is forced to set False
@@ -57,25 +57,25 @@ def sinfer__engine__arg_utils__EngineArgs__add_cli_args(
 
 
 @classmethod
-def sinfer__engine__arg_utils__EngineArgs__from_cli_args(cls, args: argparse.Namespace) -> 'EngineArgs':
+def sinfer__engine__arg_utils__EngineArgs__from_cli_args(cls, args: argparse.Namespace) -> 'RuntimeArgs':
     max_batch_size_to_capture = getattr(args, "max_batch_size_to_capture", None)
     if max_batch_size_to_capture:
         set_batch_sizes_to_capture(max_batch_size_to_capture)
-    if cls == AsyncEngineArgs:
+    if cls == AsyncRuntimeArgs:
         return sinfer__engine__arg_utils__AsyncEngineArgs__from_cli_args_org(args)
     else:
         return sinfer__engine__arg_utils__EngineArgs__from_cli_args_org(args)
 
 
-MluHijackObject.add_hijack_object(EngineArgs,
-                                  EngineArgs.__post_init__,
+MluHijackObject.add_hijack_object(RuntimeArgs,
+                                  RuntimeArgs.__post_init__,
                                   sinfer_engine__arg_utils__EngineArgs____post_init__)
-MluHijackObject.add_hijack_object(EngineArgs,
-                                  EngineArgs.create_engine_config,
+MluHijackObject.add_hijack_object(RuntimeArgs,
+                                  RuntimeArgs.create_engine_config,
                                   sinfer__engine__arg_utils__EngineArgs__create_engine_config)
-MluHijackObject.add_hijack_object(EngineArgs,
-                                  EngineArgs.add_cli_args,
+MluHijackObject.add_hijack_object(RuntimeArgs,
+                                  RuntimeArgs.add_cli_args,
                                   sinfer__engine__arg_utils__EngineArgs__add_cli_args)
-MluHijackObject.add_hijack_object(EngineArgs,
-                                  EngineArgs.from_cli_args,
+MluHijackObject.add_hijack_object(RuntimeArgs,
+                                  RuntimeArgs.from_cli_args,
                                   sinfer__engine__arg_utils__EngineArgs__from_cli_args)

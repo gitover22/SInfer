@@ -11,7 +11,7 @@ import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
-from sinfer.sys.arg_utils import AsyncEngineArgs
+from sinfer.sys.arg_utils import AsyncRuntimeArgs
 from sinfer.sys.async_runtime import AsyncLLMRuntime
 from sinfer.sampling_params import SamplingParams
 from sinfer.usage.usage_lib import UsageContext
@@ -97,9 +97,9 @@ if __name__ == "__main__":
         default=None,
         help="FastAPI root_path when app is behind a path based routing proxy")
     parser.add_argument("--log-level", type=str, default="debug")
-    parser = AsyncEngineArgs.add_cli_args(parser)
+    parser = AsyncRuntimeArgs.add_cli_args(parser)
     args = parser.parse_args()
-    engine_args = AsyncEngineArgs.from_cli_args(args)
+    engine_args = AsyncRuntimeArgs.from_cli_args(args)
     engine = AsyncLLMRuntime.from_engine_args(
         engine_args, usage_context=UsageContext.API_SERVER)
 

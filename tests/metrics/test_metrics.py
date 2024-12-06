@@ -3,8 +3,8 @@ from typing import List
 import pytest
 from prometheus_client import REGISTRY
 
-from sinfer import EngineArgs, LLMEngine
-from sinfer.sys.arg_utils import AsyncEngineArgs
+from sinfer import RuntimeArgs, LLMEngine
+from sinfer.sys.arg_utils import AsyncRuntimeArgs
 from sinfer.sys.async_runtime import AsyncLLMRuntime
 from sinfer.sampling_params import SamplingParams
 
@@ -125,7 +125,7 @@ async def test_async_engine_log_metrics_regression(
     when disable_log_stats=False
     (see: https://github.com/sinfer-project/sinfer/pull/4150#pullrequestreview-2008176678)
     """
-    engine_args = AsyncEngineArgs(model=model,
+    engine_args = AsyncRuntimeArgs(model=model,
                                   dtype=dtype,
                                   disable_log_stats=disable_log_stats)
     async_engine = AsyncLLMRuntime.from_engine_args(engine_args)
@@ -154,7 +154,7 @@ def test_engine_log_metrics_regression(
     max_tokens: int,
     disable_log_stats: bool,
 ) -> None:
-    engine_args = EngineArgs(model=model,
+    engine_args = RuntimeArgs(model=model,
                              dtype=dtype,
                              disable_log_stats=disable_log_stats)
     engine = LLMEngine.from_engine_args(engine_args)

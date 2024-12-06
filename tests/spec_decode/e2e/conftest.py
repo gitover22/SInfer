@@ -11,7 +11,7 @@ from pynvml import (nvmlDeviceGetHandleByIndex, nvmlDeviceGetMemoryInfo,
 
 from tests.conftest import cleanup
 from sinfer import LLM
-from sinfer.sys.arg_utils import AsyncEngineArgs
+from sinfer.sys.arg_utils import AsyncRuntimeArgs
 from sinfer.sys.async_runtime import AsyncLLMRuntime
 from sinfer.lora.request import LoRARequest
 from sinfer.model_executor.utils import set_random_seed
@@ -55,7 +55,7 @@ class AsyncLLM:
     ) -> None:
         if "disable_log_stats" not in kwargs:
             kwargs["disable_log_stats"] = True
-        self.engine_args = AsyncEngineArgs(
+        self.engine_args = AsyncRuntimeArgs(
             model=model,
             tokenizer=tokenizer,
             tokenizer_mode=tokenizer_mode,

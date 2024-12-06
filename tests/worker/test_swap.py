@@ -1,6 +1,6 @@
 import torch
 
-from sinfer.sys.arg_utils import EngineArgs
+from sinfer.sys.arg_utils import RuntimeArgs
 from sinfer.sequence import ExecuteModelRequest
 from sinfer.utils import get_distributed_init_method, get_ip, get_open_port
 from sinfer.worker.worker import Worker
@@ -9,7 +9,7 @@ import os
 
 def test_swap() -> None:
     # Configure the engine.
-    engine_args = EngineArgs(model=os.environ["TEST_MODEL_PATH"],
+    engine_args = RuntimeArgs(model=os.environ["TEST_MODEL_PATH"],
                              dtype="half",
                              load_format="dummy")
     engine_config = engine_args.create_engine_config()

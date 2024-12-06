@@ -1,6 +1,6 @@
 import pytest
 
-from sinfer.sys.arg_utils import EngineArgs
+from sinfer.sys.arg_utils import RuntimeArgs
 from sinfer.sys.runtime import LLMRuntime
 from sinfer.sampling_params import SamplingParams
 
@@ -22,7 +22,7 @@ def test_computed_prefix_blocks(model: str, block_size: int):
         "handle technical difficulties of building a car, but also "
         "decoration.")
 
-    engine_args = EngineArgs(model=model,
+    engine_args = RuntimeArgs(model=model,
                              block_size=block_size,
                              enable_prefix_caching=False)
 

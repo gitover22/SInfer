@@ -9,7 +9,7 @@ from typing import Set
 
 from sinfer.block import BlockTable, PhysicalTokenBlock
 from sinfer.core.evictor_v1 import EvictionPolicy, Evictor, make_evictor
-from sinfer.core.interfaces import AllocStatus, BlockSpaceManager
+from sinfer.core.interfaces import AllocStatus, SpaceManager
 from sinfer.logger import init_logger
 from sinfer.sequence import Sequence, SequenceGroup, SequenceStatus
 from sinfer.utils import Device
@@ -225,7 +225,7 @@ class UncachedBlockAllocator(BlockAllocatorBase):
             "Invalid codepath for uncached block allocator.")
 
 
-class BlockSpaceManagerV1(BlockSpaceManager):
+class _BlockSpaceManager(SpaceManager):
     """管理逻辑块和物理块之间的映射"""
 
     def __init__(

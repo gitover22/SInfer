@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from typing import Deque, Dict, Iterable, List, Optional, Set, Tuple, Union
 
 from sinfer.config import CacheConfig, LoRAConfig, SchedulerConfig
-from sinfer.core.interfaces import AllocStatus, BlockSpaceManager
+from sinfer.core.interfaces import AllocStatus, SpaceManager
 from sinfer.core.policy import Policy, PolicyFactory
 from sinfer.logger import init_logger
 from sinfer.lora.request import LoRARequest
@@ -240,9 +240,7 @@ class Scheduler:
                 self.scheduler_config.max_model_len,
                 self.scheduler_config.max_num_batched_tokens)
 
-        BlockSpaceManagerImpl = BlockSpaceManager.get_block_space_manager_class(
-            version="v2" if self.scheduler_config.
-            use_v2_block_manager else "v1")
+        BlockSpaceManagerImpl = SpaceManager.get_block_space_manager()
 
         # 创建物理块管理器
         self.block_manager = BlockSpaceManagerImpl(

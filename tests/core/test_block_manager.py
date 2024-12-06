@@ -5,7 +5,7 @@ import pytest
 
 from sinfer import SamplingParams
 from sinfer.block import PhysicalTokenBlock
-from sinfer.core.block_manager_v1 import (BlockSpaceManagerV1,
+from sinfer.core.block_manager import (_BlockSpaceManager,
                                         UncachedBlockAllocator)
 from sinfer.core.interfaces import AllocStatus
 from sinfer.sequence import Logprob, Sequence, SequenceGroup, SequenceStatus
@@ -64,7 +64,7 @@ def test_allocate():
     block_size = 4
     num_cpu_blocks = 4
     num_gpu_blocks = 4
-    block_manager = BlockSpaceManagerV1(block_size,
+    block_manager = _BlockSpaceManager(block_size,
                                         num_cpu_blocks,
                                         num_gpu_blocks,
                                         watermark=0)
@@ -78,7 +78,7 @@ def test_allocate():
 
     # Allocate same sequence group to all available gpu blocks.
     # Use watermark to reserve one gpu block.
-    block_manager = BlockSpaceManagerV1(block_size,
+    block_manager = _BlockSpaceManager(block_size,
                                         num_cpu_blocks,
                                         num_gpu_blocks,
                                         watermark=1 / num_gpu_blocks)
@@ -93,7 +93,7 @@ def test_append_slot_single_seq():
     block_size = 4
     num_cpu_blocks = 4
     num_gpu_blocks = 4
-    block_manager = BlockSpaceManagerV1(block_size,
+    block_manager = _BlockSpaceManager(block_size,
                                         num_cpu_blocks,
                                         num_gpu_blocks,
                                         watermark=0)
@@ -125,7 +125,7 @@ def test_append_slot_cow():
     block_size = 4
     num_cpu_blocks = 4
     num_gpu_blocks = 4
-    block_manager = BlockSpaceManagerV1(block_size=block_size,
+    block_manager = _BlockSpaceManager(block_size=block_size,
                                         num_cpu_blocks=num_cpu_blocks,
                                         num_gpu_blocks=num_gpu_blocks,
                                         watermark=0)
@@ -166,7 +166,7 @@ def test_fork():
     block_size = 4
     num_cpu_blocks = 4
     num_gpu_blocks = 4
-    block_manager = BlockSpaceManagerV1(block_size,
+    block_manager = _BlockSpaceManager(block_size,
                                         num_cpu_blocks,
                                         num_gpu_blocks,
                                         watermark=0)
@@ -193,7 +193,7 @@ def test_swap():
     block_size = 4
     num_cpu_blocks = 4
     num_gpu_blocks = 4
-    block_manager = BlockSpaceManagerV1(block_size,
+    block_manager = _BlockSpaceManager(block_size,
                                         num_cpu_blocks,
                                         num_gpu_blocks,
                                         watermark=0)
@@ -239,7 +239,7 @@ def test_free():
     block_size = 4
     num_cpu_blocks = 4
     num_gpu_blocks = 4
-    block_manager = BlockSpaceManagerV1(block_size,
+    block_manager = _BlockSpaceManager(block_size,
                                         num_cpu_blocks,
                                         num_gpu_blocks,
                                         watermark=0)
@@ -263,7 +263,7 @@ def test_reset():
     block_size = 4
     num_cpu_blocks = 4
     num_gpu_blocks = 4
-    block_manager = BlockSpaceManagerV1(block_size,
+    block_manager = _BlockSpaceManager(block_size,
                                         num_cpu_blocks,
                                         num_gpu_blocks,
                                         watermark=0)
@@ -290,7 +290,7 @@ def test_sliding_window_multi_seq():
     num_cpu_blocks = 8
     num_gpu_blocks = 8
     sliding_window = 2
-    block_manager = BlockSpaceManagerV1(block_size,
+    block_manager = _BlockSpaceManager(block_size,
                                         num_cpu_blocks,
                                         num_gpu_blocks,
                                         sliding_window=sliding_window,

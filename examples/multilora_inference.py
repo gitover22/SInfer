@@ -9,7 +9,7 @@ from typing import List, Optional, Tuple
 
 from huggingface_hub import snapshot_download
 
-from sinfer import EngineArgs, LLMRuntime, RequestOutput, SamplingParams
+from sinfer import RuntimeArgs, LLMRuntime, RequestOutput, SamplingParams
 from sinfer.lora.request import LoRARequest
 
 
@@ -103,7 +103,7 @@ def initialize_engine() -> LLMRuntime:
     #   numbers will cause higher memory usage. If you know that all LoRAs will
     #   use the same rank, it is recommended to set this as low as possible.
     # max_cpu_loras: controls the size of the CPU LoRA cache.
-    engine_args = EngineArgs(model="meta-llama/Llama-2-7b-hf",
+    engine_args = RuntimeArgs(model="meta-llama/Llama-2-7b-hf",
                              enable_lora=True,
                              max_loras=1,
                              max_lora_rank=8,

@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 
 import torch
 
-from sinfer.sys.arg_utils import EngineArgs
+from sinfer.sys.arg_utils import RuntimeArgs
 from sinfer.model_executor.utils import set_random_seed
 from sinfer.sampling_params import SamplingParams
 from sinfer.sequence import (Logprob, SamplerOutput, SequenceData,
@@ -63,7 +63,7 @@ def create_worker(cls: type,
                   seed: int,
                   is_driver_worker: bool = True,
                   enforce_eager: bool = True):
-    engine_args = EngineArgs(
+    engine_args = RuntimeArgs(
         model=model_name,
         seed=seed,
         block_size=block_size,

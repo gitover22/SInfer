@@ -4,7 +4,7 @@ Run `pytest tests/prefix_caching/test_prefix_caching.py`.
 """
 import pytest
 
-from sinfer.core.block_manager_v1 import CachedBlockAllocator
+from sinfer.core.block_manager import CachedBlockAllocator
 from sinfer.utils import Device
 
 

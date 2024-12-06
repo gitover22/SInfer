@@ -1,5 +1,5 @@
 
-from sinfer.sys.arg_utils import AsyncEngineArgs, EngineArgs
+from sinfer.sys.arg_utils import AsyncRuntimeArgs, RuntimeArgs
 from sinfer.sys.async_runtime import AsyncLLMRuntime
 from sinfer.sys.runtime import LLMRuntime
 from sinfer.entrypoints.llm import LLM
@@ -42,8 +42,8 @@ __all__ = [
     "RequestOutput",
     "CompletionOutput",
     "LLMRuntime",
-    "EngineArgs",
+    "RuntimeArgs",
     "AsyncLLMRuntime",
-    "AsyncEngineArgs",
+    "AsyncRuntimeArgs",
     "initialize_ray_cluster",
 ]

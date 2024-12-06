@@ -7,7 +7,7 @@ import argparse
 import json
 import ssl
 
-from sinfer.sys.arg_utils import AsyncEngineArgs, nullable_str
+from sinfer.sys.arg_utils import AsyncRuntimeArgs, nullable_str
 from sinfer.entrypoints.openai.serving_engine import LoRAModulePath
 
 
@@ -110,5 +110,5 @@ def make_arg_parser() -> argparse.ArgumentParser:
         "If a class is provided, SInfer will add it to the server "
         "using app.add_middleware(). ")
 
-    parser = AsyncEngineArgs.add_cli_args(parser)
+    parser = AsyncRuntimeArgs.add_cli_args(parser)
     return parser

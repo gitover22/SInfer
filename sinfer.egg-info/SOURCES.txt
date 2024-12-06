@@ -42,8 +42,7 @@ sinfer/Intercept/attention/ops/paged_attn.py
 sinfer/Intercept/attention/ops/prefix_prefill.py
 sinfer/Intercept/attention/ops/triton_flash_attention.py
 sinfer/Intercept/core/__init__.py
-sinfer/Intercept/core/block_manager_v1.py
-sinfer/Intercept/core/block_manager_v2.py
+sinfer/Intercept/core/block_manager.py
 sinfer/Intercept/core/scheduler.py
 sinfer/Intercept/distributed/__init__.py
 sinfer/Intercept/distributed/communication_op.py
@@ -108,8 +107,7 @@ sinfer/attention/ops/paged_attn.py
 sinfer/attention/ops/prefix_prefill.py
 sinfer/attention/ops/triton_flash_attention.py
 sinfer/core/__init__.py
-sinfer/core/block_manager_v1.py
-sinfer/core/block_manager_v2.py
+sinfer/core/block_manager.py
 sinfer/core/evictor_v1.py
 sinfer/core/evictor_v2.py
 sinfer/core/interfaces.py

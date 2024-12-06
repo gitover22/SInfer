@@ -6,7 +6,7 @@ import uvicorn
 from fastapi.responses import JSONResponse, Response
 
 import sinfer.entrypoints.api_server
-from sinfer.sys.arg_utils import AsyncEngineArgs
+from sinfer.sys.arg_utils import AsyncRuntimeArgs
 from sinfer.sys.async_runtime import AsyncLLMRuntime
 
 app = sinfer.entrypoints.api_server.app
@@ -36,10 +36,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--host", type=str, default="localhost")
     parser.add_argument("--port", type=int, default=8000)
-    parser = AsyncEngineArgs.add_cli_args(parser)
+    parser = AsyncRuntimeArgs.add_cli_args(parser)
     args = parser.parse_args()
 
-    engine_args = AsyncEngineArgs.from_cli_args(args)
+    engine_args = AsyncRuntimeArgs.from_cli_args(args)
     engine = AsyncLLMEngineWithStats.from_engine_args(engine_args)
     sinfer.entrypoints.api_server.engine = engine
     uvicorn.run(

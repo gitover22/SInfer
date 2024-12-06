@@ -1,7 +1,7 @@
 import argparse
 from typing import List, Tuple
 
-from sinfer import EngineArgs, LLMRuntime, RequestOutput, SamplingParams
+from sinfer import RuntimeArgs, LLMRuntime, RequestOutput, SamplingParams
 
 
 def create_test_prompts() -> List[Tuple[str, SamplingParams]]:
@@ -43,7 +43,7 @@ def process_requests(engine: LLMRuntime,
 
 def initialize_engine(args: argparse.Namespace) -> LLMRuntime:
     """Initialize the LLMRuntime from the command line arguments."""
-    engine_args = EngineArgs.from_cli_args(args)
+    engine_args = RuntimeArgs.from_cli_args(args)
     return LLMRuntime.from_engine_args(engine_args)
 
 
@@ -57,6 +57,6 @@ def main(args: argparse.Namespace):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description='Demo on using the LLMRuntime class directly')
-    parser = EngineArgs.add_cli_args(parser)
+    parser = RuntimeArgs.add_cli_args(parser)
     args = parser.parse_args()
     main(args)

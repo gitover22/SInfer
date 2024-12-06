@@ -10,7 +10,7 @@ from sinfer.config import (CacheConfig, DecodingConfig, DeviceConfig, LoadConfig
                          VisionLanguageConfig)
 from sinfer.core.scheduler import (ScheduledSequenceGroup, Scheduler,
                                  SchedulerOutputs)
-from sinfer.sys.arg_utils import EngineArgs
+from sinfer.sys.arg_utils import RuntimeArgs
 from sinfer.sys.metrics import StatLogger, Stats
 from sinfer.sys.output_processor.interfaces import (
     SequenceGroupOutputProcessor)
@@ -236,7 +236,7 @@ class LLMRuntime:
     @classmethod
     def from_engine_args(
         cls,
-        engine_args: EngineArgs,
+        engine_args: RuntimeArgs,
         usage_context: UsageContext = UsageContext.ENGINE_CONTEXT,
     ) -> "LLMRuntime":
         # 创建engine的配置

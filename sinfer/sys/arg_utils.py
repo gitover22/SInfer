@@ -18,8 +18,7 @@ def nullable_str(val: str):
 
 
 @dataclass
-class EngineArgs:
-    """Arguments for SInfer engine."""
+class RuntimeArgs:
     model: str
     served_model_name: Optional[Union[List[str]]] = None
     tokenizer: Optional[str] = None
@@ -39,7 +38,6 @@ class EngineArgs:
     max_parallel_loading_workers: Optional[int] = None
     block_size: int = -1
     enable_prefix_caching: bool = False
-    use_v2_block_manager: bool = False
     swap_space: int = 4  # GiB
     gpu_memory_utilization: float = 0.90
     max_num_batched_tokens: Optional[int] = None
@@ -103,7 +101,7 @@ class EngineArgs:
         parser.add_argument(
             '--tokenizer',
             type=nullable_str,
-            default=EngineArgs.tokenizer,
+            default=RuntimeArgs.tokenizer,
             help='Name or path of the huggingface tokenizer to use.')
         parser.add_argument(
             '--skip-tokenizer-init',
@@ -133,7 +131,7 @@ class EngineArgs:
         parser.add_argument(
             '--tokenizer-mode',
             type=str,
-            default=EngineArgs.tokenizer_mode,
+            default=RuntimeArgs.tokenizer_mode,
             choices=['auto', 'slow'],
             help='The tokenizer mode.\n\n* "auto" will use the '
             'fast tokenizer if available.\n* "slow" will '
@@ -143,14 +141,14 @@ class EngineArgs:
                             help='Trust remote code from huggingface.')
         parser.add_argument('--download-dir',
                             type=nullable_str,
-                            default=EngineArgs.download_dir,
+                            default=RuntimeArgs.download_dir,
                             help='Directory to download and load the weights, '
                             'default to the default cache dir of '
                             'huggingface.')
         parser.add_argument(
             '--load-format',
             type=str,
-            default=EngineArgs.load_format,
+            default=RuntimeArgs.load_format,
             choices=[
                 'auto', 'pt', 'safetensors', 'npcache', 'dummy', 'tensorizer'
             ],
@@ -170,7 +168,7 @@ class EngineArgs:
         parser.add_argument(
             '--dtype',
             type=str,
-            default=EngineArgs.dtype,
+            default=RuntimeArgs.dtype,
             choices=[
                 'auto', 'half', 'float16', 'bfloat16', 'float', 'float32'
             ],
@@ -186,7 +184,7 @@ class EngineArgs:
             '--kv-cache-dtype',
             type=str,
             choices=['auto', 'fp8'],
-            default=EngineArgs.kv_cache_dtype,
+            default=RuntimeArgs.kv_cache_dtype,
             help='Data type for kv cache storage. If "auto", will use model '
             'data type. FP8_E5M2 (without scaling) is only supported on cuda '
             'version greater than 11.8. On ROCm (AMD GPU), FP8_E4M3 is instead '
@@ -203,7 +201,7 @@ class EngineArgs:
             'greater than 11.8.  ')
         parser.add_argument('--max-model-len',
                             type=int,
-                            default=EngineArgs.max_model_len,
+                            default=RuntimeArgs.max_model_len,
                             help='Model context length. If unspecified, will '
                             'be automatically derived from the model config.')
         parser.add_argument(
@@ -225,17 +223,17 @@ class EngineArgs:
         parser.add_argument('--pipeline-parallel-size',
                             '-pp',
                             type=int,
-                            default=EngineArgs.pipeline_parallel_size,
+                            default=RuntimeArgs.pipeline_parallel_size,
                             help='Number of pipeline stages.')
         parser.add_argument('--tensor-parallel-size',
                             '-tp',
                             type=int,
-                            default=EngineArgs.tensor_parallel_size,
+                            default=RuntimeArgs.tensor_parallel_size,
                             help='Number of tensor parallel replicas.')
         parser.add_argument(
             '--max-parallel-loading-workers',
             type=int,
-            default=EngineArgs.max_parallel_loading_workers,
+            default=RuntimeArgs.max_parallel_loading_workers,
             help='Load model sequentially in multiple batches, '
             'to avoid RAM OOM when using tensor '
             'parallel and large models.')
@@ -246,7 +244,7 @@ class EngineArgs:
         # KV cache arguments
         parser.add_argument('--block-size',
                             type=int,
-                            default=EngineArgs.block_size,
+                            default=RuntimeArgs.block_size,
                             choices=[8, 16, 32],
                             help='Token block size for contiguous chunks of '
                             'tokens.')
@@ -260,7 +258,7 @@ class EngineArgs:
         parser.add_argument(
             '--num-lookahead-slots',
             type=int,
-            default=EngineArgs.num_lookahead_slots,
+            default=RuntimeArgs.num_lookahead_slots,
             help='Experimental scheduling config necessary for '
             'speculative decoding. This will be replaced by '
             'speculative config in the future; it is present '
@@ -268,16 +266,16 @@ class EngineArgs:
 
         parser.add_argument('--seed',
                             type=int,
-                            default=EngineArgs.seed,
+                            default=RuntimeArgs.seed,
                             help='Random seed for operations.')
         parser.add_argument('--swap-space',
                             type=int,
-                            default=EngineArgs.swap_space,
+                            default=RuntimeArgs.swap_space,
                             help='CPU swap space size (GiB) per GPU.')
         parser.add_argument(
             '--gpu-memory-utilization',
             type=float,
-            default=EngineArgs.gpu_memory_utilization,
+            default=RuntimeArgs.gpu_memory_utilization,
             help='The fraction of GPU memory to be used for the model '
             'executor, which can range from 0 to 1. For example, a value of '
             '0.5 would imply 50%% GPU memory utilization. If unspecified, '
@@ -290,17 +288,17 @@ class EngineArgs:
             'of GPU blocks. Used for testing preemption.')
         parser.add_argument('--max-num-batched-tokens',
                             type=int,
-                            default=EngineArgs.max_num_batched_tokens,
+                            default=RuntimeArgs.max_num_batched_tokens,
                             help='Maximum number of batched tokens per '
                             'iteration.')
         parser.add_argument('--max-num-seqs',
                             type=int,
-                            default=EngineArgs.max_num_seqs,
+                            default=RuntimeArgs.max_num_seqs,
                             help='Maximum number of sequences per iteration.')
         parser.add_argument(
             '--max-logprobs',
             type=int,
-            default=EngineArgs.max_logprobs,
+            default=RuntimeArgs.max_logprobs,
             help=('Max number of log probs to return logprobs is specified in'
                   ' SamplingParams.'))
         parser.add_argument('--disable-log-stats',
@@ -311,7 +309,7 @@ class EngineArgs:
                             '-q',
                             type=nullable_str,
                             choices=[*QUANTIZATION_METHODS, None],
-                            default=EngineArgs.quantization,
+                            default=RuntimeArgs.quantization,
                             help='Method used to quantize the weights. If '
                             'None, we first check the `quantization_config` '
                             'attribute in the model config file. If that is '
@@ -325,7 +323,7 @@ class EngineArgs:
                             'for maximal performance and flexibility.')
         parser.add_argument('--max-context-len-to-capture',
                             type=int,
-                            default=EngineArgs.max_context_len_to_capture,
+                            default=RuntimeArgs.max_context_len_to_capture,
                             help='Maximum context length covered by CUDA '
                             'graphs. When a sequence has context length '
                             'larger than this, we fall back to eager mode. '
@@ -333,29 +331,29 @@ class EngineArgs:
                             ')')
         parser.add_argument('--max-seq_len-to-capture',
                             type=int,
-                            default=EngineArgs.max_seq_len_to_capture,
+                            default=RuntimeArgs.max_seq_len_to_capture,
                             help='Maximum sequence length covered by CUDA '
                             'graphs. When a sequence has context length '
                             'larger than this, we fall back to eager mode.')
         parser.add_argument('--disable-custom-all-reduce',
                             action='store_true',
-                            default=EngineArgs.disable_custom_all_reduce,
+                            default=RuntimeArgs.disable_custom_all_reduce,
                             help='See ParallelConfig.')
         parser.add_argument('--tokenizer-pool-size',
                             type=int,
-                            default=EngineArgs.tokenizer_pool_size,
+                            default=RuntimeArgs.tokenizer_pool_size,
                             help='Size of tokenizer pool to use for '
                             'asynchronous tokenization. If 0, will '
                             'use synchronous tokenization.')
         parser.add_argument('--tokenizer-pool-type',
                             type=str,
-                            default=EngineArgs.tokenizer_pool_type,
+                            default=RuntimeArgs.tokenizer_pool_type,
                             help='Type of tokenizer pool to use for '
                             'asynchronous tokenization. Ignored '
                             'if tokenizer_pool_size is 0.')
         parser.add_argument('--tokenizer-pool-extra-config',
                             type=nullable_str,
-                            default=EngineArgs.tokenizer_pool_extra_config,
+                            default=RuntimeArgs.tokenizer_pool_extra_config,
                             help='Extra config for tokenizer pool. '
                             'This should be a JSON string that will be '
                             'parsed into a dictionary. Ignored if '
@@ -366,30 +364,30 @@ class EngineArgs:
                             help='If True, enable handling of LoRA adapters.')
         parser.add_argument('--max-loras',
                             type=int,
-                            default=EngineArgs.max_loras,
+                            default=RuntimeArgs.max_loras,
                             help='Max number of LoRAs in a single batch.')
         parser.add_argument('--max-lora-rank',
                             type=int,
-                            default=EngineArgs.max_lora_rank,
+                            default=RuntimeArgs.max_lora_rank,
                             help='Max LoRA rank.')
         parser.add_argument(
             '--lora-extra-vocab-size',
             type=int,
-            default=EngineArgs.lora_extra_vocab_size,
+            default=RuntimeArgs.lora_extra_vocab_size,
             help=('Maximum size of extra vocabulary that can be '
                   'present in a LoRA adapter (added to the base '
                   'model vocabulary).'))
         parser.add_argument(
             '--lora-dtype',
             type=str,
-            default=EngineArgs.lora_dtype,
+            default=RuntimeArgs.lora_dtype,
             choices=['auto', 'float16', 'bfloat16', 'float32'],
             help=('Data type for LoRA. If auto, will default to '
                   'base model dtype.'))
         parser.add_argument(
             '--max-cpu-loras',
             type=int,
-            default=EngineArgs.max_cpu_loras,
+            default=RuntimeArgs.max_cpu_loras,
             help=('Maximum number of LoRAs to store in CPU memory. '
                   'Must be >= than max_num_seqs. '
                   'Defaults to max_num_seqs.'))
@@ -403,7 +401,7 @@ class EngineArgs:
                   'tensor parallel size, this is likely faster.'))
         parser.add_argument("--device",
                             type=str,
-                            default=EngineArgs.device,
+                            default=RuntimeArgs.device,
                             choices=["auto", "cuda", "cpu"],
                             help='Device type for SInfer execution.')
         # Related to Vision-language models such as llava
@@ -434,7 +432,7 @@ class EngineArgs:
         parser.add_argument(
             '--scheduler-delay-factor',
             type=float,
-            default=EngineArgs.scheduler_delay_factor,
+            default=RuntimeArgs.scheduler_delay_factor,
             help='Apply a delay (of delay factor multiplied by previous'
             'prompt latency) before scheduling next prompt.')
         parser.add_argument(
@@ -446,21 +444,21 @@ class EngineArgs:
         parser.add_argument(
             '--speculative-model',
             type=nullable_str,
-            default=EngineArgs.speculative_model,
+            default=RuntimeArgs.speculative_model,
             help=
             'The name of the draft model to be used in speculative decoding.')
 
         parser.add_argument(
             '--num-speculative-tokens',
             type=int,
-            default=EngineArgs.num_speculative_tokens,
+            default=RuntimeArgs.num_speculative_tokens,
             help='The number of speculative tokens to sample from '
             'the draft model in speculative decoding.')
 
         parser.add_argument(
             '--speculative-max-model-len',
             type=int,
-            default=EngineArgs.speculative_max_model_len,
+            default=RuntimeArgs.speculative_max_model_len,
             help='The maximum sequence length supported by the '
             'draft model. Sequences over this length will skip '
             'speculation.')
@@ -468,20 +466,20 @@ class EngineArgs:
         parser.add_argument(
             '--ngram-prompt-lookup-max',
             type=int,
-            default=EngineArgs.ngram_prompt_lookup_max,
+            default=RuntimeArgs.ngram_prompt_lookup_max,
             help='Max size of window for ngram prompt lookup in speculative '
             'decoding.')
 
         parser.add_argument(
             '--ngram-prompt-lookup-min',
             type=int,
-            default=EngineArgs.ngram_prompt_lookup_min,
+            default=RuntimeArgs.ngram_prompt_lookup_min,
             help='Min size of window for ngram prompt lookup in speculative '
             'decoding.')
 
         parser.add_argument('--model-loader-extra-config',
                             type=nullable_str,
-                            default=EngineArgs.model_loader_extra_config,
+                            default=RuntimeArgs.model_loader_extra_config,
                             help='Extra config for model loader. '
                             'This will be passed to the model loader '
                             'corresponding to the chosen load_format. '
@@ -506,12 +504,12 @@ class EngineArgs:
         return parser
 
     @classmethod
-    def from_cli_args(cls, args: argparse.Namespace) -> 'EngineArgs':
+    def from_cli_args(cls, args: argparse.Namespace) -> 'RuntimeArgs':
         # Get the list of attributes of this dataclass.
         attrs = [attr.name for attr in dataclasses.fields(cls)]
         # Set the attributes from the parsed arguments.
-        engine_args = cls(**{attr: getattr(args, attr) for attr in attrs})
-        return engine_args
+        runtime_args = cls(**{attr: getattr(args, attr) for attr in attrs})
+        return runtime_args
 
     def create_engine_config(self, ) -> EngineConfig:
         device_config = DeviceConfig(self.device)
@@ -547,7 +545,6 @@ class EngineArgs:
             num_speculative_tokens=self.num_speculative_tokens,
             speculative_max_model_len=self.speculative_max_model_len,
             enable_chunked_prefill=self.enable_chunked_prefill,
-            use_v2_block_manager=self.use_v2_block_manager,
             ngram_prompt_lookup_max=self.ngram_prompt_lookup_max,
             ngram_prompt_lookup_min=self.ngram_prompt_lookup_min,
         )
@@ -556,7 +553,6 @@ class EngineArgs:
             self.max_num_batched_tokens,
             self.max_num_seqs,
             model_config.max_model_len,
-            self.use_v2_block_manager,
             num_lookahead_slots=(self.num_lookahead_slots
                                  if speculative_config is None else
                                  speculative_config.num_lookahead_slots),
@@ -610,8 +606,7 @@ class EngineArgs:
 
 
 @dataclass
-class AsyncEngineArgs(EngineArgs):
-    """Arguments for asynchronous SInfer engine."""
+class AsyncRuntimeArgs(RuntimeArgs):
     engine_use_ray: bool = False
     disable_log_requests: bool = False
     max_log_len: Optional[int] = None
@@ -620,7 +615,7 @@ class AsyncEngineArgs(EngineArgs):
     def add_cli_args(parser: argparse.ArgumentParser,
                      async_args_only: bool = False) -> argparse.ArgumentParser:
         if not async_args_only:
-            parser = EngineArgs.add_cli_args(parser)
+            parser = RuntimeArgs.add_cli_args(parser)
         parser.add_argument('--engine-use-ray',
                             action='store_true',
                             help='Use Ray to start the LLM engine in a '
@@ -637,11 +632,11 @@ class AsyncEngineArgs(EngineArgs):
         return parser
 
 
-# These functions are used by sphinx to build the documentation
-def _engine_args_parser():
-    return EngineArgs.add_cli_args(argparse.ArgumentParser())
+# 由 Sphinx 使用，用于生成文档的工具
+def _runtime_args_parser():
+    return RuntimeArgs.add_cli_args(argparse.ArgumentParser())
 
 
-def _async_engine_args_parser():
-    return AsyncEngineArgs.add_cli_args(argparse.ArgumentParser(),
+def _async_runtime_args_parser():
+    return AsyncRuntimeArgs.add_cli_args(argparse.ArgumentParser(),
                                         async_args_only=True)

@@ -2,12 +2,10 @@ import enum
 from abc import ABC, abstractmethod
 from typing import Dict, List
 from typing import Sequence as GenericSequence
-
 from sinfer.sequence import Sequence, SequenceGroup
 
-
 class AllocStatus(enum.Enum):
-    """Result for BlockSpaceManager.can_allocate
+    """BlockSpaceManager.can_allocate的结果
 
     1. Ok: seq_group can be allocated now.
     2. Later: seq_group cannot be allocated.
@@ -20,20 +18,11 @@ class AllocStatus(enum.Enum):
     NEVER = enum.auto()
 
 
-class BlockSpaceManager(ABC):
+class SpaceManager(ABC):
     @staticmethod
-    def get_block_space_manager_class(version: str):
-        version = version.lower()
-
-        if version == "v1":
-            from sinfer.core.block_manager_v1 import BlockSpaceManagerV1
-            return BlockSpaceManagerV1
-
-        if version == "v2":
-            from sinfer.core.block_manager_v2 import BlockSpaceManagerV2
-            return BlockSpaceManagerV2
-
-        raise ValueError(f"Unknown version {version=}")
+    def get_block_space_manager():
+        from sinfer.core.block_manager import _BlockSpaceManager
+        return _BlockSpaceManager
 
     @abstractmethod
     def can_allocate(self, seq_group: SequenceGroup) -> AllocStatus:

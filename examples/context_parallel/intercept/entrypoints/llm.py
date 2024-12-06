@@ -1,7 +1,7 @@
 from typing import Optional
 from sinfer.entrypoints.llm import LLM
 from sinfer.Intercept.mlu_hijack_utils import MluHijackObject, set_batch_sizes_to_capture
-from sinfer.sys.arg_utils import EngineArgs
+from sinfer.sys.arg_utils import RuntimeArgs
 from sinfer.sys.runtime import LLMRuntime
 from sinfer.usage.usage_lib import UsageContext
 from sinfer.utils import Counter
@@ -41,7 +41,7 @@ def _LLM_init_(
 
     if "disable_log_stats" not in kwargs:
             kwargs["disable_log_stats"] = True
-    engine_args = EngineArgs(
+    engine_args = RuntimeArgs(
         model=model,
         tokenizer=tokenizer,
         tokenizer_mode=tokenizer_mode,

@@ -4,7 +4,7 @@ import torch
 from tqdm import tqdm
 from transformers import PreTrainedTokenizer, PreTrainedTokenizerFast
 
-from sinfer.sys.arg_utils import EngineArgs
+from sinfer.sys.arg_utils import RuntimeArgs
 from sinfer.sys.runtime import LLMRuntime
 from sinfer.lora.request import LoRARequest
 from sinfer.outputs import RequestOutput
@@ -63,7 +63,7 @@ class LLM:
     ) -> None:
         if "disable_log_stats" not in kwargs:
             kwargs["disable_log_stats"] = True
-        engine_args = EngineArgs(
+        engine_args = RuntimeArgs(
             model=model,
             tokenizer=tokenizer,
             tokenizer_mode=tokenizer_mode,

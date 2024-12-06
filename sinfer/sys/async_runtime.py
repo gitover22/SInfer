@@ -9,7 +9,7 @@ from transformers import PreTrainedTokenizer
 import sinfer.envs as envs
 from sinfer.config import DecodingConfig, ModelConfig
 from sinfer.core.scheduler import SchedulerOutputs
-from sinfer.sys.arg_utils import AsyncEngineArgs
+from sinfer.sys.arg_utils import AsyncRuntimeArgs
 from sinfer.sys.runtime import LLMRuntime
 from sinfer.executor.ray_utils import initialize_ray_cluster, ray
 from sinfer.logger import init_logger
@@ -36,7 +36,6 @@ def _raise_exception_on_finish(
     exception = None
     try:
         task.result()
-        # NOTE: This will be thrown if task exits normally (which it should not)
         raise AsyncEngineDeadError(msg)
     except Exception as e:
         exception = e
@@ -329,7 +328,7 @@ class AsyncLLMRuntime:
     @classmethod
     def from_engine_args(
         cls,
-        engine_args: AsyncEngineArgs,
+        engine_args: AsyncRuntimeArgs,
         start_engine_loop: bool = True,
         usage_context: UsageContext = UsageContext.ENGINE_CONTEXT,
     ) -> "AsyncLLMRuntime":

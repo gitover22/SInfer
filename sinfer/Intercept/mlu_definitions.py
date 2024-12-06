@@ -8,11 +8,15 @@ DUMP_CPU_INFO           = "SINFER_DUMP_CPU_INFO"
 DUMP_MLU_INFO           = "SINFER_DUMP_MLU_INFO"
 
 USE_PAGED = "3" not in torch.cuda.get_device_name(0)
-if 'USE_PAGED' in os.environ: # export USE_PAGED=true 可以向os.environ添加变量，或修改bashrc
-    if os.environ['USE_PAGED'] in ('1', "true", "True", "TRUE"):
+if 'USE_PAGED' in os.environ:
+    if os.environ['USE_PAGED'] in ("True","true", "TRUE",'1'):
         USE_PAGED = True
     else:
         USE_PAGED = False
+if USE_PAGED:
+    print("\n============================USE PAGED=============================\n")
+else:
+    print("\n============================NO PAGED=============================\n")
 
 USE_CONTEXT_PARALLEL = 'USE_CONTEXT_PARALLEL'
 SCHEDULER_PROFILE_ENABLE = 'SINFER_SCHEDULER_PROFILE_ENABLE'

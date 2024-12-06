@@ -586,7 +586,7 @@ class SchedulerConfig:
         max_num_batched_tokens: Optional[int],
         max_num_seqs: int,
         max_model_len: int,
-        use_v2_block_manager: bool = False, # 默认使用v1
+        # use_v2_block_manager: bool = False, # 默认使用v1
         num_lookahead_slots: int = 0,
         delay_factor: float = 0.0,
         enable_chunked_prefill: bool = False, # 默认不开启
@@ -607,7 +607,7 @@ class SchedulerConfig:
 
         self.max_num_seqs = max_num_seqs
         self.max_model_len = max_model_len
-        self.use_v2_block_manager = use_v2_block_manager
+        # self.use_v2_block_manager = use_v2_block_manager
         self.num_lookahead_slots = num_lookahead_slots
         self.delay_factor = delay_factor
         self.chunked_prefill_enabled = enable_chunked_prefill
@@ -677,7 +677,6 @@ class SpeculativeConfig:
         num_speculative_tokens: Optional[int],
         speculative_max_model_len: Optional[int],
         enable_chunked_prefill: bool,
-        use_v2_block_manager: bool,
         ngram_prompt_lookup_max: Optional[int],
         ngram_prompt_lookup_min: Optional[int],
     ) -> Optional["SpeculativeConfig"]:
@@ -703,9 +702,6 @@ class SpeculativeConfig:
             enable_chunked_prefill (bool): Whether SInfer is configured to use
                 chunked prefill or not. Used for raising an error since its not
                 yet compatible with spec decode.
-            use_v2_block_manager (bool): Whether SInfer is configured to use the
-                v2 block manager or not. Used for raising an error since the v2
-                block manager is required with spec decode.
             ngram_prompt_lookup_max (Optional[int]): Max size of ngram token
                 window, if provided.
             ngram_prompt_lookup_min (Optional[int]): Min size of ngram token
@@ -732,11 +728,6 @@ class SpeculativeConfig:
             raise ValueError(
                 "Speculative decoding and chunked prefill are "
                 f"currently mutually exclusive ({enable_chunked_prefill=}).")
-
-        if not use_v2_block_manager:
-            raise ValueError(
-                "Speculative decoding requires usage of the V2 "
-                "block manager. Enable it with --use-v2-block-manager.")
 
         # TODO: The user should be able to specify revision/quantization/max
         # model len for the draft model. It is not currently supported.
