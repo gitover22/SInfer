@@ -642,7 +642,6 @@ class DeviceConfig:
 
     def __init__(self, device: str = "auto") -> None:
         if device == "auto":
-            # Automated device type detection
             if is_cpu():
                 self.device_type = "cpu"
             else:
@@ -650,9 +649,7 @@ class DeviceConfig:
                 # avoid initializing CUDA before workers are forked
                 self.device_type = "cuda"
         else:
-            # Device type is assigned explicitly
             self.device_type = device
-
         # Some device types require processing inputs on CPU
         if self.device_type in ["neuron"]:
             self.device = torch.device("cpu")
@@ -661,243 +658,6 @@ class DeviceConfig:
             self.device = torch.device(self.device_type)
 
 
-class SpeculativeConfig:
-    """Configuration for speculative decoding.
-
-    The configuration is currently specialized to draft-model speculative
-    decoding with top-1 proposals.
-    """
-
-    @staticmethod
-    def maybe_create_spec_config(
-        target_model_config: ModelConfig,
-        target_parallel_config: ParallelConfig,
-        target_dtype: str,
-        speculative_model: Optional[str],
-        num_speculative_tokens: Optional[int],
-        speculative_max_model_len: Optional[int],
-        enable_chunked_prefill: bool,
-        ngram_prompt_lookup_max: Optional[int],
-        ngram_prompt_lookup_min: Optional[int],
-    ) -> Optional["SpeculativeConfig"]:
-        """Create a SpeculativeConfig if possible, else return None.
-
-        This function attempts to create a SpeculativeConfig object based on the
-        provided parameters. If the necessary conditions are met, it returns an
-        instance of SpeculativeConfig. Otherwise, it returns None.
-
-        Args:
-            target_model_config (ModelConfig): The configuration of the target
-                model.
-            target_parallel_config (ParallelConfig): The parallel configuration
-                for the target model.
-            target_dtype (str): The data type used for the target model.
-            speculative_model (Optional[str]): The name of the speculative
-                model, if provided.
-            num_speculative_tokens (Optional[int]): The number of speculative
-                tokens, if provided.
-            speculative_max_model_len (Optional[int]): The maximum model len of
-                the speculative model. Used when testing the ability to skip
-                speculation for some sequences.
-            enable_chunked_prefill (bool): Whether SInfer is configured to use
-                chunked prefill or not. Used for raising an error since its not
-                yet compatible with spec decode.
-            ngram_prompt_lookup_max (Optional[int]): Max size of ngram token
-                window, if provided.
-            ngram_prompt_lookup_min (Optional[int]): Min size of ngram token
-                window, if provided.
-
-        Returns:
-            Optional["SpeculativeConfig"]: An instance of SpeculativeConfig if
-                the necessary conditions are met, else None.
-        """
-
-        if (speculative_model is None and num_speculative_tokens is None):
-            return None
-
-        if speculative_model is not None and num_speculative_tokens is None:
-            raise ValueError(
-                "Expected both speculative_model and "
-                "num_speculative_tokens to be provided, but found "
-                f"{speculative_model=} and {num_speculative_tokens=}.")
-
-        assert (speculative_model is not None
-                and num_speculative_tokens is not None)
-
-        if enable_chunked_prefill:
-            raise ValueError(
-                "Speculative decoding and chunked prefill are "
-                f"currently mutually exclusive ({enable_chunked_prefill=}).")
-
-        # TODO: The user should be able to specify revision/quantization/max
-        # model len for the draft model. It is not currently supported.
-        draft_revision = None
-        draft_code_revision = None
-        draft_quantization = None
-
-        if speculative_model == "[ngram]":
-            assert (ngram_prompt_lookup_max is not None
-                    and ngram_prompt_lookup_max > 0)
-            if ngram_prompt_lookup_min is None:
-                ngram_prompt_lookup_min = 0
-            else:
-                assert ngram_prompt_lookup_max > ngram_prompt_lookup_min
-
-            # TODO: current we still need extract vocab_size from target model
-            # config, in future, we may try refactor it out, and set
-            # draft related config as None here.
-            draft_model_config = target_model_config
-            draft_parallel_config = target_parallel_config
-        else:
-            ngram_prompt_lookup_max = 0
-            ngram_prompt_lookup_min = 0
-            draft_model_config = ModelConfig(
-                model=speculative_model,
-                tokenizer=target_model_config.tokenizer,
-                tokenizer_mode=target_model_config.tokenizer_mode,
-                trust_remote_code=target_model_config.trust_remote_code,
-                dtype=target_model_config.dtype,
-                seed=target_model_config.seed,
-                revision=draft_revision,
-                code_revision=draft_code_revision,
-                tokenizer_revision=target_model_config.tokenizer_revision,
-                max_model_len=None,
-                quantization=draft_quantization,
-                enforce_eager=target_model_config.enforce_eager,
-                max_seq_len_to_capture=target_model_config.
-                max_seq_len_to_capture,
-                max_logprobs=target_model_config.max_logprobs,
-            )
-
-            draft_model_config.max_model_len = (
-                SpeculativeConfig._maybe_override_draft_max_model_len(
-                    speculative_max_model_len,
-                    draft_model_config.max_model_len,
-                    target_model_config.max_model_len,
-                ))
-
-            draft_parallel_config = (
-                SpeculativeConfig.create_draft_parallel_config(
-                    target_parallel_config))
-
-        return SpeculativeConfig(
-            draft_model_config,
-            draft_parallel_config,
-            num_speculative_tokens,
-            ngram_prompt_lookup_max,
-            ngram_prompt_lookup_min,
-        )
-
-    @staticmethod
-    def _maybe_override_draft_max_model_len(
-        speculative_max_model_len: Optional[int],
-        draft_max_model_len: int,
-        target_max_model_len: int,
-    ) -> int:
-        """Determine the max sequence len for the draft model. This is usually
-        the draft_max_model_len, but may be the target_max_model_len if it is
-        less than the draft_max_model_len, or may be speculative_max_model_len
-        if it is specified.
-
-        This is necessary so that sequences do not exceed the capacity of the
-        draft model or the target model.
-
-        speculative_max_model_len is mainly used for testing that sequences can
-        skip speculation.
-        """
-
-        if speculative_max_model_len is not None:
-
-            if speculative_max_model_len > draft_max_model_len:
-                raise ValueError(f"{speculative_max_model_len=} cannot be "
-                                 f"larger than {draft_max_model_len=}")
-
-            if speculative_max_model_len > target_max_model_len:
-                raise ValueError(f"{speculative_max_model_len=} cannot be "
-                                 f"larger than {target_max_model_len=}")
-
-            return speculative_max_model_len
-
-        return min(
-            draft_max_model_len,
-            target_max_model_len,
-        )
-
-    @staticmethod
-    def create_draft_parallel_config(
-            target_parallel_config: ParallelConfig) -> ParallelConfig:
-        """Create a parallel config for use by the draft worker.
-
-        This is mostly a copy of the target parallel config. In the future the
-        draft worker can have a different parallel strategy, e.g. TP=1.
-        """
-        draft_parallel_config = ParallelConfig(
-            pipeline_parallel_size=target_parallel_config.
-            pipeline_parallel_size,
-            tensor_parallel_size=target_parallel_config.tensor_parallel_size,
-            worker_use_ray=target_parallel_config.worker_use_ray,
-            max_parallel_loading_workers=target_parallel_config.
-            max_parallel_loading_workers,
-            disable_custom_all_reduce=target_parallel_config.
-            disable_custom_all_reduce,
-            tokenizer_pool_config=target_parallel_config.tokenizer_pool_config,
-            ray_workers_use_nsight=target_parallel_config.
-            ray_workers_use_nsight,
-            placement_group=target_parallel_config.placement_group,
-        )
-
-        return draft_parallel_config
-
-    def __init__(
-        self,
-        draft_model_config: ModelConfig,
-        draft_parallel_config: ParallelConfig,
-        num_speculative_tokens: int,
-        ngram_prompt_lookup_max: int,
-        ngram_prompt_lookup_min: int,
-    ):
-        """Create a SpeculativeConfig object.
-
-        Args:
-            draft_model_config: ModelConfig for the draft model.
-            draft_parallel_config: ParallelConfig for the draft model.
-            num_speculative_tokens: The number of tokens to sample from the
-                draft model before scoring with the target model.
-        """
-        self.draft_model_config = draft_model_config
-        self.draft_parallel_config = draft_parallel_config
-        self.num_speculative_tokens = num_speculative_tokens
-        self.ngram_prompt_lookup_max = ngram_prompt_lookup_max
-        self.ngram_prompt_lookup_min = ngram_prompt_lookup_min
-
-        self._verify_args()
-
-    def _verify_args(self) -> None:
-        if self.num_speculative_tokens <= 0:
-            raise ValueError("Expected num_speculative_tokens to be greater "
-                             f"than zero ({self.num_speculative_tokens}).")
-
-        if self.draft_model_config:
-            self.draft_model_config.verify_with_parallel_config(
-                self.draft_parallel_config)
-
-    @property
-    def num_lookahead_slots(self) -> int:
-        """The number of additional slots the scheduler should allocate per
-        step, in addition to the slots allocated for each known token.
-
-        This is equal to the number of speculative tokens, as each speculative
-        token must be scored.
-        """
-        return self.num_speculative_tokens
-
-    def __repr__(self) -> str:
-        if self.ngram_prompt_lookup_max > 0:
-            draft_model = "[ngram]"
-        else:
-            draft_model = self.draft_model_config.model
-        num_spec_tokens = self.num_speculative_tokens
-        return f"SpeculativeConfig({draft_model=}, {num_spec_tokens=})"
 
 
 @dataclass
@@ -1165,7 +925,6 @@ class EngineConfig:
     load_config: LoadConfig
     lora_config: Optional[LoRAConfig]
     vision_language_config: Optional[VisionLanguageConfig]
-    speculative_config: Optional[SpeculativeConfig]
     decoding_config: Optional[DecodingConfig]
 
     def __post_init__(self):

@@ -3,7 +3,7 @@ from typing import List, Optional, Set, Tuple
 
 from sinfer.config import (CacheConfig, DeviceConfig, LoadConfig, LoRAConfig,
                          ModelConfig, ParallelConfig, SchedulerConfig,
-                         SpeculativeConfig, VisionLanguageConfig)
+                         VisionLanguageConfig)
 from sinfer.lora.request import LoRARequest
 from sinfer.sequence import ExecuteModelRequest, SamplerOutput
 
@@ -24,8 +24,7 @@ class ExecutorBase(ABC):
         device_config: DeviceConfig,
         load_config: LoadConfig,
         lora_config: Optional[LoRAConfig],
-        vision_language_config: Optional[VisionLanguageConfig],
-        speculative_config: Optional[SpeculativeConfig],
+        vision_language_config: Optional[VisionLanguageConfig]
     ) -> None:
         self.model_config = model_config
         self.cache_config = cache_config
@@ -35,8 +34,6 @@ class ExecutorBase(ABC):
         self.scheduler_config = scheduler_config
         self.device_config = device_config
         self.vision_language_config = vision_language_config
-        self.speculative_config = speculative_config
-
         self._init_executor()
 
     @abstractmethod

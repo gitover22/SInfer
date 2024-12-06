@@ -5,7 +5,7 @@ from typing import List, Optional, Union
 
 from sinfer.config import (CacheConfig, DecodingConfig, DeviceConfig,
                          EngineConfig, LoadConfig, LoRAConfig, ModelConfig,
-                         ParallelConfig, SchedulerConfig, SpeculativeConfig,
+                         ParallelConfig, SchedulerConfig,
                          TokenizerPoolConfig, VisionLanguageConfig)
 from sinfer.model_executor.layers.quantization import QUANTIZATION_METHODS
 from sinfer.utils import str_to_int_tuple
@@ -537,25 +537,11 @@ class RuntimeArgs:
                 self.tokenizer_pool_extra_config,
             ), self.ray_workers_use_nsight)
 
-        speculative_config = SpeculativeConfig.maybe_create_spec_config(
-            target_model_config=model_config,
-            target_parallel_config=parallel_config,
-            target_dtype=self.dtype,
-            speculative_model=self.speculative_model,
-            num_speculative_tokens=self.num_speculative_tokens,
-            speculative_max_model_len=self.speculative_max_model_len,
-            enable_chunked_prefill=self.enable_chunked_prefill,
-            ngram_prompt_lookup_max=self.ngram_prompt_lookup_max,
-            ngram_prompt_lookup_min=self.ngram_prompt_lookup_min,
-        )
-
         scheduler_config = SchedulerConfig(
             self.max_num_batched_tokens,
             self.max_num_seqs,
             model_config.max_model_len,
-            num_lookahead_slots=(self.num_lookahead_slots
-                                 if speculative_config is None else
-                                 speculative_config.num_lookahead_slots),
+            num_lookahead_slots=self.num_lookahead_slots,
             delay_factor=self.scheduler_delay_factor,
             enable_chunked_prefill=self.enable_chunked_prefill,
         )
@@ -600,7 +586,6 @@ class RuntimeArgs:
                             device_config=device_config,
                             lora_config=lora_config,
                             vision_language_config=vision_language_config,
-                            speculative_config=speculative_config,
                             load_config=load_config,
                             decoding_config=decoding_config)
 

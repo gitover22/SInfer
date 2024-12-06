@@ -6,8 +6,7 @@ from transformers import GenerationConfig, PreTrainedTokenizer
 import sinfer
 from sinfer.config import (CacheConfig, DecodingConfig, DeviceConfig, LoadConfig,
                          LoRAConfig, ModelConfig, ParallelConfig,
-                         SchedulerConfig, SpeculativeConfig,
-                         VisionLanguageConfig)
+                         SchedulerConfig, VisionLanguageConfig)
 from sinfer.core.scheduler import (ScheduledSequenceGroup, Scheduler,
                                  SchedulerOutputs)
 from sinfer.sys.arg_utils import RuntimeArgs
@@ -74,15 +73,13 @@ class LLMRuntime:
         load_config: LoadConfig,
         lora_config: Optional[LoRAConfig],
         vision_language_config: Optional[VisionLanguageConfig],
-        speculative_config: Optional[SpeculativeConfig],
         decoding_config: Optional[DecodingConfig],
         executor_class: Type[ExecutorBase],
         log_stats: bool,
         usage_context: UsageContext = UsageContext.ENGINE_CONTEXT,
     ) -> None:
         logger.info(
-            "Initializing an LLM engine (v%s) with config: "
-            "model=%r, speculative_config=%r, tokenizer=%r, "
+            "Initializing an LLM engine (v%s) with config: model=%r, tokenizer=%r,"
             "skip_tokenizer_init=%s, tokenizer_mode=%s, revision=%s, "
             "tokenizer_revision=%s, trust_remote_code=%s, dtype=%s, "
             "max_seq_len=%d, download_dir=%r, load_format=%s, "
@@ -92,7 +89,6 @@ class LLMRuntime:
             "decoding_config=%r, seed=%d, served_model_name=%s)",
             sinfer.__version__,
             model_config.model,
-            speculative_config,
             model_config.tokenizer,
             model_config.skip_tokenizer_init,
             model_config.tokenizer_mode,
@@ -121,7 +117,6 @@ class LLMRuntime:
         self.parallel_config = parallel_config
         self.scheduler_config = scheduler_config
         self.device_config = device_config
-        self.speculative_config = speculative_config
         self.load_config = load_config
         self.decoding_config = decoding_config or DecodingConfig()
         self.log_stats = log_stats
@@ -146,7 +141,6 @@ class LLMRuntime:
             device_config=device_config,
             lora_config=lora_config,
             vision_language_config=vision_language_config,
-            speculative_config=speculative_config,
             load_config=load_config,
         ) # 实例化GPUExecutor , 实例化Worker，ModelRunner(初始化kv cache时实例化),加载模型权重
 
