@@ -2,7 +2,7 @@ import torch
 import torch.distributed
 from sinfer.distributed import init_distributed_environment
 from sinfer.worker.cpu_worker import CPUWorker
-from sinfer.Intercept.mlu_hijack_utils import MluHijackObject
+from sinfer.Intercept.mlu_hijack_utils import InterceptObject
 from ..distributed.parallel_state import sinfer__distributed__parallel_state__ensure_model_parallel_initialized_wraper
 
 
@@ -39,6 +39,6 @@ def sinfer__worker__worker__CPUWorker__init_distributed_environment_wraper(self)
     '''
 
 
-MluHijackObject.add_hijack_object(CPUWorker,
+InterceptObject.add_intercept(CPUWorker,
                                   CPUWorker.init_distributed_environment,
                                   sinfer__worker__worker__CPUWorker__init_distributed_environment_wraper)

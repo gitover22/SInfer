@@ -6,12 +6,12 @@ import triton
 import triton.language as tl
 
 import sinfer
-from sinfer.Intercept.mlu_hijack_utils import MluHijackObject
+from sinfer.Intercept.mlu_hijack_utils import InterceptObject
 
 if triton.__version__ >= "2.1.0":
 
     @torch.inference_mode()
-    def sinfer__attention__ops__prefix_prefill__context_attention_fwd(q,
+    def intercept_context_attention_fwd(q,
                               k,
                               v,
                               o,
@@ -145,6 +145,6 @@ if triton.__version__ >= "2.1.0":
         )
         return
 
-MluHijackObject.add_hijack_object(sinfer.attention.ops.prefix_prefill,
+InterceptObject.add_intercept(sinfer.attention.ops.prefix_prefill,
                                   sinfer.attention.ops.prefix_prefill.context_attention_fwd,
-                                  sinfer__attention__ops__prefix_prefill__context_attention_fwd)
+                                  intercept_context_attention_fwd)

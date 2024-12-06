@@ -1,7 +1,7 @@
 import os
 import torch
 import torch.distributed
-from sinfer.Intercept.mlu_hijack_utils import MluHijackObject
+from sinfer.Intercept.mlu_hijack_utils import InterceptObject
 from typing import Optional
 from sinfer.worker.worker import Worker
 from sinfer.worker import worker
@@ -11,7 +11,7 @@ from sinfer.distributed import (get_tensor_model_parallel_cpu_group,
 from sinfer.distributed.device_communicators import pynccl_utils
 from sinfer.distributed.device_communicators.custom_all_reduce import (
     init_custom_ar)
-from sinfer.Intercept.worker.worker import sinfer__worker__worker___check_if_gpu_supports_dtype
+from sinfer.Intercept.worker.worker import intercept_check_if_gpu_supports_dtype
 from sinfer.model_executor import set_random_seed
 from ..distributed.parallel_state import sinfer__distributed__parallel_state__ensure_model_parallel_initialized_wraper
 
@@ -37,7 +37,7 @@ def sinfer__worker__worker__Worker__init_device_wraper(self) -> None:
         self.device = torch.device(f"cuda:{self.local_rank}")
         torch.cuda.set_device(self.device)
 
-        sinfer__worker__worker___check_if_gpu_supports_dtype(self.model_config.dtype)
+        intercept_check_if_gpu_supports_dtype(self.model_config.dtype)
         '''
         ==================
         End of MLU Hijack
@@ -118,9 +118,9 @@ def sinfer__worker__worker__init_worker_distributed_environment_wraper(
         pynccl_utils.all_reduce(torch.zeros(1).cuda())
 
 
-MluHijackObject.add_hijack_object(worker,
+InterceptObject.add_intercept(worker,
                                   "init_worker_distributed_environment",
                                   sinfer__worker__worker__init_worker_distributed_environment_wraper)
-MluHijackObject.add_hijack_object(Worker,
+InterceptObject.add_intercept(Worker,
                                   Worker.init_device,
                                   sinfer__worker__worker__Worker__init_device_wraper)

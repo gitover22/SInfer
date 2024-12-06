@@ -4,7 +4,7 @@ from typing import Optional, List
 from sinfer.entrypoints.llm import LLM
 from sinfer.outputs import RequestOutput
 from sinfer.Intercept.mlu_definitions import check_latency_debug, check_latency_debug_with_device
-from sinfer.Intercept.mlu_hijack_utils import MluHijackObject, set_batch_sizes_to_capture
+from sinfer.Intercept.mlu_hijack_utils import InterceptObject, set_batch_sizes_to_capture
 from sinfer.Intercept.mlu_metric import LLMMetric
 from sinfer.Intercept.dump_info import LLMDumpInfo
 from sinfer.logger import init_logger
@@ -17,7 +17,7 @@ LLM.dump_info = LLMDumpInfo()
 
 LLM__init__original = LLM.__init__
 
-def adapter_LLM__init__(
+def intercept_LLM__init__(
     self,
     model: str,
     tokenizer: Optional[str] = None,
@@ -77,7 +77,7 @@ def adapter_LLM__init__(
     LLM.dump_info.memory_usage()
     
 
-def adapter_LLM_get_metrics(
+def intercept_LLM_get_metrics(
     self,
     metrics_idx_start,
     only_average,
@@ -96,8 +96,8 @@ def adapter_LLM_get_metrics(
         其余参数:均为模型配置参数
     '''
     if check_latency_debug():
-        self.metric.calc_metric(self.llm_engine.model_config.model,
-                                self.llm_engine.model_config.dtype,
+        self.metric.calc_metric(self.llm_runtime.model_config.model,
+                                self.llm_runtime.model_config.dtype,
                                 metrics_idx_start, only_average,
                                 input_len, output_len, tp_nums,
                                 quantization, dump_info)
@@ -105,9 +105,9 @@ def adapter_LLM_get_metrics(
         print("Warnning:please set SINFER_LATENCY_DEBUG=true!")
 
 
-def adapter_LLM_run_engine(self, use_tqdm: bool) -> List[RequestOutput]:
+def intercept_LLM_launch_runtime(self, use_tqdm: bool) -> List[RequestOutput]:
     if use_tqdm:
-        num_requests = self.llm_engine.get_num_unfinished_requests()
+        num_requests = self.llm_runtime.get_num_unfinished_requests()
         pbar = tqdm(total=num_requests,
                     desc="Processed prompts",
                     dynamic_ncols=True)
@@ -120,11 +120,11 @@ def adapter_LLM_run_engine(self, use_tqdm: bool) -> List[RequestOutput]:
 
     # 运行引擎
     outputs: List[RequestOutput] = []
-    while self.llm_engine.has_unfinished_requests():
+    while self.llm_runtime.has_unfinished_requests():
         if is_latency_debug :
             self.dump_info.memory_usage() 
             start_time = self.metric.get_mlu_cost_time()  
-        step_outputs = self.llm_engine.step() # 一个step
+        step_outputs = self.llm_runtime.step() # 一个step
        
         if is_latency_debug:
             end_time = self.metric.get_mlu_cost_time()
@@ -133,7 +133,7 @@ def adapter_LLM_run_engine(self, use_tqdm: bool) -> List[RequestOutput]:
                 batch_size = len(step_outputs)
             self.metric.update_step_latency(step_latency)
             if check_latency_debug_with_device():
-                self.metric.update_step_latency_device(self.llm_engine.get_latency())
+                self.metric.update_step_latency_device(self.llm_runtime.get_latency())
             self.dump_info.memory_usage()
         for output in step_outputs:
             if output.finished:
@@ -152,6 +152,6 @@ def adapter_LLM_run_engine(self, use_tqdm: bool) -> List[RequestOutput]:
     outputs = sorted(outputs, key=lambda x: int(x.request_id))
     return outputs
 
-MluHijackObject.add_hijack_object(LLM, LLM.__init__, adapter_LLM__init__)
-MluHijackObject.add_hijack_object(LLM,"get_metrics", adapter_LLM_get_metrics)
-MluHijackObject.add_hijack_object(LLM,LLM._run_engine, adapter_LLM_run_engine)
+InterceptObject.add_intercept(LLM, LLM.__init__, intercept_LLM__init__)
+InterceptObject.add_intercept(LLM,"get_metrics", intercept_LLM_get_metrics)
+InterceptObject.add_intercept(LLM,LLM._launch_runtime, intercept_LLM_launch_runtime)

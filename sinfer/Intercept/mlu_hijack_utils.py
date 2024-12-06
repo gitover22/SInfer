@@ -19,17 +19,17 @@ def set_is_gated(flag):
 def get_is_gated():
     return IS_GATED
 
-class MluHijackObject:
+class InterceptObject:
     hijack_objs = []    # 类变量,所有实例共享
 
     # 添加拦截对象
     @classmethod
-    def add_hijack_object(cls, obj, org_func, hijack_func):
-        cls.hijack_objs.append((obj, org_func, hijack_func))
+    def add_intercept(cls, obj, org_func, intercept_func):
+        cls.hijack_objs.append((obj, org_func, intercept_func))
     
     # 将拦截函数 (hijack_func) 替换目标对象 (obj) 的原始函数 (org_func)
     @classmethod
-    def apply_hijack(cls):
+    def apply_intercept(cls):
         for obj, org_func, hijack_func in cls.hijack_objs:
             if type(org_func) == str:
                 org_func_name = org_func
@@ -39,7 +39,7 @@ class MluHijackObject:
             
     # 该方法用于恢复 apply_hijack 方法所替换的原始函数 (org_func)，取消拦截
     @classmethod
-    def undo_hijack(cls):
+    def remove_intercept(cls):
         for obj, org_func, hijack_func in cls.hijack_objs:
             if type(org_func) == str:
                 delattr(obj, org_func)

@@ -12,7 +12,7 @@ def test_swap() -> None:
     engine_args = RuntimeArgs(model=os.environ["TEST_MODEL_PATH"],
                              dtype="half",
                              load_format="dummy")
-    engine_config = engine_args.create_engine_config()
+    engine_config = engine_args.create_runtime_config()
     engine_config.cache_config.num_gpu_blocks = 1000
     engine_config.cache_config.num_cpu_blocks = 1000
 

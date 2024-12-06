@@ -334,7 +334,7 @@ class AsyncLLMRuntime:
     ) -> "AsyncLLMRuntime":
         """创建一个异步的LLMEngine"""
         # Create the engine configs.
-        engine_config = engine_args.create_engine_config() # 创建一个EngineConfig实例
+        engine_config = engine_args.create_runtime_config() # 创建一个EngineConfig实例
 
         if engine_config.device_config.device_type == "cpu":
             assert not engine_config.parallel_config.worker_use_ray, (

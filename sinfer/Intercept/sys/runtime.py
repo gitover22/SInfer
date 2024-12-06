@@ -2,7 +2,7 @@ import time
 from typing import Optional, List
 from sinfer.sys.runtime import LLMRuntime
 from sinfer.Intercept.mlu_definitions import USE_PAGED, BlockSizeInfo
-from sinfer.Intercept.mlu_hijack_utils import MluHijackObject
+from sinfer.Intercept.mlu_hijack_utils import InterceptObject
 from sinfer.sampling_params import SamplingParams
 from sinfer.sequence import MultiModalData, Sequence, SequenceGroup
 from sinfer.lora.request import LoRARequest
@@ -11,10 +11,10 @@ from sinfer.logger import init_logger
 logger = init_logger(__name__)
 
 
-sinfer_engine__llm_engine__LLMRuntime__add_request_org = LLMRuntime.add_request
+add_request_org = LLMRuntime.add_request
 
 
-def sinfer_engine__llm_engine__LLMRuntime__add_request(
+def intercept_add_request(
     self,
     request_id: str,
     prompt: Optional[str],
@@ -79,14 +79,14 @@ def sinfer_engine__llm_engine__LLMRuntime__add_request(
     self.scheduler.add_seq_group(seq_group)
 
 
-def sinfer__engine__llm_engine__LLMRuntime__get_latency(self):
+def intercept_get_latency(self):
     latency = self.model_executor.get_latency()
     return latency
 
 
-MluHijackObject.add_hijack_object(LLMRuntime,
+InterceptObject.add_intercept(LLMRuntime,
                                   LLMRuntime.add_request,
-                                  sinfer_engine__llm_engine__LLMRuntime__add_request)
-MluHijackObject.add_hijack_object(LLMRuntime,
+                                  intercept_add_request)
+InterceptObject.add_intercept(LLMRuntime,
                                   "get_latency",
-                                  sinfer__engine__llm_engine__LLMRuntime__get_latency)
+                                  intercept_get_latency)

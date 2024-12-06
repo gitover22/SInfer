@@ -10,7 +10,7 @@ from sinfer.transformers_utils.configs import RWConfig
 FalconConfig = Union[HF_FalconConfig, RWConfig]
 from sinfer.Intercept.mlu_definitions import *
 from sinfer.Intercept.model_executor.layers.feed_forward import FeedForward
-from sinfer.Intercept.mlu_hijack_utils import MluHijackObject
+from sinfer.Intercept.mlu_hijack_utils import InterceptObject
 from sinfer.logger import init_logger
 
 from sinfer.model_executor.models.falcon import FalconAttention, FalconDecoderLayer
@@ -18,7 +18,7 @@ from sinfer.model_executor.models.falcon import FalconAttention, FalconDecoderLa
 logger = init_logger(__name__)
 
 
-def sinfer__module_executor__models__falcon__FalconAttention__forward(
+def intercept_FalconAttention_forward(
     self,
     positions: torch.Tensor,
     hidden_states: torch.Tensor,
@@ -39,7 +39,7 @@ def sinfer__module_executor__models__falcon__FalconAttention__forward(
     return attn_output, bias
 
 
-def sinfer__module_executor__models__falcon__FalconDecoderLayer____init__(
+def intercept_FalconDecoderLayer__init__(
     self,
     config: FalconConfig,
     quant_config: Optional[QuantizationConfig] = None,
@@ -78,9 +78,9 @@ def sinfer__module_executor__models__falcon__FalconDecoderLayer____init__(
                 hidden_size, eps=config.layer_norm_epsilon)
 
 
-MluHijackObject.add_hijack_object(FalconAttention,
+InterceptObject.add_intercept(FalconAttention,
                                   FalconAttention.forward,
-                                  sinfer__module_executor__models__falcon__FalconAttention__forward)
-MluHijackObject.add_hijack_object(FalconDecoderLayer,
+                                  intercept_FalconAttention_forward)
+InterceptObject.add_intercept(FalconDecoderLayer,
                                   FalconDecoderLayer.__init__,
-                                  sinfer__module_executor__models__falcon__FalconDecoderLayer____init__)
+                                  intercept_FalconDecoderLayer__init__)

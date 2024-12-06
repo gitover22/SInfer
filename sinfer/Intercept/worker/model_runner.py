@@ -4,7 +4,7 @@ import torch
 import sinfer
 import numpy as np
 from typing import List, Optional, Set
-from sinfer.Intercept.mlu_hijack_utils import MluHijackObject, make_tensor_with_pad, make_tensor_without_pad
+from sinfer.Intercept.mlu_hijack_utils import InterceptObject, make_tensor_with_pad, make_tensor_without_pad
 from sinfer.Intercept.mlu_definitions import USE_PAGED, BlockSizeInfo, check_latency_debug_with_device, CUDA_GRAPH_DEBUG
 from sinfer.logger import init_logger
 from sinfer.distributed.device_communicators import pynccl_utils, custom_all_reduce
@@ -24,7 +24,7 @@ import sinfer.envs as envs
 logger = init_logger(__name__)
 
 
-def sinfer__worker__model_runner__ModelRunner__set_block_size(self, block_size: int) -> None:
+def intercept_ModelRunner_set_block_size(self, block_size: int) -> None:
     # support unpaged mode
     BlockSizeInfo.set_block_size(block_size)
     self.block_size = BlockSizeInfo.BLOCK_SIZE
@@ -34,7 +34,7 @@ def sinfer__worker__model_runner__ModelRunner__set_block_size(self, block_size: 
         dtype=np.int32)
 
 
-def sinfer__worker__model_runner__ModelRunner__get_max_block_per_batch(self) -> int:
+def intercept_ModelRunner_get_max_block_per_batch(self) -> int:
     block_size = self.block_size
     # support unpaged mode
     if USE_PAGED:
@@ -43,7 +43,7 @@ def sinfer__worker__model_runner__ModelRunner__get_max_block_per_batch(self) -> 
     
 
 
-def sinfer__worker__model_runner__ModelRunner___prepare_prompt(
+def intercept_ModelRunner_prepare_prompt(
     self,
     seq_group_metadata_list: List[SequenceGroupMetadata],
 ) -> PreparePromptMetadata:
@@ -253,7 +253,7 @@ def sinfer__worker__model_runner__ModelRunner___prepare_prompt(
     )
 
 
-def sinfer__worker__model_runner__ModelRunner___prepare_decode(
+def intercept_ModelRunner_prepare_decode(
     self,
     seq_group_metadata_list: List[SequenceGroupMetadata],
 ) -> PrepareDecodeMetadata:
@@ -456,7 +456,7 @@ def sinfer__worker__model_runner__ModelRunner___prepare_decode(
 
 
 @torch.inference_mode()
-def sinfer__worker__model_runner__ModelRunner__capture_model(self, kv_caches: List[torch.Tensor], num_gpu_blocks: int) -> None:
+def intercept_ModelRunner_capture_model(self, kv_caches: List[torch.Tensor], num_gpu_blocks: int) -> None:
     """Cuda graph capture a model.
 
     Note that CUDA graph's performance gain is negligible if number
@@ -563,7 +563,7 @@ def sinfer__worker__model_runner__ModelRunner__capture_model(self, kv_caches: Li
     _BATCH_SIZES_TO_CAPTURE = batch_size_capture_list
 
 @torch.inference_mode()
-def sinfer__worker__model_runner__ModelRunner__execute_model(
+def intercept_ModelRunner_execute_model(
     self,
     seq_group_metadata_list: List[SequenceGroupMetadata],
     kv_caches: List[torch.Tensor],
@@ -647,7 +647,7 @@ def sinfer__worker__model_runner__ModelRunner___get_graph_batch_size(batch_size:
         if capture_batch_size >= batch_size:
             return capture_batch_size
 
-def sinfer__worker__model_runner__CUDAGraphRunner__forward(
+def intercept_CUDAGraphRunner_forward(
     self,
     input_ids: torch.Tensor,
     positions: torch.Tensor,
@@ -678,24 +678,24 @@ def sinfer__worker__model_runner__CUDAGraphRunner__forward(
     # Return the output tensor.
     return self.output_buffers["hidden_states"]
 
-MluHijackObject.add_hijack_object(ModelRunner,
+InterceptObject.add_intercept(ModelRunner,
                                   ModelRunner.set_block_size,
-                                  sinfer__worker__model_runner__ModelRunner__set_block_size)
-MluHijackObject.add_hijack_object(ModelRunner,
+                                  intercept_ModelRunner_set_block_size)
+InterceptObject.add_intercept(ModelRunner,
                                   ModelRunner.get_max_block_per_batch,
-                                  sinfer__worker__model_runner__ModelRunner__get_max_block_per_batch)
-MluHijackObject.add_hijack_object(ModelRunner,
+                                  intercept_ModelRunner_get_max_block_per_batch)
+InterceptObject.add_intercept(ModelRunner,
                                   ModelRunner._prepare_prompt,
-                                  sinfer__worker__model_runner__ModelRunner___prepare_prompt)
-MluHijackObject.add_hijack_object(ModelRunner,
+                                  intercept_ModelRunner_prepare_prompt)
+InterceptObject.add_intercept(ModelRunner,
                                   ModelRunner._prepare_decode,
-                                  sinfer__worker__model_runner__ModelRunner___prepare_decode)
-MluHijackObject.add_hijack_object(ModelRunner,
+                                  intercept_ModelRunner_prepare_decode)
+InterceptObject.add_intercept(ModelRunner,
                                   ModelRunner.capture_model,
-                                  sinfer__worker__model_runner__ModelRunner__capture_model)
-MluHijackObject.add_hijack_object(ModelRunner,
+                                  intercept_ModelRunner_capture_model)
+InterceptObject.add_intercept(ModelRunner,
                                   ModelRunner.execute_model,
-                                  sinfer__worker__model_runner__ModelRunner__execute_model)
-MluHijackObject.add_hijack_object(CUDAGraphRunner,
+                                  intercept_ModelRunner_execute_model)
+InterceptObject.add_intercept(CUDAGraphRunner,
                                   CUDAGraphRunner.forward,
-                                  sinfer__worker__model_runner__CUDAGraphRunner__forward)
+                                  intercept_CUDAGraphRunner_forward)

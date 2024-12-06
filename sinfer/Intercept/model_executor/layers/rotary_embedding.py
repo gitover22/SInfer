@@ -2,7 +2,7 @@ from typing import Optional, Tuple, Union, Type
 import torch
 import sinfer
 from sinfer.logger import init_logger
-from sinfer.Intercept.mlu_hijack_utils import MluHijackObject
+from sinfer.Intercept.mlu_hijack_utils import InterceptObject
 from bangtransformer.torch import bt_ops
 from sinfer.model_executor.layers.rotary_embedding import RotaryEmbedding, LinearScalingRotaryEmbedding
 
@@ -10,63 +10,63 @@ logger = init_logger(__name__)
 
 
 @classmethod
-def sinfer__module_executor__layers__rotary_embedding__RotaryEmbedding___set_cu_seq_len(cls, cu_seq_len: torch.Tensor):
+def intercept_set_cu_seq_len(cls, cu_seq_len: torch.Tensor):
     """Compute the cos and sin cache."""
     cls.cu_seq_len = cu_seq_len
     return
 
 
 @classmethod
-def sinfer__module_executor__layers__rotary_embedding__RotaryEmbedding__unset_cu_seq_len(cls):
+def intercept_unset_cu_seq_len(cls):
     """Compute the cos and sin cache."""
     cls.cu_seq_len = None
     return
 
 
 @classmethod
-def sinfer__module_executor__layers__rotary_embedding__RotaryEmbedding___set_max_seq_len(cls, max_seq_len: int):
+def intercept_set_max_seq_len(cls, max_seq_len: int):
     """Set max_seq_len."""
     cls.max_seq_len = max_seq_len
     return
 
 
 @classmethod
-def sinfer__module_executor__layers__rotary_embedding__RotaryEmbedding__unset_max_seq_len(cls):
+def intercept_unset_max_seq_len(cls):
     """Unset max_seq_len."""
     cls.max_seq_len = None
     return
 
 
 @classmethod
-def sinfer__module_executor__layers__rotary_embedding__RotaryEmbedding___set_is_prompt(cls, is_prompt: bool):
+def intercept_set_is_prompt(cls, is_prompt: bool):
     """Set is_prompt."""
     cls.is_prompt = is_prompt
     return
 
 
 @classmethod
-def sinfer__module_executor__layers__rotary_embedding__RotaryEmbedding__unset_is_prompt(cls):
+def intercept_unset_is_prompt(cls):
     """Unset is_prompt."""
     cls.is_prompt = None
     return
 
 
 @classmethod
-def sinfer__module_executor__layers__rotary_embedding__RotaryEmbedding___set_is_chunked(cls, is_chunked: bool):
+def intercept_set_is_chunked(cls, is_chunked: bool):
     """Set is_chunked."""
     cls.is_chunked = is_chunked
     return
 
 
 @classmethod
-def sinfer__module_executor__layers__rotary_embedding__RotaryEmbedding__unset_is_chunked(cls):
+def intercept_unset_is_chunked(cls):
     """Unset is_chunked."""
     cls.is_chunked = None
     return
 
 
 @classmethod
-def sinfer__module_executor__layers__rotary_embedding__RotaryEmbedding__unset_cos_sin(cls):
+def intercept_unset_cos_sin(cls):
     """Compute the cos and sin cache."""
     cls.set_cos_sin = False
     cls.cos_ = None
@@ -74,7 +74,7 @@ def sinfer__module_executor__layers__rotary_embedding__RotaryEmbedding__unset_co
     return
 
 
-def sinfer__module_executor__layers__rotary_embedding__RotaryEmbedding___compute_inv_freq(self, base: Union[int, float]) -> torch.Tensor:
+def intercept_compute_inv_freq(self, base: Union[int, float]) -> torch.Tensor:
     """Compute the inverse frequency."""
     # NOTE(woosuk): The HF implementation uses `torch.arange(...).float()`.
     # However, we use `torch.arange(..., dtype=torch.float)` instead to
@@ -86,9 +86,6 @@ def sinfer__module_executor__layers__rotary_embedding__RotaryEmbedding___compute
     # create the cache on GPU for faster initialization. This may cause
     # a slight numerical difference between the HF implementation and ours.
     '''
-    =============================
-    Modify by sinfer_mlu
-    =============================
     @brief: modify inv_freq to fit bt_ops.apply_rotary()
     '''
     half_dim = self.rotary_dim // 2
@@ -105,25 +102,18 @@ def sinfer__module_executor__layers__rotary_embedding__RotaryEmbedding___compute
         )
     '''
     ==================
-    End of MLU Hijack
-    ==================
     '''
     return inv_freq
 
 
-def sinfer__module_executor__layers__rotary_embedding__RotaryEmbedding___compute_cos_sin_cache(self) -> torch.Tensor:
+def intercept_RotaryEmbedding_compute_cos_sin_cache(self) -> torch.Tensor:
     """Compute the cos and sin cache."""
     inv_freq = self._compute_inv_freq(self.base)
     '''
-    =============================
-    Modify by sinfer_mlu
-    =============================
     @brief: move 't' to mlu, make sure 't' and 'inv_freq' are both at mlu when do einsum
     '''
     t = torch.arange(self.max_position_embeddings, dtype=torch.float, device="cuda")
     '''
-    ==================
-    End of MLU Hijack
     ==================
     '''
     freqs = torch.einsum("i,j -> ij", t, inv_freq)
@@ -132,7 +122,7 @@ def sinfer__module_executor__layers__rotary_embedding__RotaryEmbedding___compute
     cache = torch.cat((cos, sin), dim=-1)
     return cache
 
-def sinfer__module_executor__layers__rotary_embedding__LinearScalingRotaryEmbedding___compute_cos_sin_cache(self) -> torch.Tensor:
+def intercept_LinearScalingRotaryEmbedding_compute_cos_sin_cache(self) -> torch.Tensor:
     """Compute the cos and sin cache."""
     inv_freq = self._compute_inv_freq(self.base)
     cache_list = []
@@ -143,15 +133,10 @@ def sinfer__module_executor__layers__rotary_embedding__LinearScalingRotaryEmbedd
         # self.max_position_embeddings * self.scaling_factor.
         max_len = self.max_position_embeddings * scaling_factor
         '''
-        =============================
-        Modify by sinfer_mlu
-        =============================
         @brief: move 't' to mlu, make sure 't' and 'inv_freq' are both at mlu when do einsum
         '''
         t = torch.arange(max_len, dtype=torch.float, device="cuda")
         '''
-        ==================
-        End of MLU Hijack
         ==================
         '''
         t = t / scaling_factor
@@ -163,7 +148,7 @@ def sinfer__module_executor__layers__rotary_embedding__LinearScalingRotaryEmbedd
         cache_list.append(cache)
     return torch.cat(cache_list, dim=0)
 
-def sinfer__module_executor__layers__rotary_embedding__RotaryEmbedding___get_cos_sin(
+def intercept_get_cos_sin(
     self,
     positions: torch.Tensor,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
@@ -173,7 +158,7 @@ def sinfer__module_executor__layers__rotary_embedding__RotaryEmbedding___get_cos
     return cos, sin
 
 
-def sinfer__module_executor__layers__rotary_embedding__RotaryEmbedding__forward(
+def intercept_RotaryEmbedding_forward(
     self,
     positions: torch.Tensor,
     x: torch.Tensor,
@@ -183,9 +168,6 @@ def sinfer__module_executor__layers__rotary_embedding__RotaryEmbedding__forward(
     # ops.rotary_embedding()/batched_rotary_embedding()
     # are in-place operations that update the query and key tensors.
     '''
-    =============================
-    Modify by sinfer_mlu
-    =============================
     @brief: use bt_ops.apply_rotary to replace ops.rotary_embedding
     '''
     if offsets is not None:
@@ -213,11 +195,6 @@ def sinfer__module_executor__layers__rotary_embedding__RotaryEmbedding__forward(
                                 False,
                                 RotaryEmbedding.max_seq_len)
     return x
-    '''
-    ==================
-    End of MLU Hijack
-    ==================
-    '''
 
 
 RotaryEmbedding.cos_ = None
@@ -227,45 +204,45 @@ RotaryEmbedding.set_cos_sin = False
 RotaryEmbedding.max_seq_len = None
 
 
-MluHijackObject.add_hijack_object(RotaryEmbedding,
+InterceptObject.add_intercept(RotaryEmbedding,
                                   "_set_cu_seq_len",
-                                  sinfer__module_executor__layers__rotary_embedding__RotaryEmbedding___set_cu_seq_len)
-MluHijackObject.add_hijack_object(RotaryEmbedding,
+                                  intercept_set_cu_seq_len)
+InterceptObject.add_intercept(RotaryEmbedding,
                                   "unset_cu_seq_len",
-                                  sinfer__module_executor__layers__rotary_embedding__RotaryEmbedding__unset_cu_seq_len)
-MluHijackObject.add_hijack_object(RotaryEmbedding,
+                                  intercept_unset_cu_seq_len)
+InterceptObject.add_intercept(RotaryEmbedding,
                                   "_set_max_seq_len",
-                                  sinfer__module_executor__layers__rotary_embedding__RotaryEmbedding___set_max_seq_len)
-MluHijackObject.add_hijack_object(RotaryEmbedding,
+                                  intercept_set_max_seq_len)
+InterceptObject.add_intercept(RotaryEmbedding,
                                   "unset_max_seq_len",
-                                  sinfer__module_executor__layers__rotary_embedding__RotaryEmbedding__unset_max_seq_len)
-MluHijackObject.add_hijack_object(RotaryEmbedding,
+                                  intercept_unset_max_seq_len)
+InterceptObject.add_intercept(RotaryEmbedding,
                                   "_set_is_prompt",
-                                  sinfer__module_executor__layers__rotary_embedding__RotaryEmbedding___set_is_prompt)
-MluHijackObject.add_hijack_object(RotaryEmbedding,
+                                  intercept_set_is_prompt)
+InterceptObject.add_intercept(RotaryEmbedding,
                                   "_set_is_chunked",
-                                  sinfer__module_executor__layers__rotary_embedding__RotaryEmbedding___set_is_chunked)
-MluHijackObject.add_hijack_object(RotaryEmbedding,
+                                  intercept_set_is_chunked)
+InterceptObject.add_intercept(RotaryEmbedding,
                                   "unset_is_prompt",
-                                  sinfer__module_executor__layers__rotary_embedding__RotaryEmbedding__unset_is_prompt)
-MluHijackObject.add_hijack_object(RotaryEmbedding,
+                                  intercept_unset_is_prompt)
+InterceptObject.add_intercept(RotaryEmbedding,
                                   "unset_is_chunked",
-                                  sinfer__module_executor__layers__rotary_embedding__RotaryEmbedding__unset_is_chunked)
-MluHijackObject.add_hijack_object(RotaryEmbedding,
+                                  intercept_unset_is_chunked)
+InterceptObject.add_intercept(RotaryEmbedding,
                                   "unset_cos_sin",
-                                  sinfer__module_executor__layers__rotary_embedding__RotaryEmbedding__unset_cos_sin)
-MluHijackObject.add_hijack_object(RotaryEmbedding,
+                                  intercept_unset_cos_sin)
+InterceptObject.add_intercept(RotaryEmbedding,
                                   "_get_cos_sin",
-                                  sinfer__module_executor__layers__rotary_embedding__RotaryEmbedding___get_cos_sin)
-MluHijackObject.add_hijack_object(RotaryEmbedding,
+                                  intercept_get_cos_sin)
+InterceptObject.add_intercept(RotaryEmbedding,
                                   RotaryEmbedding._compute_inv_freq,
-                                  sinfer__module_executor__layers__rotary_embedding__RotaryEmbedding___compute_inv_freq)
-MluHijackObject.add_hijack_object(RotaryEmbedding,
+                                  intercept_compute_inv_freq)
+InterceptObject.add_intercept(RotaryEmbedding,
                                   RotaryEmbedding._compute_cos_sin_cache,
-                                  sinfer__module_executor__layers__rotary_embedding__RotaryEmbedding___compute_cos_sin_cache)
-MluHijackObject.add_hijack_object(RotaryEmbedding,
+                                  intercept_RotaryEmbedding_compute_cos_sin_cache)
+InterceptObject.add_intercept(RotaryEmbedding,
                                   RotaryEmbedding.forward,
-                                  sinfer__module_executor__layers__rotary_embedding__RotaryEmbedding__forward)
-MluHijackObject.add_hijack_object(LinearScalingRotaryEmbedding,
+                                  intercept_RotaryEmbedding_forward)
+InterceptObject.add_intercept(LinearScalingRotaryEmbedding,
                                   LinearScalingRotaryEmbedding._compute_cos_sin_cache,
-                                  sinfer__module_executor__layers__rotary_embedding__LinearScalingRotaryEmbedding___compute_cos_sin_cache)
+                                  intercept_LinearScalingRotaryEmbedding_compute_cos_sin_cache)

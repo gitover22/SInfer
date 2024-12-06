@@ -183,7 +183,7 @@ def serialize():
     eng_args_dict = {f.name: getattr(args, f.name) for f in
                      dataclasses.fields(RuntimeArgs)}
     engine_args = RuntimeArgs.from_cli_args(argparse.Namespace(**eng_args_dict))
-    engine = LLMRuntime.from_engine_args(engine_args)
+    engine = LLMRuntime.from_runtime_args(engine_args)
 
     model = (engine.model_executor.driver_worker.
              model_runner.model)

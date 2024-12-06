@@ -8,7 +8,7 @@ from sinfer.model_executor.layers.quantization.base_config import QuantizationCo
 from sinfer.model_executor.layers.layernorm import RMSNorm
 from sinfer.Intercept.mlu_definitions import *
 from sinfer.Intercept.model_executor.layers.feed_forward import FeedForward
-from sinfer.Intercept.mlu_hijack_utils import MluHijackObject
+from sinfer.Intercept.mlu_hijack_utils import InterceptObject
 from sinfer.logger import init_logger
 
 from sinfer.model_executor.models.llama import LlamaAttention, LlamaDecoderLayer
@@ -16,7 +16,7 @@ from sinfer.model_executor.models.llama import LlamaAttention, LlamaDecoderLayer
 logger = init_logger(__name__)
 
 
-def sinfer__module_executor__models__llama__LlamaAttention__forward(
+def intercept_LlamaAttention__forward(
     self,
     positions: torch.Tensor,
     hidden_states: torch.Tensor,
@@ -36,7 +36,7 @@ def sinfer__module_executor__models__llama__LlamaAttention__forward(
     return output
 
 
-def sinfer__module_executor__models__llama__LlamaDecoderLayer____init__(
+def intercept_LlamaDecoderLayer__init__(
     self,
     config: LlamaConfig,
     quant_config: Optional[QuantizationConfig] = None,
@@ -85,9 +85,9 @@ def sinfer__module_executor__models__llama__LlamaDecoderLayer____init__(
                                             eps=config.rms_norm_eps)
 
 
-MluHijackObject.add_hijack_object(LlamaAttention,
+InterceptObject.add_intercept(LlamaAttention,
                                   LlamaAttention.forward,
-                                  sinfer__module_executor__models__llama__LlamaAttention__forward)
-MluHijackObject.add_hijack_object(LlamaDecoderLayer,
+                                  intercept_LlamaAttention__forward)
+InterceptObject.add_intercept(LlamaDecoderLayer,
                                   LlamaDecoderLayer.__init__,
-                                  sinfer__module_executor__models__llama__LlamaDecoderLayer____init__)
+                                  intercept_LlamaDecoderLayer__init__)

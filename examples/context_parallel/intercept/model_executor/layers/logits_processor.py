@@ -1,7 +1,7 @@
 from typing import Optional
 import torch
 import sinfer
-from sinfer.Intercept.mlu_hijack_utils import MluHijackObject
+from sinfer.Intercept.mlu_hijack_utils import InterceptObject
 from sinfer.distributed import broadcast
 from sinfer.model_executor.sampling_metadata import SamplingMetadata
 from sinfer.attention import AttentionMetadata
@@ -102,6 +102,6 @@ End of Context Parallel
 '''
     
 
-MluHijackObject.add_hijack_object(LogitsProcessor,
+InterceptObject.add_intercept(LogitsProcessor,
                                   LogitsProcessor.forward,
                                   sinfer__module_executor__layers__logits_processor__LogitsProcessor__forward_wraper)

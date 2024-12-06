@@ -2,12 +2,12 @@ from typing import Optional, Type, List
 import torch
 import sinfer
 from sinfer.Intercept.mlu_definitions import USE_PAGED
-from sinfer.Intercept.mlu_hijack_utils import MluHijackObject
+from sinfer.Intercept.mlu_hijack_utils import InterceptObject
 from sinfer.attention.backends.abstract import AttentionMetadata
 from sinfer.attention.backends.flash_attn import FlashAttentionImpl, FlashAttentionMetadata
 from sinfer.attention.ops.paged_attn import PagedAttention
 from .ring_attn import zigzag_ring_attn
-from sinfer.Intercept.attention.backends.flash_attn import sinfer__attention__backends__flash_attn__FlashAttentionImpl__forward
+from sinfer.Intercept.attention.backends.flash_attn import intercept_FlashAttentionImpl__forward
 from ...distributed.parallel_state import get_context_model_parallel_world_size
 
 
@@ -38,9 +38,9 @@ def sinfer__attention__backends__flash_attn__FlashAttentionImpl__forward_wraper(
     End of Context Parallel
     =======================
     '''
-    return sinfer__attention__backends__flash_attn__FlashAttentionImpl__forward(self, query, key, value, kv_cache, attn_metadata, kv_scale)
+    return intercept_FlashAttentionImpl__forward(self, query, key, value, kv_cache, attn_metadata, kv_scale)
     
     
-MluHijackObject.add_hijack_object(FlashAttentionImpl,
+InterceptObject.add_intercept(FlashAttentionImpl,
                                   FlashAttentionImpl.forward,
                                   sinfer__attention__backends__flash_attn__FlashAttentionImpl__forward_wraper)

@@ -14,12 +14,10 @@ logger = init_logger(__name__)
 class GPUExecutor(ExecutorBase):
 
     def _init_executor(self) -> None:
-        """初始化worker并加载模型
         """
-        if self.speculative_config is None:
-            self._init_non_spec_worker() # 初始化
-        else:
-            self._init_spec_worker() # 初始化推测解码
+        初始化worker并加载模型
+        """
+        self._init_worker()
 
     def _get_worker_kwargs(
             self,
@@ -57,44 +55,13 @@ class GPUExecutor(ExecutorBase):
                                                       distributed_init_method))
         return wrapper.worker
 
-    def _init_non_spec_worker(self):
+    def _init_worker(self):
         assert self.parallel_config.world_size == 1, (
             "GPUExecutor only supports single GPU.")
 
         self.driver_worker = self._create_worker() # 创建worker
         self.driver_worker.init_device() # 初始化设备
         self.driver_worker.load_model() # 加载模型
-
-    def _init_spec_worker(self):
-        """Initialize a SpecDecodeWorker, using a draft model for proposals.
-        """
-        assert self.speculative_config is not None
-
-        from sinfer.spec_decode.spec_decode_worker import SpecDecodeWorker
-
-        target_worker = self._create_worker()
-
-        draft_worker_kwargs = self._get_worker_kwargs()
-        # Override draft-model specific worker args.
-        draft_worker_kwargs.update(
-            model_config=self.speculative_config.draft_model_config,
-            parallel_config=self.speculative_config.draft_parallel_config,
-            # TODO allow draft-model specific load config.
-            #load_config=self.load_config,
-        )
-
-        spec_decode_worker = SpecDecodeWorker.create_worker(
-            scorer_worker=target_worker,
-            draft_worker_kwargs=draft_worker_kwargs,
-        )
-
-        assert self.parallel_config.world_size == 1, (
-            "GPUExecutor only supports single GPU.")
-
-        self.driver_worker = spec_decode_worker
-
-        # Load model handled in spec decode worker.
-        self.driver_worker.init_device()
 
     def determine_num_available_blocks(self) -> Tuple[int, int]:
         """调用Worker来确定blocks数量

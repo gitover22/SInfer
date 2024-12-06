@@ -48,7 +48,6 @@ def _load_generation_config_dict(model_config: ModelConfig):
 
 class LLMRuntime:
     """
-    推理系统引擎
     参数:
         model_config: LLM model 配置.
         cache_config: KV cache内存管理配置.
@@ -228,13 +227,13 @@ class LLMRuntime:
         self.model_executor.initialize_cache(num_gpu_blocks, num_cpu_blocks)
 
     @classmethod
-    def from_engine_args(
+    def from_runtime_args(
         cls,
-        engine_args: RuntimeArgs,
+        runtime_args: RuntimeArgs,
         usage_context: UsageContext = UsageContext.ENGINE_CONTEXT,
     ) -> "LLMRuntime":
         # 创建engine的配置
-        engine_config = engine_args.create_engine_config()
+        engine_config = runtime_args.create_runtime_config()
 
         # 明确executor_class指向的执行器
         if engine_config.device_config.device_type == "cpu":
@@ -254,7 +253,7 @@ class LLMRuntime:
         engine = cls(
             **engine_config.to_dict(),
             executor_class=executor_class,
-            log_stats=not engine_args.disable_log_stats,
+            log_stats=not runtime_args.disable_log_stats,
             usage_context=usage_context,
         )
         return engine

@@ -63,7 +63,7 @@ class LLM:
     ) -> None:
         if "disable_log_stats" not in kwargs:
             kwargs["disable_log_stats"] = True
-        engine_args = RuntimeArgs(
+        runtime_args = RuntimeArgs(
             model=model,
             tokenizer=tokenizer,
             tokenizer_mode=tokenizer_mode,
@@ -83,19 +83,19 @@ class LLM:
             disable_custom_all_reduce=disable_custom_all_reduce,
             **kwargs,
         )
-        self.llm_engine = LLMRuntime.from_engine_args(
-            engine_args, usage_context=UsageContext.LLM_CLASS)
+        self.llm_runtime = LLMRuntime.from_runtime_args(
+            runtime_args, usage_context=UsageContext.LLM_CLASS)
         self.request_counter = Counter()
 
     def get_tokenizer(
             self) -> Union[PreTrainedTokenizer, PreTrainedTokenizerFast]:
-        return self.llm_engine.tokenizer.tokenizer
+        return self.llm_runtime.tokenizer.tokenizer
 
     def set_tokenizer(
         self,
         tokenizer: Union[PreTrainedTokenizer, PreTrainedTokenizerFast],
     ) -> None:
-        self.llm_engine.tokenizer.tokenizer = tokenizer
+        self.llm_runtime.tokenizer.tokenizer = tokenizer
 
     def generate(
         self,
@@ -118,7 +118,7 @@ class LLM:
         if prompts is None and prompt_token_ids is None:
             raise ValueError("Either prompts or prompt_token_ids must be "
                              "provided.")
-        if self.llm_engine.model_config.skip_tokenizer_init and prompts is not None:
+        if self.llm_runtime.model_config.skip_tokenizer_init and prompts is not None:
             raise ValueError("prompts must be None if skip_tokenizer_init "
                              "is True")
         if isinstance(prompts, str):
@@ -157,7 +157,7 @@ class LLM:
                     data=multi_modal_data.data[i].unsqueeze(0))
                 if multi_modal_data else None,
             )
-        return self._run_engine(use_tqdm)
+        return self._launch_runtime(use_tqdm)
 
     def _add_request(
         self,
@@ -168,23 +168,23 @@ class LLM:
         multi_modal_data: Optional[MultiModalData] = None,
     ) -> None:
         request_id = str(next(self.request_counter)) # request id 从 0 开始计数
-        self.llm_engine.add_request(request_id,
+        self.llm_runtime.add_request(request_id,
                                     prompt,
                                     sampling_params,
                                     prompt_token_ids,
                                     lora_request=lora_request,
                                     multi_modal_data=multi_modal_data)
 
-    def _run_engine(self, use_tqdm: bool) -> List[RequestOutput]:
+    def _launch_runtime(self, use_tqdm: bool) -> List[RequestOutput]:
         if use_tqdm:
-            num_requests = self.llm_engine.get_num_unfinished_requests()
+            num_requests = self.llm_runtime.get_num_unfinished_requests()
             pbar = tqdm(total=num_requests,
                         desc="Processed prompts",
                         dynamic_ncols=True)
         # 运行引擎
         outputs: List[RequestOutput] = []
-        while self.llm_engine.has_unfinished_requests():
-            step_outputs = self.llm_engine.step()     # iteration level
+        while self.llm_runtime.has_unfinished_requests():
+            step_outputs = self.llm_runtime.step()     # iteration level
             for output in step_outputs:
                 if output.finished:
                     outputs.append(output)

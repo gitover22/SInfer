@@ -5,13 +5,13 @@ import sinfer
 import sinfer.envs as envs
 from sinfer.logger import init_logger
 from sinfer.utils import is_cpu
-from sinfer.Intercept.mlu_hijack_utils import MluHijackObject
+from sinfer.Intercept.mlu_hijack_utils import InterceptObject
 from sinfer.attention.selector import _Backend
 
 logger = init_logger(__name__)
 
 
-def sinfer__attention__selector___which_attn_to_use(dtype: torch.dtype) -> _Backend:
+def intercept_which_attn_to_use(dtype: torch.dtype) -> _Backend:
     """Returns which flash attention backend to use."""
     if is_cpu():
         return _Backend.TORCH_SDPA
@@ -48,6 +48,6 @@ def sinfer__attention__selector___which_attn_to_use(dtype: torch.dtype) -> _Back
     return _Backend.FLASH_ATTN
 
 
-MluHijackObject.add_hijack_object(sinfer.attention.selector,
+InterceptObject.add_intercept(sinfer.attention.selector,
                                   sinfer.attention.selector._which_attn_to_use,
-                                  sinfer__attention__selector___which_attn_to_use)
+                                  intercept_which_attn_to_use)

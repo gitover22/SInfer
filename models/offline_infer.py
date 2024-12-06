@@ -19,7 +19,7 @@ sampling_params = SamplingParams(
 print(sampling_params) # __repr__
 
 # 实例化LLM对象
-llm = LLM(model="./Meta-Llama-3-8B-Instruct",trust_remote_code=True,dtype="float16",tensor_parallel_size =4,gpu_memory_utilization=0.9)
+llm = LLM(model="./Meta-Llama-3-8B-Instruct",trust_remote_code=True,dtype="float16",tensor_parallel_size =2,gpu_memory_utilization=0.9)
 
 s = time.time()
 outputs = llm.generate(prompts, sampling_params)

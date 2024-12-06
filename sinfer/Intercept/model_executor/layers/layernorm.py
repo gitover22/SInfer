@@ -2,22 +2,19 @@ from typing import Optional, Union, Tuple
 import torch
 import sinfer
 from sinfer.logger import init_logger
-from sinfer.Intercept.mlu_hijack_utils import MluHijackObject
+from sinfer.Intercept.mlu_hijack_utils import InterceptObject
 from bangtransformer.torch import bt_ops
 from sinfer.model_executor.layers.layernorm import RMSNorm
 
 logger = init_logger(__name__)
 
 
-def sinfer__model_executor__layers__layernorm__RMSNorm__forward(
+def intercept_RMSNorm_forward(
     self,
     x: torch.Tensor,
     residual: Optional[torch.Tensor] = None,
 ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
     '''
-    =============================
-    Modify by sinfer_mlu
-    =============================
     @brief: use bt_ops.fused_rms_norm
     '''
     x = x.view(-1, self.weight.data.shape[0])
@@ -28,11 +25,9 @@ def sinfer__model_executor__layers__layernorm__RMSNorm__forward(
         return bt_ops.fused_rms_norm(x, residual, self.weight.data, None, None, self.variance_epsilon, False)
     '''
     ==================
-    End of MLU Hijack
-    ==================
     '''
 
 
-MluHijackObject.add_hijack_object(RMSNorm,
+InterceptObject.add_intercept(RMSNorm,
                                   RMSNorm.forward,
-                                  sinfer__model_executor__layers__layernorm__RMSNorm__forward)
+                                  intercept_RMSNorm_forward)

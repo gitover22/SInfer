@@ -5,13 +5,13 @@ from typing import Optional, Union
 from sinfer.entrypoints.openai.protocol import (ChatCompletionRequest,
                                               CompletionRequest, ErrorResponse)
 from sinfer.entrypoints.openai.serving_engine import OpenAIServing
-from sinfer.Intercept.mlu_hijack_utils import MluHijackObject
+from sinfer.Intercept.mlu_hijack_utils import InterceptObject
 from sinfer.logger import init_logger
 
 logger = init_logger(__name__)
 
 
-async def sinfer__entrypoints__openai__serving_engine__OpenAIServing___check_model(
+async def intercept_check_model(
     self, request: Union[CompletionRequest, ChatCompletionRequest]
 ) -> Optional[ErrorResponse]:
     if request.model in self.served_model_names:
@@ -31,6 +31,6 @@ async def sinfer__entrypoints__openai__serving_engine__OpenAIServing___check_mod
         status_code=HTTPStatus.NOT_FOUND)
 
 
-MluHijackObject.add_hijack_object(OpenAIServing,
+InterceptObject.add_intercept(OpenAIServing,
                                   OpenAIServing._check_model,
-                                  sinfer__entrypoints__openai__serving_engine__OpenAIServing___check_model)
+                                  intercept_check_model)

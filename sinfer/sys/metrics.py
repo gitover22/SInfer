@@ -20,7 +20,6 @@ disable_created_metrics()
 # The begin-* and end* here are used by the documentation generator
 # to extract the metrics definitions.
 
-
 # begin-metrics-definitions
 class Metrics:
     labelname_finish_reason = "finished_reason"
@@ -164,7 +163,6 @@ def build_1_2_5_buckets(max_value: int):
 
 @dataclass
 class Stats:
-    """Created by LLMEngine for use by StatLogger."""
     now: float
 
     # System stats (should have _sys suffix)

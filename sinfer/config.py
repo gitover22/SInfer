@@ -911,7 +911,7 @@ class DecodingConfig:
 
 
 @dataclass(frozen=True)
-class EngineConfig:
+class RuntimeConfig:
     """
     这是一个包含所有引擎相关配置的 `dataclass`
     它简化了在代码库中传递不同配置的过程。

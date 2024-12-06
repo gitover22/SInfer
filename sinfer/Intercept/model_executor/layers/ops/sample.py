@@ -6,12 +6,12 @@ import triton
 import triton.language as tl
 
 import sinfer
-from sinfer.Intercept.mlu_hijack_utils import MluHijackObject
+from sinfer.Intercept.mlu_hijack_utils import InterceptObject
 
 
 
 @triton.jit
-def sinfer__model_executor__layers__ops__sample__uniform_to_exponential(uniform_noise):
+def intercept_uniform_to_exponential(uniform_noise):
     """Convert uniform samples to exponential samples."""
     # tl.rand returns values in [0, 1), so we clamp lower bound
     # to _EPS to avoid log(0) and thus division by 0 later
@@ -33,7 +33,7 @@ def sinfer__model_executor__layers__ops__sample__uniform_to_exponential(uniform_
     exponential_noise = -tl.log(uniform_noise)
     return exponential_noise
 
-def sinfer__model_executor__layers__ops__sample__sample(probs: torch.Tensor,
+def intercept_sample(probs: torch.Tensor,
             logprobs: torch.Tensor,
             sample_indices: torch.Tensor,
             output_samples: torch.Tensor,
@@ -88,15 +88,10 @@ def sinfer__model_executor__layers__ops__sample__sample(probs: torch.Tensor,
     @brief: argument don't support global value
     '''
     num_warps = 1
-    '''
-    ==================
-    End of MLU Hijack
-    ==================
-    '''
 
     # Enqueue kernel. The 1D launch grid is simple: we have one kernel
     # instance per row of the probs matrix
-    sinfer__model_executor__layers__ops__sample__sample_triton[(n_samples, n_best)](
+    intercept_sample_triton[(n_samples, n_best)](
         sample_indices,
         output_samples,
         output_logprobs,
@@ -127,7 +122,7 @@ Modify by sinfer_mlu
 @brief: triton sample op on mlu
 '''
 @triton.jit
-def sinfer__model_executor__layers__ops__sample__sample_triton(
+def intercept_sample_triton(
         sample_indices_ptr: torch.Tensor, output_ptr: torch.Tensor,
         output_logprobs_ptr: torch.Tensor,
         output_modified_probs_ptr: torch.Tensor, probs_ptr: torch.Tensor,
@@ -173,7 +168,7 @@ def sinfer__model_executor__layers__ops__sample__sample_triton(
             uniform_noise = tl.load(uniform_noise_start_ptr + col_offsets,
                                     mask=col_offsets < n_cols,
                                     other=0.5)
-            exponential_noise = sinfer__model_executor__layers__ops__sample__uniform_to_exponential(uniform_noise)
+            exponential_noise = intercept_uniform_to_exponential(uniform_noise)
             row /= exponential_noise
         tmpsampled_value, tmpsampled_token = tl.max(row, axis=0, return_indices=True)
         if sampled_value < tmpsampled_value:
@@ -216,16 +211,11 @@ def sinfer__model_executor__layers__ops__sample__sample_triton(
         output_row_start_ptr = (output_logprobs_ptr +
                                 sample_idx * output_row_stride + best_idx)
         tl.store(output_row_start_ptr, sampled_logprob)
-'''
-==================
-End of MLU Hijack
-==================
-'''
 
-MluHijackObject.add_hijack_object(sinfer.model_executor.layers.ops.sample,
+InterceptObject.add_intercept(sinfer.model_executor.layers.ops.sample,
                                   sinfer.model_executor.layers.ops.sample._sample,
-                                  sinfer__model_executor__layers__ops__sample__sample)
+                                  intercept_sample)
 
-MluHijackObject.add_hijack_object(sinfer.model_executor.layers.ops.sample,
+InterceptObject.add_intercept(sinfer.model_executor.layers.ops.sample,
                                   sinfer.model_executor.layers.ops.sample._uniform_to_exponential,
-                                  sinfer__model_executor__layers__ops__sample__uniform_to_exponential)
+                                  intercept_uniform_to_exponential)

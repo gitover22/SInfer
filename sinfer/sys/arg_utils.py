@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import List, Optional, Union
 
 from sinfer.config import (CacheConfig, DecodingConfig, DeviceConfig,
-                         EngineConfig, LoadConfig, LoRAConfig, ModelConfig,
+                         RuntimeConfig, LoadConfig, LoRAConfig, ModelConfig,
                          ParallelConfig, SchedulerConfig,
                          TokenizerPoolConfig, VisionLanguageConfig)
 from sinfer.model_executor.layers.quantization import QUANTIZATION_METHODS
@@ -511,7 +511,7 @@ class RuntimeArgs:
         runtime_args = cls(**{attr: getattr(args, attr) for attr in attrs})
         return runtime_args
 
-    def create_engine_config(self, ) -> EngineConfig:
+    def create_runtime_config(self, ) -> RuntimeConfig:
         device_config = DeviceConfig(self.device)
         model_config = ModelConfig(
             self.model, self.tokenizer, self.tokenizer_mode,
@@ -579,7 +579,7 @@ class RuntimeArgs:
         decoding_config = DecodingConfig(
             guided_decoding_backend=self.guided_decoding_backend)
 
-        return EngineConfig(model_config=model_config,
+        return RuntimeConfig(model_config=model_config,
                             cache_config=cache_config,
                             parallel_config=parallel_config,
                             scheduler_config=scheduler_config,

@@ -69,7 +69,7 @@ def create_worker(cls: type,
         block_size=block_size,
         enforce_eager=enforce_eager,
     )
-    engine_config = engine_args.create_engine_config()
+    engine_config = engine_args.create_runtime_config()
 
     distributed_init_method = get_distributed_init_method(
         get_ip(), get_open_port())

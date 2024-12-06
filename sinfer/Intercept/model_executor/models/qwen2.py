@@ -8,7 +8,7 @@ from sinfer.model_executor.layers.quantization.base_config import QuantizationCo
 from sinfer.model_executor.layers.layernorm import RMSNorm
 from sinfer.Intercept.mlu_definitions import *
 from sinfer.Intercept.model_executor.layers.feed_forward import FeedForward
-from sinfer.Intercept.mlu_hijack_utils import MluHijackObject
+from sinfer.Intercept.mlu_hijack_utils import InterceptObject
 from sinfer.logger import init_logger
 
 from sinfer.model_executor.models.qwen2 import Qwen2Attention, Qwen2DecoderLayer
@@ -16,7 +16,7 @@ from sinfer.model_executor.models.qwen2 import Qwen2Attention, Qwen2DecoderLayer
 logger = init_logger(__name__)
 
 
-def sinfer__module_executor__models__qwen2__Qwen2Attention__forward(
+def intercept_Qwen2Attention_forward(
     self,
     positions: torch.Tensor,
     hidden_states: torch.Tensor,
@@ -33,17 +33,13 @@ def sinfer__module_executor__models__qwen2__Qwen2Attention__forward(
     ''' 
     qk, _ = qkv.split([self.q_size + self.kv_size, self.kv_size], dim=-1)
     self.rotary_emb(positions, qk.view(-1, self.num_heads + self.num_kv_heads, self.head_dim))
-    '''
-    ==================
-    End of MLU Hijack
-    ==================
-    '''
+
     attn_output = self.attn(q, k, v, kv_cache, attn_metadata)
     output, _ = self.o_proj(attn_output)
     return output
 
 
-def sinfer__module_executor__models__qwen2__Qwen2DecoderLayer____init__(
+def intercept_Qwen2DecoderLayer__init__(
     self,
     config: Qwen2Config,
     layer_idx: int,
@@ -78,20 +74,16 @@ def sinfer__module_executor__models__qwen2__Qwen2DecoderLayer____init__(
                             down_proj_name='down_proj',
                             bias=False,
                             quant_config=quant_config)
-    '''
-    ==================
-    End of MLU Hijack
-    ==================
-    '''   
+
     self.input_layernorm = RMSNorm(config.hidden_size,
                                     eps=config.rms_norm_eps)
     self.post_attention_layernorm = RMSNorm(config.hidden_size,
                                             eps=config.rms_norm_eps)
 
 
-MluHijackObject.add_hijack_object(Qwen2Attention,
+InterceptObject.add_intercept(Qwen2Attention,
                                   Qwen2Attention.forward,
-                                  sinfer__module_executor__models__qwen2__Qwen2Attention__forward)
-MluHijackObject.add_hijack_object(Qwen2DecoderLayer,
+                                  intercept_Qwen2Attention_forward)
+InterceptObject.add_intercept(Qwen2DecoderLayer,
                                   Qwen2DecoderLayer.__init__,
-                                  sinfer__module_executor__models__qwen2__Qwen2DecoderLayer____init__)
+                                  intercept_Qwen2DecoderLayer__init__)

@@ -117,18 +117,18 @@ def generate_weights_of_weight_only(llm: LLM, args: argparse.Namespace):
     tp_size = args.tp_size
 
     if tp_size > 1:
-        llm.llm_engine.model_executor._run_workers("setup_smooth_hook")
+        llm.llm_runtime.model_executor._run_workers("setup_smooth_hook")
     else:
-        llm.llm_engine.model_executor.driver_worker.setup_smooth_hook()
+        llm.llm_runtime.model_executor.driver_worker.setup_smooth_hook()
 
     if tp_size > 1:
-        llm.llm_engine.model_executor._run_workers("remove_hooks")
-        act_range = llm.llm_engine.model_executor._run_workers("get_act_range")
-        named_parameters = llm.llm_engine.model_executor._run_workers("get_named_parameters")
+        llm.llm_runtime.model_executor._run_workers("remove_hooks")
+        act_range = llm.llm_runtime.model_executor._run_workers("get_act_range")
+        named_parameters = llm.llm_runtime.model_executor._run_workers("get_named_parameters")
     else:
-        llm.llm_engine.model_executor.driver_worker.remove_hooks()
-        act_range = llm.llm_engine.model_executor.driver_worker.get_act_range()
-        named_parameters = llm.llm_engine.model_executor.driver_worker.get_named_parameters()
+        llm.llm_runtime.model_executor.driver_worker.remove_hooks()
+        act_range = llm.llm_runtime.model_executor.driver_worker.get_act_range()
+        named_parameters = llm.llm_runtime.model_executor.driver_worker.get_named_parameters()
 
     del llm
     cleanup()

@@ -2,7 +2,7 @@ import os
 import time
 import torch
 import sinfer
-from sinfer.Intercept.mlu_hijack_utils import MluHijackObject
+from sinfer.Intercept.mlu_hijack_utils import InterceptObject
 from sinfer.logger import init_logger
 from sinfer.worker.worker import Worker, init_worker_distributed_environment
 from sinfer.model_executor import set_random_seed
@@ -24,7 +24,7 @@ from sinfer.model_executor.layers.linear import (
 logger = init_logger(__name__)
 
 
-def sinfer__worker__worker__Worker__init_device(self) -> None:
+def intercept_Worker_init_device(self) -> None:
     if self.device_config.device.type == "cuda":
         # torch.distributed.all_reduce does not free the input tensor until
         # the synchronization point. This causes the memory usage to grow
@@ -41,7 +41,7 @@ def sinfer__worker__worker__Worker__init_device(self) -> None:
         self.device = torch.device(f"cuda:{self.local_rank}")
         torch.cuda.set_device(self.device)
 
-        sinfer__worker__worker___check_if_gpu_supports_dtype(self.model_config.dtype)
+        intercept_check_if_gpu_supports_dtype(self.model_config.dtype)
         torch.cuda.empty_cache()
         self.init_gpu_memory = torch.cuda.mem_get_info()[0]
     else:
@@ -55,7 +55,7 @@ def sinfer__worker__worker__Worker__init_device(self) -> None:
     set_random_seed(self.model_config.seed)
 
 
-def sinfer__worker__worker__Worker___warm_up_model(self) -> None:
+def intercept_Worker_warm_up_model(self) -> None:
 
     # add num_gpu_blocks for mlu graph capture
     if not self.model_config.enforce_eager:
@@ -64,7 +64,7 @@ def sinfer__worker__worker__Worker___warm_up_model(self) -> None:
     set_random_seed(self.model_config.seed)
 
 
-def sinfer__worker__worker__Worker__get_latency(self):
+def intercept_Worker_get_latency(self):
     '''
     requires that torch.cuda.synchronize() be executed before this function 
     for getting an accurate reading
@@ -73,7 +73,7 @@ def sinfer__worker__worker__Worker__get_latency(self):
     return start.elapsed_time(end)
 
 
-def sinfer__worker__worker___check_if_gpu_supports_dtype(torch_dtype: torch.dtype):
+def intercept_check_if_gpu_supports_dtype(torch_dtype: torch.dtype):
 
     # modify capability check for mlu
     logger.info(f"SInfer is using dtype: {torch_dtype}")
@@ -89,7 +89,7 @@ def sinfer__worker__worker___check_if_gpu_supports_dtype(torch_dtype: torch.dtyp
                 "You can use float16 instead by explicitly setting the"
                 "`dtype` flag in CLI, for example: --dtype=half.")
 
-def sinfer__worker__worker__Worker__stat_tensor(name, tensor, act_range, key, dim):
+def intercept_Worker_stat_tensor(name, tensor, act_range, key, dim):
     logger.debug(f"name:{name}, key:{key}, dim:{dim}, tensor.shape:{tensor.shape}")
     hidden_dim = tensor.shape[-1]
     # TODO
@@ -105,20 +105,20 @@ def sinfer__worker__worker__Worker__stat_tensor(name, tensor, act_range, key, di
         act_range[name][key] = torch.max(act_range[name][key], comming_max)
 
 
-def sinfer__worker__worker__Worker__stat_input_hook(m, x, y, name, act_range, is_linear, is_save_input_id):
+def intercept_Worker_stat_input_hook(m, x, y, name, act_range, is_linear, is_save_input_id):
     if isinstance(x, tuple):
         x = x[0]
     if isinstance(y, tuple):
         y = y[0]
     logger.debug(f"name:{name}, x.shape:{x.shape}, y.shape:{y.shape}, m.weight.shape:{m.weight.shape}")
     if is_linear:
-        sinfer__worker__worker__Worker__stat_tensor(name, x, act_range, "x", 0)
+        intercept_Worker_stat_tensor(name, x, act_range, "x", 0)
         if act_range[name]["is_qkv"] and is_save_input_id and ".0." in name:
             x_cpu = x.clone().to("cpu")
             act_range[name]["input_id"].append(x_cpu)
 
 
-def sinfer__worker__worker__Worker__setup_smooth_hook(self, is_save_input_id: bool = False):
+def intercept_Worker_setup_smooth_hook(self, is_save_input_id: bool = False):
     model = self.model_runner.model
     self.act_range = defaultdict(lambda: {
         "x": None,
@@ -152,18 +152,18 @@ def sinfer__worker__worker__Worker__setup_smooth_hook(self, is_save_input_id: bo
             self.act_range[name]["is_merge"] = isinstance(m, MergedColumnParallelLinear)
 
             logger.info(f"rank:{self.rank}, add hook to {name}, is_linear:{is_linear}, split_type:{split_type}")
-            self.hooks.append(m.register_forward_hook(functools.partial(sinfer__worker__worker__Worker__stat_input_hook,
+            self.hooks.append(m.register_forward_hook(functools.partial(intercept_Worker_stat_input_hook,
                                                                         name=name, act_range=self.act_range,
                                                                         is_linear=is_linear,
                                                                         is_save_input_id=is_save_input_id)))
 
 
-def sinfer__worker__worker__Worker__remove_hooks(self):
+def intercept_Worker_remove_hooks(self):
     for h in self.hooks:
         h.remove()
 
 
-def sinfer__worker__worker__Worker__get_act_range(self):
+def intercept_Worker_get_act_range(self):
     act_range = defaultdict(lambda: {
         "x": None,
         "split": None,
@@ -191,7 +191,7 @@ def sinfer__worker__worker__Worker__get_act_range(self):
     return act_range
 
 
-def sinfer__worker__worker__Worker__get_named_parameters(self):
+def intercept_Worker_get_named_parameters(self):
     name_parameters = {}
     for name, param in self.model_runner.model.named_parameters():
         name_parameters[name] = param.to("cpu")
@@ -199,34 +199,34 @@ def sinfer__worker__worker__Worker__get_named_parameters(self):
     return name_parameters
 
 
-MluHijackObject.add_hijack_object(Worker,
+InterceptObject.add_intercept(Worker,
                                   Worker.init_device,
-                                  sinfer__worker__worker__Worker__init_device)
-MluHijackObject.add_hijack_object(Worker,
+                                  intercept_Worker_init_device)
+InterceptObject.add_intercept(Worker,
                                   Worker._warm_up_model,
-                                  sinfer__worker__worker__Worker___warm_up_model)
-MluHijackObject.add_hijack_object(Worker,
+                                  intercept_Worker_warm_up_model)
+InterceptObject.add_intercept(Worker,
                                   "get_latency",
-                                  sinfer__worker__worker__Worker__get_latency)
-MluHijackObject.add_hijack_object(sinfer.worker.worker,
+                                  intercept_Worker_get_latency)
+InterceptObject.add_intercept(sinfer.worker.worker,
                                   sinfer.worker.worker._check_if_gpu_supports_dtype,
-                                  sinfer__worker__worker___check_if_gpu_supports_dtype)
+                                  intercept_check_if_gpu_supports_dtype)
 
-MluHijackObject.add_hijack_object(Worker,
+InterceptObject.add_intercept(Worker,
                                   "stat_tensor",
-                                  sinfer__worker__worker__Worker__stat_tensor)
-MluHijackObject.add_hijack_object(Worker,
+                                  intercept_Worker_stat_tensor)
+InterceptObject.add_intercept(Worker,
                                   "stat_input_hook",
-                                  sinfer__worker__worker__Worker__stat_input_hook)
-MluHijackObject.add_hijack_object(Worker,
+                                  intercept_Worker_stat_input_hook)
+InterceptObject.add_intercept(Worker,
                                   "setup_smooth_hook",
-                                  sinfer__worker__worker__Worker__setup_smooth_hook)
-MluHijackObject.add_hijack_object(Worker,
+                                  intercept_Worker_setup_smooth_hook)
+InterceptObject.add_intercept(Worker,
                                   "remove_hooks",
-                                  sinfer__worker__worker__Worker__remove_hooks)
-MluHijackObject.add_hijack_object(Worker,
+                                  intercept_Worker_remove_hooks)
+InterceptObject.add_intercept(Worker,
                                   "get_act_range",
-                                  sinfer__worker__worker__Worker__get_act_range)
-MluHijackObject.add_hijack_object(Worker,
+                                  intercept_Worker_get_act_range)
+InterceptObject.add_intercept(Worker,
                                   "get_named_parameters",
-                                  sinfer__worker__worker__Worker__get_named_parameters)
+                                  intercept_Worker_get_named_parameters)

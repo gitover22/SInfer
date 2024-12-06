@@ -3,7 +3,7 @@ import torch
 import sinfer
 from sinfer.logger import init_logger
 from sinfer.Intercept.mlu_definitions import USE_PAGED
-from sinfer.Intercept.mlu_hijack_utils import MluHijackObject
+from sinfer.Intercept.mlu_hijack_utils import InterceptObject
 from bangtransformer.torch import bt_ops
 from sinfer.attention.backends.abstract import AttentionMetadata
 from sinfer.attention.backends.flash_attn import FlashAttentionImpl, FlashAttentionMetadata
@@ -12,9 +12,9 @@ from sinfer.attention.ops.paged_attn import PagedAttention
 logger = init_logger(__name__)
 
 
-sinfer__attention__backends__flash_attn__FlashAttentionImpl____init__org = FlashAttentionImpl.__init__
+__init__org = FlashAttentionImpl.__init__
 
-def sinfer__attention__backends__flash_attn__FlashAttentionImpl____init__(
+def intercept_FlashAttentionImpl__init__(
     self,
     num_heads: int,
     head_size: int,
@@ -23,7 +23,7 @@ def sinfer__attention__backends__flash_attn__FlashAttentionImpl____init__(
     alibi_slopes: Optional[List[float]] = None,
     sliding_window: Optional[int] = None,
 ) -> None:
-    sinfer__attention__backends__flash_attn__FlashAttentionImpl____init__org(
+    __init__org(
             self, num_heads, head_size, scale, num_kv_heads, alibi_slopes, sliding_window)
 
     # move alibi_slopes to device
@@ -31,7 +31,7 @@ def sinfer__attention__backends__flash_attn__FlashAttentionImpl____init__(
     if self.alibi_slopes is not None:
         self.alibi_slopes = self.alibi_slopes.cuda()
 
-def sinfer__attention__backends__flash_attn__FlashAttentionImpl__forward(
+def intercept_FlashAttentionImpl__forward(
     self,
     query: torch.Tensor,
     key: torch.Tensor,
@@ -170,9 +170,9 @@ def sinfer__attention__backends__flash_attn__FlashAttentionImpl__forward(
     return output.view(num_tokens, hidden_size)
 
 
-MluHijackObject.add_hijack_object(FlashAttentionImpl,
+InterceptObject.add_intercept(FlashAttentionImpl,
                                   FlashAttentionImpl.__init__,
-                                  sinfer__attention__backends__flash_attn__FlashAttentionImpl____init__)
-MluHijackObject.add_hijack_object(FlashAttentionImpl,
+                                  intercept_FlashAttentionImpl__init__)
+InterceptObject.add_intercept(FlashAttentionImpl,
                                   FlashAttentionImpl.forward,
-                                  sinfer__attention__backends__flash_attn__FlashAttentionImpl__forward)
+                                  intercept_FlashAttentionImpl__forward)

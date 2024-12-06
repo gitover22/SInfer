@@ -9,7 +9,7 @@ from sinfer.model_executor.layers.quantization.base_config import QuantizationCo
 from sinfer.model_executor.layers.layernorm import RMSNorm
 from sinfer.Intercept.mlu_definitions import *
 from sinfer.Intercept.model_executor.layers.feed_forward import FeedForward
-from sinfer.Intercept.mlu_hijack_utils import MluHijackObject
+from sinfer.Intercept.mlu_hijack_utils import InterceptObject
 from sinfer.logger import init_logger
 
 from sinfer.model_executor.models.chatglm import GLMAttention, GLMBlock
@@ -17,7 +17,7 @@ from sinfer.model_executor.models.chatglm import GLMAttention, GLMBlock
 logger = init_logger(__name__)
 
 
-def sinfer__module_executor__models__chatglm__GLMAttention__forward(
+def intercept_GLMAttention_forward(
     self,
     hidden_states: torch.Tensor,
     position_ids: torch.Tensor,
@@ -41,7 +41,7 @@ def sinfer__module_executor__models__chatglm__GLMAttention__forward(
     return attn_output
 
 
-def sinfer__module_executor__models__chatglm__GLMBlock__init__(
+def intercept_GLMBlock__init__(
     self,
     config,
     quant_config: Optional[QuantizationConfig] = None,
@@ -78,9 +78,9 @@ def sinfer__module_executor__models__chatglm__GLMBlock__init__(
         quant_config=quant_config
     )
 
-MluHijackObject.add_hijack_object(GLMAttention,
+InterceptObject.add_intercept(GLMAttention,
                                   GLMAttention.forward,
-                                  sinfer__module_executor__models__chatglm__GLMAttention__forward)
-MluHijackObject.add_hijack_object(GLMBlock,
+                                  intercept_GLMAttention_forward)
+InterceptObject.add_intercept(GLMBlock,
                                   GLMBlock.__init__,
-                                  sinfer__module_executor__models__chatglm__GLMBlock__init__)
+                                  intercept_GLMBlock__init__)

@@ -1,6 +1,6 @@
 import os
 import sinfer
-from sinfer.Intercept.mlu_hijack_utils import MluHijackObject
+from sinfer.Intercept.mlu_hijack_utils import InterceptObject
 from typing import Optional
 from torch.distributed import ProcessGroup
 # from sinfer.mlu_hijack.pycncl import CNCLCommunicator, cnclGetVersion
@@ -12,7 +12,7 @@ import sinfer.envs as envs
 logger = init_logger(__name__)
 
 
-def sinfer__distributed__device_communicators__pynccl_utils__init_process_group(
+def intercept_init_process_group(
         group: Optional[ProcessGroup] = None) -> None:
     # 替换nccl为 CNCL
     assert not pynccl_utils.is_initialized()
@@ -23,6 +23,6 @@ def sinfer__distributed__device_communicators__pynccl_utils__init_process_group(
     
 
 
-MluHijackObject.add_hijack_object(pynccl_utils,
+InterceptObject.add_intercept(pynccl_utils,
                                   pynccl_utils.init_process_group,
-                                  sinfer__distributed__device_communicators__pynccl_utils__init_process_group)
+                                  intercept_init_process_group)

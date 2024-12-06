@@ -1,6 +1,6 @@
 import torch
 from sinfer.distributed import parallel_state
-from sinfer.Intercept.mlu_hijack_utils import MluHijackObject
+from sinfer.Intercept.mlu_hijack_utils import InterceptObject
 from typing import Optional
 from sinfer.distributed.parallel_state import (get_tensor_model_parallel_world_size, 
                                              get_pipeline_model_parallel_world_size)
@@ -168,16 +168,16 @@ def get_context_model_parallel_rank():
     return torch.distributed.get_rank(group=get_context_model_parallel_group())
 
 
-MluHijackObject.add_hijack_object(parallel_state,
+InterceptObject.add_intercept(parallel_state,
                                   "initialize_model_parallel",
                                   sinfer__distributed__parallel_state__initialize_model_parallel_wraper)
-MluHijackObject.add_hijack_object(parallel_state,
+InterceptObject.add_intercept(parallel_state,
                                   "model_parallel_is_initialized",
                                   sinfer__distributed__parallel_state__model_parallel_is_initialized_wraper)
-MluHijackObject.add_hijack_object(parallel_state,
+InterceptObject.add_intercept(parallel_state,
                                   "destroy_model_parallel",
                                   sinfer__distributed__parallel_state__destroy_model_parallel_wraper)
-MluHijackObject.add_hijack_object(parallel_state,
+InterceptObject.add_intercept(parallel_state,
                                   "ensure_model_parallel_initialized",
                                   sinfer__distributed__parallel_state__ensure_model_parallel_initialized_wraper)
 

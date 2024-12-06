@@ -4,10 +4,10 @@ from sinfer.distributed import communication_op
 from sinfer.distributed.parallel_state import (get_tensor_model_parallel_group,
                                              get_tensor_model_parallel_rank,
                                              get_tensor_model_parallel_world_size)
-from sinfer.Intercept.mlu_hijack_utils import MluHijackObject
+from sinfer.Intercept.mlu_hijack_utils import InterceptObject
 
 
-def sinfer__distributed__communication_op__tensor_model_parallel_gather(
+def intercept_tensor_model_parallel_gather(
         input_: torch.Tensor,
         dst: int = 0,
         dim: int = -1) -> torch.Tensor:
@@ -66,6 +66,6 @@ def sinfer__distributed__communication_op__tensor_model_parallel_gather(
     return output_tensor
 
 
-MluHijackObject.add_hijack_object(communication_op,
+InterceptObject.add_intercept(communication_op,
                                   communication_op.tensor_model_parallel_gather,
-                                  sinfer__distributed__communication_op__tensor_model_parallel_gather)
+                                  intercept_tensor_model_parallel_gather)

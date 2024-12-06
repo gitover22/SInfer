@@ -6,12 +6,12 @@ from typing import List, Optional, Tuple, Union
 from sinfer.attention import AttentionMetadata
 from sinfer.model_executor.layers.quantization.base_config import QuantizationConfig
 from sinfer.Intercept.mlu_definitions import *
-from sinfer.Intercept.mlu_hijack_utils import MluHijackObject
+from sinfer.Intercept.mlu_hijack_utils import InterceptObject
 from sinfer.distributed import tensor_model_parallel_all_reduce
 from sinfer.model_executor.models.mixtral import MixtralAttention, MixtralMoE
 from sinfer.Intercept.mlu_hijack_utils import set_is_gated
 
-def sinfer__module_executor__models__mixtral__MixtralAttention__forward(
+def intercept_MixtralAttention_forward(
     self,
     positions: torch.Tensor,
     hidden_states: torch.Tensor,
@@ -28,7 +28,7 @@ def sinfer__module_executor__models__mixtral__MixtralAttention__forward(
     output, _ = self.o_proj(attn_output)
     return output
 
-def sinfer__module_executor__models__mixtral__MixtralMoE__forward(
+def intercept_MixtralMoE_forward(
     self,
     hidden_states: torch.Tensor
 ) -> torch.Tensor:
@@ -61,10 +61,10 @@ def sinfer__module_executor__models__mixtral__MixtralMoE__forward(
 
 
 set_is_gated(True)
-MluHijackObject.add_hijack_object(MixtralAttention,
+InterceptObject.add_intercept(MixtralAttention,
                                   MixtralAttention.forward,
-                                  sinfer__module_executor__models__mixtral__MixtralAttention__forward)
-MluHijackObject.add_hijack_object(MixtralMoE,
+                                  intercept_MixtralAttention_forward)
+InterceptObject.add_intercept(MixtralMoE,
                                   MixtralMoE.forward,
-                                  sinfer__module_executor__models__mixtral__MixtralMoE__forward)
+                                  intercept_MixtralMoE_forward)
 

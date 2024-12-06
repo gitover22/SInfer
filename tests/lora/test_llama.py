@@ -128,14 +128,14 @@ def test_llama_lora_warmup(sql_lora_files):
     @ray.remote(num_gpus=1)
     def get_num_gpu_blocks_lora():
         llm = sinfer.LLM(MODEL_PATH, enable_lora=True, max_num_seqs=16)
-        num_gpu_blocks_lora_warmup = llm.llm_engine.cache_config.num_gpu_blocks
+        num_gpu_blocks_lora_warmup = llm.llm_runtime.cache_config.num_gpu_blocks
         return num_gpu_blocks_lora_warmup
 
     @ray.remote(num_gpus=1)
     def get_num_gpu_blocks_no_lora():
         llm = sinfer.LLM(MODEL_PATH, max_num_seqs=16)
         num_gpu_blocks_no_lora_warmup = (
-            llm.llm_engine.cache_config.num_gpu_blocks)
+            llm.llm_runtime.cache_config.num_gpu_blocks)
         return num_gpu_blocks_no_lora_warmup
 
     num_gpu_blocks_lora_warmup = ray.get(get_num_gpu_blocks_lora.remote())

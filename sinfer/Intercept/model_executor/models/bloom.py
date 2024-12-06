@@ -8,14 +8,14 @@ from sinfer.logger import init_logger
 from sinfer.model_executor.layers.quantization.base_config import (
     QuantizationConfig)
 from sinfer.Intercept.model_executor.layers.feed_forward import FeedForward
-from sinfer.Intercept.mlu_hijack_utils import MluHijackObject
+from sinfer.Intercept.mlu_hijack_utils import InterceptObject
 
 from sinfer.model_executor.models.bloom import BloomAttention, BloomBlock
 
 logger = init_logger(__name__)
 
 
-def sinfer__module_executor__models__baichuan__BloomBlock__init__(
+def intercept_baichuan__BloomBlock__init__(
         self,
         config: BloomConfig,
         quant_config: Optional[QuantizationConfig] = None,
@@ -41,6 +41,6 @@ def sinfer__module_executor__models__baichuan__BloomBlock__init__(
     self.apply_residual_connection_post_layernorm = (
             config.apply_residual_connection_post_layernorm)
     
-MluHijackObject.add_hijack_object(BloomBlock,
+InterceptObject.add_intercept(BloomBlock,
                                   BloomBlock.__init__,
-                                  sinfer__module_executor__models__baichuan__BloomBlock__init__)
+                                  intercept_baichuan__BloomBlock__init__)

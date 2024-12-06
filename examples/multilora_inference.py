@@ -109,7 +109,7 @@ def initialize_engine() -> LLMRuntime:
                              max_lora_rank=8,
                              max_cpu_loras=2,
                              max_num_seqs=256)
-    return LLMRuntime.from_engine_args(engine_args)
+    return LLMRuntime.from_runtime_args(engine_args)
 
 
 def main():

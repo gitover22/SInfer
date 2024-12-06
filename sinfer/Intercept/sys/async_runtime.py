@@ -1,18 +1,18 @@
 
 
 from sinfer.sys.async_runtime import AsyncLLMRuntime
-from sinfer.Intercept.mlu_hijack_utils import MluHijackObject
+from sinfer.Intercept.mlu_hijack_utils import InterceptObject
 from sinfer.logger import init_logger
 
 logger = init_logger(__name__)
 
 
 # for client pulling server scheduler profile data
-def sinfer__engine__async_llm_engine__AsyncLLMEngine__save_scheduler_view(self):
+def intercept_AsyncLLMEngine_save_scheduler_view(self):
     if hasattr(self.engine.scheduler, "__del__"):
         self.engine.scheduler.__del__()
 
 
-MluHijackObject.add_hijack_object(AsyncLLMRuntime,
+InterceptObject.add_intercept(AsyncLLMRuntime,
                                   "save_scheduler_view",
-                                  sinfer__engine__async_llm_engine__AsyncLLMEngine__save_scheduler_view)
+                                  intercept_AsyncLLMEngine_save_scheduler_view)

@@ -44,7 +44,7 @@ def process_requests(engine: LLMRuntime,
 def initialize_engine(args: argparse.Namespace) -> LLMRuntime:
     """Initialize the LLMRuntime from the command line arguments."""
     engine_args = RuntimeArgs.from_cli_args(args)
-    return LLMRuntime.from_engine_args(engine_args)
+    return LLMRuntime.from_runtime_args(engine_args)
 
 
 def main(args: argparse.Namespace):

@@ -4,7 +4,7 @@ from torch import nn
 from typing import List, Optional, Tuple
 from sinfer.attention import AttentionMetadata
 from sinfer.Intercept.mlu_definitions import *
-from sinfer.Intercept.mlu_hijack_utils import MluHijackObject
+from sinfer.Intercept.mlu_hijack_utils import InterceptObject
 from sinfer.logger import init_logger
 
 from sinfer.model_executor.models.qwen import QWenAttention, QWenBlock, QWenModel
@@ -25,17 +25,17 @@ logger = init_logger(__name__)
 KVCache = Tuple[torch.Tensor, torch.Tensor]
 
 
-sinfer__model_executor__models__QwenModel__forward_ori = QWenModel.forward
-sinfer__model_executor__models__Qwen2Model__forward_ori = Qwen2Model.forward
-sinfer__model_executor__models__Qwen2MoeModel__forward_ori = Qwen2MoeModel.forward
-sinfer__model_executor__models__LlamaModel__forward_ori = LlamaModel.forward
-sinfer__model_executor__models__FalconModel__forward_ori = FalconModel.forward
-sinfer__model_executor__models__BaiChuanModel__forward_ori = BaiChuanModel.forward
-sinfer__model_executor__models__ChatGLMModel__forward_ori = ChatGLMModel.forward
-sinfer__model_executor__models__GPTNeoXModel__forward_ori = GPTNeoXModel.forward
-sinfer__model_executor__models__MixtralModel__forward_ori = MixtralModel.forward
-sinfer__mlu_hijack__model_executor__custom_models__CustomModel__forward_ori = CustomModel.forward
-sinfer__model_executor__models__BloomModel__forward_ori = BloomModel.forward
+QwenModel__forward_ori = QWenModel.forward
+Qwen2Model__forward_ori = Qwen2Model.forward
+Qwen2MoeModel__forward_ori = Qwen2MoeModel.forward
+LlamaModel__forward_ori = LlamaModel.forward
+FalconModel__forward_ori = FalconModel.forward
+BaiChuanModel__forward_ori = BaiChuanModel.forward
+ChatGLMModel__forward_ori = ChatGLMModel.forward
+GPTNeoXModel__forward_ori = GPTNeoXModel.forward
+MixtralModel__forward_ori = MixtralModel.forward
+CustomModel__forward_ori = CustomModel.forward
+BloomModel__forward_ori = BloomModel.forward
 
 
 model_list = [
@@ -55,23 +55,23 @@ model_list = [
 
 def get_model_with_dict(model):
     model_dict = {
-        "QWenModel" : sinfer__model_executor__models__QwenModel__forward_ori,
-        "Qwen2Model" : sinfer__model_executor__models__Qwen2Model__forward_ori,
-        "Qwen2MoeModel" : sinfer__model_executor__models__Qwen2MoeModel__forward_ori,
-        "LlamaModel" : sinfer__model_executor__models__LlamaModel__forward_ori,
-        "FalconModel" : sinfer__model_executor__models__FalconModel__forward_ori,
-        "BaiChuanModel" : sinfer__model_executor__models__BaiChuanModel__forward_ori,
-        "ChatGLMModel" : sinfer__model_executor__models__ChatGLMModel__forward_ori,
-        "GPTNeoXModel" : sinfer__model_executor__models__GPTNeoXModel__forward_ori,
-        "MixtralModel" : sinfer__model_executor__models__MixtralModel__forward_ori,
-        "CustomModel" : sinfer__mlu_hijack__model_executor__custom_models__CustomModel__forward_ori,
-        "BloomModel" : sinfer__model_executor__models__BloomModel__forward_ori,
+        "QWenModel" : QwenModel__forward_ori,
+        "Qwen2Model" : Qwen2Model__forward_ori,
+        "Qwen2MoeModel" : Qwen2MoeModel__forward_ori,
+        "LlamaModel" : LlamaModel__forward_ori,
+        "FalconModel" : FalconModel__forward_ori,
+        "BaiChuanModel" : BaiChuanModel__forward_ori,
+        "ChatGLMModel" : ChatGLMModel__forward_ori,
+        "GPTNeoXModel" : GPTNeoXModel__forward_ori,
+        "MixtralModel" : MixtralModel__forward_ori,
+        "CustomModel" : CustomModel__forward_ori,
+        "BloomModel" : BloomModel__forward_ori,
     }
     return model_dict.get(model.__name__)
 
 
 # init layer params before model forward
-def sinfer__module_executor__models__model_forward_preprocess(
+def model_forward_preprocess(
         input_ids: torch.Tensor,
         attn_metadata: AttentionMetadata):
     """
@@ -116,7 +116,7 @@ def sinfer__module_executor__models__model_forward_preprocess(
     return
 
 # clear layer params after model forward
-def sinfer__module_executor__models__model_forward_postprocess():
+def model_forward_postprocess():
     sinfer.model_executor.layers.rotary_embedding.RotaryEmbedding.unset_cos_sin()
     sinfer.model_executor.layers.rotary_embedding.RotaryEmbedding.unset_cu_seq_len()
     sinfer.model_executor.layers.rotary_embedding.RotaryEmbedding.unset_max_seq_len()
@@ -125,7 +125,7 @@ def sinfer__module_executor__models__model_forward_postprocess():
     return
 
 
-def sinfer__module_executor__models__before_and_after_model_forward(self,
+def intercept_model_forward(self,
         input_ids: torch.Tensor,
         positions: torch.Tensor,
         kv_caches: List[KVCache],
@@ -135,16 +135,16 @@ def sinfer__module_executor__models__before_and_after_model_forward(self,
     # Now support pre/postprocess for this model
     # BaichuanModel Qwen2Model QWenModel MixtralModel ChatGLMModel GPTNeoXModel LlamaModel FalconModel
     forward = get_model_with_dict(model)
-    sinfer__module_executor__models__model_forward_preprocess(input_ids, attn_metadata)
+    model_forward_preprocess(input_ids, attn_metadata)
     if inputs_embeds is None:
         hidden_states = forward(self, input_ids, positions, kv_caches, attn_metadata)
     else:
         hidden_states = forward(self, input_ids, positions, kv_caches, attn_metadata, inputs_embeds)
-    sinfer__module_executor__models__model_forward_postprocess()
+    model_forward_postprocess()
     return hidden_states
 
 
 for model in model_list:
-    MluHijackObject.add_hijack_object(model,
+    InterceptObject.add_intercept(model,
                                       model.forward,
-                                      sinfer__module_executor__models__before_and_after_model_forward)
+                                      intercept_model_forward)

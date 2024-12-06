@@ -10,7 +10,7 @@ from sinfer.model_executor.layers.quantization.base_config import QuantizationCo
 from sinfer.model_executor.layers.layernorm import RMSNorm
 from sinfer.Intercept.mlu_definitions import *
 from sinfer.Intercept.model_executor.layers.feed_forward import FeedForward
-from sinfer.Intercept.mlu_hijack_utils import MluHijackObject
+from sinfer.Intercept.mlu_hijack_utils import InterceptObject
 from sinfer.distributed import (get_tensor_model_parallel_rank,
                               get_tensor_model_parallel_world_size,
                               tensor_model_parallel_all_reduce)
@@ -19,7 +19,7 @@ from sinfer.model_executor.model_loader.weight_utils import default_weight_loade
 from sinfer.model_executor.layers.linear import ReplicatedLinear
 from sinfer.model_executor.models.qwen2_moe import Qwen2MoeMLP, Qwen2MoeSparseMoeBlock, Qwen2MoeAttention, Qwen2MoeDecoderLayer, Qwen2MoeModel, Qwen2MoeForCausalLM
 
-def sinfer__module_executor__models__qwen2moe__Qwen2MoeAttention__forward(
+def intercept_Qwen2MoeAttention_forward(
     self,
     positions: torch.Tensor,
     hidden_states: torch.Tensor,
@@ -37,7 +37,7 @@ def sinfer__module_executor__models__qwen2moe__Qwen2MoeAttention__forward(
     output, _ = self.o_proj(attn_output)
     return output
 
-def sinfer__module_executor__models__qwen2moe__Qwen2MoeDecoderLayer____init__(
+def intercept_Qwen2MoeDecoderLayer__init__(
     self,
     config: PretrainedConfig,
     layer_idx: int,
@@ -79,7 +79,7 @@ def sinfer__module_executor__models__qwen2moe__Qwen2MoeDecoderLayer____init__(
     self.post_attention_layernorm = RMSNorm(config.hidden_size,
                                             eps=config.rms_norm_eps)
 
-def sinfer__module_executor__models__qwen2moe__Qwen2MoeSparseMoeBlock____init__(
+def intercept_Qwen2MoeSparseMoeBlock__init__(
     self,
     config: PretrainedConfig,
     quant_config: Optional[QuantizationConfig] = None,
@@ -137,7 +137,7 @@ def sinfer__module_executor__models__qwen2moe__Qwen2MoeSparseMoeBlock____init__(
                                               1,
                                               bias=False)
 
-def sinfer__module_executor__models__qwen2moe__Qwen2MoeSparseMoeBlock__forward(
+def intercept_Qwen2MoeSparseMoeBlock_forward(
     self,
     hidden_states: torch.Tensor
 ) -> torch.Tensor:
@@ -176,7 +176,7 @@ def sinfer__module_executor__models__qwen2moe__Qwen2MoeSparseMoeBlock__forward(
 
     return final_hidden_states.view(num_tokens, hidden_dim)
 
-def sinfer__module_executor__models__qwen2moe__Qwen2MoeSparseMoeBlock__weight_loader(
+def intercept_Qwen2MoeSparseMoeBlock_weight_loader(
     self,
     param: nn.Parameter,
     loaded_weight: torch.Tensor,
@@ -195,7 +195,7 @@ def sinfer__module_executor__models__qwen2moe__Qwen2MoeSparseMoeBlock__weight_lo
     if weight_name.endswith("down_proj.weight"):
         param_data[expert_id, :, :] = loaded_weight[:, shard]
 
-def sinfer__module_executor__models__qwen2moe__Qwen2MoeForCausalLM__load_weights(
+def intercept_Qwen2MoeForCausalLM_load_weights(
     self,
     weights: Iterable[Tuple[str, torch.Tensor]]
 ):
@@ -267,22 +267,22 @@ def sinfer__module_executor__models__qwen2moe__Qwen2MoeForCausalLM__load_weights
                                         default_weight_loader)
                 weight_loader(param, loaded_weight)
 
-MluHijackObject.add_hijack_object(Qwen2MoeAttention,
+InterceptObject.add_intercept(Qwen2MoeAttention,
                                   Qwen2MoeAttention.forward,
-                                  sinfer__module_executor__models__qwen2moe__Qwen2MoeAttention__forward)
-MluHijackObject.add_hijack_object(Qwen2MoeDecoderLayer,
+                                  intercept_Qwen2MoeAttention_forward)
+InterceptObject.add_intercept(Qwen2MoeDecoderLayer,
                                   Qwen2MoeDecoderLayer.__init__,
-                                  sinfer__module_executor__models__qwen2moe__Qwen2MoeDecoderLayer____init__)
-MluHijackObject.add_hijack_object(Qwen2MoeSparseMoeBlock,
+                                  intercept_Qwen2MoeDecoderLayer__init__)
+InterceptObject.add_intercept(Qwen2MoeSparseMoeBlock,
                                   Qwen2MoeSparseMoeBlock.__init__,
-                                  sinfer__module_executor__models__qwen2moe__Qwen2MoeSparseMoeBlock____init__)
-MluHijackObject.add_hijack_object(Qwen2MoeSparseMoeBlock,
+                                  intercept_Qwen2MoeSparseMoeBlock__init__)
+InterceptObject.add_intercept(Qwen2MoeSparseMoeBlock,
                                   Qwen2MoeSparseMoeBlock.forward,
-                                  sinfer__module_executor__models__qwen2moe__Qwen2MoeSparseMoeBlock__forward)
-MluHijackObject.add_hijack_object(Qwen2MoeSparseMoeBlock,
+                                  intercept_Qwen2MoeSparseMoeBlock_forward)
+InterceptObject.add_intercept(Qwen2MoeSparseMoeBlock,
                                   "weight_loader",
-                                  sinfer__module_executor__models__qwen2moe__Qwen2MoeSparseMoeBlock__weight_loader)
-MluHijackObject.add_hijack_object(Qwen2MoeForCausalLM,
+                                  intercept_Qwen2MoeSparseMoeBlock_weight_loader)
+InterceptObject.add_intercept(Qwen2MoeForCausalLM,
                                   Qwen2MoeForCausalLM.load_weights,
-                                  sinfer__module_executor__models__qwen2moe__Qwen2MoeForCausalLM__load_weights)
+                                  intercept_Qwen2MoeForCausalLM_load_weights)
 

@@ -3,22 +3,19 @@ import torch
 import sinfer
 import torch.nn.functional as F
 from sinfer.logger import init_logger
-from sinfer.Intercept.mlu_hijack_utils import MluHijackObject
+from sinfer.Intercept.mlu_hijack_utils import InterceptObject
 from bangtransformer.torch import bt_ops
 from sinfer.model_executor.layers.linear import UnquantizedLinearMethod
 
 logger = init_logger(__name__)
 
 
-def sinfer__model_executor__layers__linear__UnquantizedLinearMethod__apply(self,
+def intercept_UnquantizedLinearMethod_apply(self,
             layer: torch.nn.Module,
             x: torch.Tensor,
             bias: Optional[torch.Tensor] = None) -> torch.Tensor:
     weight = layer.weight
     '''
-    =============================
-    Modify by sinfer_mlu
-    =============================
     @brief: use bt_ops.matmul
     '''
     if weight.shape[0] >= 16:
@@ -29,8 +26,6 @@ def sinfer__model_executor__layers__linear__UnquantizedLinearMethod__apply(self,
         return bt_ops.matmul(x, weight, bias, None, "none", 1.0, 0)
     '''
     =================
-    End of MLU Hijack
-    =================
     '''
     if self.separate_bias_add:
         if bias is not None:
@@ -39,6 +34,6 @@ def sinfer__model_executor__layers__linear__UnquantizedLinearMethod__apply(self,
     return F.linear(x, weight, bias)
 
 
-MluHijackObject.add_hijack_object(UnquantizedLinearMethod,
+InterceptObject.add_intercept(UnquantizedLinearMethod,
                                   UnquantizedLinearMethod.apply,
-                                  sinfer__model_executor__layers__linear__UnquantizedLinearMethod__apply)
+                                  intercept_UnquantizedLinearMethod_apply)

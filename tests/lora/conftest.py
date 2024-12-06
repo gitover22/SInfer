@@ -167,7 +167,7 @@ def llama_2_7b_engine_extra_embeddings() -> nn.Module:
 
     with patch("sinfer.worker.model_runner.get_model", get_model_patched):
         engine = sinfer.LLM("meta-llama/Llama-2-7b-hf", enable_lora=False)
-    yield engine.llm_engine
+    yield engine.llm_runtime
     del engine
     cleanup()
 

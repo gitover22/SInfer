@@ -5,10 +5,10 @@ import warnings
 warnings.filterwarnings("ignore", category=ResourceWarning)
 
 from sinfer.Intercept.mlu_definitions import *
-from sinfer.Intercept.mlu_hijack_utils import MluHijackObject
+from sinfer.Intercept.mlu_hijack_utils import InterceptObject
 from sinfer.Intercept.mlu_hijack import SinferMluHijack
      
-MluHijackObject.undo_hijack()
+InterceptObject.remove_intercept()
 
 print("Apply Context Parallel Demo!")
 from . import distributed
@@ -19,4 +19,4 @@ from . import entrypoints
 from . import model_executor
 from . import worker
 
-MluHijackObject.apply_hijack()
+InterceptObject.apply_intercept()

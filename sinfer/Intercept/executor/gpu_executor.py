@@ -1,8 +1,8 @@
-from sinfer.Intercept.mlu_hijack_utils import MluHijackObject
+from sinfer.Intercept.mlu_hijack_utils import InterceptObject
 from sinfer.executor.gpu_executor import GPUExecutor
 
 
-def sinfer__executor__gpu_executor__GPUExecutor__get_latency(self):
+def intercept_get_latency(self):
     '''
     requires that torch.cuda.synchronize() be executed before this function 
     for getting an accurate reading
@@ -11,6 +11,6 @@ def sinfer__executor__gpu_executor__GPUExecutor__get_latency(self):
     return latency
 
 
-MluHijackObject.add_hijack_object(GPUExecutor,
+InterceptObject.add_intercept(GPUExecutor,
                                   "get_latency",
-                                  sinfer__executor__gpu_executor__GPUExecutor__get_latency)
+                                  intercept_get_latency)

@@ -7,26 +7,26 @@ from sinfer.config import CacheConfig, LoRAConfig, SchedulerConfig
 from sinfer.core.policy import Policy
 from sinfer.core.scheduler import SchedulingBudget, SchedulerPrefillOutputs, SchedulerRunningOutputs, SchedulerSwappedInOutputs, SchedulerOutputs, Scheduler
 from sinfer.sequence import SequenceGroup, Sequence
-from sinfer.Intercept.mlu_hijack_utils import MluHijackObject
+from sinfer.Intercept.mlu_hijack_utils import InterceptObject
 from sinfer.logger import init_logger
 
 logger = init_logger(__name__)
 
 
-sinfer__core__scheduler__Scheduler____init____org = Scheduler.__init__
-sinfer__core__scheduler__Scheduler___schedule_prefills__org = Scheduler._schedule_prefills
-sinfer__core__scheduler__Scheduler___schedule_running__org = Scheduler._schedule_running
-sinfer__core__scheduler__Scheduler___schedule_swapped__org = Scheduler._schedule_swapped
-sinfer__core__scheduler__Scheduler___schedule_default__org = Scheduler._schedule_default
+Scheduler__init__org = Scheduler.__init__
+schedule_prefills__org = Scheduler._schedule_prefills
+schedule_running__org = Scheduler._schedule_running
+schedule_swapped__org = Scheduler._schedule_swapped
+schedule_default__org = Scheduler._schedule_default
 
 
-def sinfer__core__scheduler__Scheduler____init__(
+def intercept_Scheduler__init__(
     self,
     scheduler_config: SchedulerConfig,
     cache_config: CacheConfig,
     lora_config: Optional[LoRAConfig],
 ) -> None:
-    sinfer__core__scheduler__Scheduler____init____org(
+    Scheduler__init__org(
         self=self,
         scheduler_config=scheduler_config,
         cache_config=cache_config,
@@ -55,14 +55,14 @@ def sinfer__core__scheduler__Scheduler____init__(
 
     self.finished_seq_groups = []
 
-def sinfer__core__scheduler__Scheduler___schedule_prefills(
+def intercept_schedule_prefills(
     self,
     waiting_queue: deque,
     budget: SchedulingBudget,
     curr_loras: Optional[Set[int]],
     enable_chunking: bool = False,
 ) -> Tuple[deque, SchedulerPrefillOutputs]:
-    remaining_waiting, prefills = sinfer__core__scheduler__Scheduler___schedule_prefills__org(
+    remaining_waiting, prefills = schedule_prefills__org(
         self=self,
         waiting_queue=waiting_queue,
         budget=budget,
@@ -76,7 +76,7 @@ def sinfer__core__scheduler__Scheduler___schedule_prefills(
     # sched_to_ingore = [s.seq_group.request_id for s in prefills.ignored_seq_groups]
     return remaining_waiting, prefills
 
-def sinfer__core__scheduler__Scheduler___schedule_running(
+def intercept_schedule_running(
     self,
     running_queue: deque,
     budget: SchedulingBudget,
@@ -84,7 +84,7 @@ def sinfer__core__scheduler__Scheduler___schedule_running(
     policy: Policy,
     enable_chunking: bool = False,
 ) -> Tuple[deque, SchedulerRunningOutputs]:
-    remaining_running, running_scheduled = sinfer__core__scheduler__Scheduler___schedule_running__org(
+    remaining_running, running_scheduled = schedule_running__org(
         self=self,
         running_queue=running_queue,
         budget=budget,
@@ -101,7 +101,7 @@ def sinfer__core__scheduler__Scheduler___schedule_running(
     
     return remaining_running, running_scheduled
 
-def sinfer__core__scheduler__Scheduler___schedule_swapped(
+def intercept_schedule_swapped(
     self,
     swapped_queue: deque,
     budget: SchedulingBudget,
@@ -109,7 +109,7 @@ def sinfer__core__scheduler__Scheduler___schedule_swapped(
     policy: Policy,
     enable_chunking: bool = False,
 ) -> Tuple[deque, SchedulerSwappedInOutputs]:
-    remaining_swapped, swapped_in = sinfer__core__scheduler__Scheduler___schedule_swapped__org(
+    remaining_swapped, swapped_in = schedule_swapped__org(
         self=self,
         swapped_queue=swapped_queue,
         budget=budget,
@@ -123,13 +123,13 @@ def sinfer__core__scheduler__Scheduler___schedule_swapped(
     # sched_to_swap_in = [s.seq_group.request_id for s in swapped_in.decode_seq_groups]
     return remaining_swapped, swapped_in
 
-def sinfer__core__scheduler__Scheduler___schedule_default(self) -> SchedulerOutputs:
-    scheduler_outputs = sinfer__core__scheduler__Scheduler___schedule_default__org(self)
+def intercept_schedule_default(self) -> SchedulerOutputs:
+    scheduler_outputs = schedule_default__org(self)
     # add for scheduler profiling
     self.sched_step += 1
     return scheduler_outputs
 
-def sinfer__core__scheduler__Scheduler__free_finished_seq_groups(self) -> None:
+def intercept_free_finished_seq_groups(self) -> None:
     # add for scheduler profiling
     finished_seq_groups_ = [seq_group for seq_group in self.running
                                     if seq_group.is_finished()]
@@ -190,7 +190,7 @@ def summary_finished_seq_groups(seq_groups: List[SequenceGroup]):
     return df
 
 
-def sinfer__core__scheduler__Scheduler____del__(self):
+def intercept_Scheduler__del__(self):
     logger.info(f"SInfer scheduler profiling save...")
     figure = self.df.plot(y=['waiting', 'running', 'swapped', 'finished']).get_figure()
     figure.savefig("sinfer_queue_view.jpg", dpi=300)
@@ -216,24 +216,24 @@ def sinfer__core__scheduler__Scheduler____del__(self):
     time_df.astype(str).to_csv("sinfer_time_view.csv", mode="w")
 
 
-MluHijackObject.add_hijack_object(Scheduler,
+InterceptObject.add_intercept(Scheduler,
                                   Scheduler.__init__,
-                                  sinfer__core__scheduler__Scheduler____init__)
-MluHijackObject.add_hijack_object(Scheduler,
+                                  intercept_Scheduler__init__)
+InterceptObject.add_intercept(Scheduler,
                                   Scheduler._schedule_prefills,
-                                  sinfer__core__scheduler__Scheduler___schedule_prefills)
-MluHijackObject.add_hijack_object(Scheduler,
+                                  intercept_schedule_prefills)
+InterceptObject.add_intercept(Scheduler,
                                   Scheduler._schedule_running,
-                                  sinfer__core__scheduler__Scheduler___schedule_running)
-MluHijackObject.add_hijack_object(Scheduler,
+                                  intercept_schedule_running)
+InterceptObject.add_intercept(Scheduler,
                                   Scheduler._schedule_swapped,
-                                  sinfer__core__scheduler__Scheduler___schedule_swapped)
-MluHijackObject.add_hijack_object(Scheduler,
+                                  intercept_schedule_swapped)
+InterceptObject.add_intercept(Scheduler,
                                   Scheduler._schedule_default,
-                                  sinfer__core__scheduler__Scheduler___schedule_default)
-MluHijackObject.add_hijack_object(Scheduler,
+                                  intercept_schedule_default)
+InterceptObject.add_intercept(Scheduler,
                                   Scheduler.free_finished_seq_groups,
-                                  sinfer__core__scheduler__Scheduler__free_finished_seq_groups)
-MluHijackObject.add_hijack_object(Scheduler,
+                                  intercept_free_finished_seq_groups)
+InterceptObject.add_intercept(Scheduler,
                                   "__del__",
-                                  sinfer__core__scheduler__Scheduler____del__)
+                                  intercept_Scheduler__del__)

@@ -5,9 +5,9 @@ import triton
 import triton.language as tl
 
 import sinfer
-from sinfer.Intercept.mlu_hijack_utils import MluHijackObject
+from sinfer.Intercept.mlu_hijack_utils import InterceptObject
 
-def sinfer__model_executor__layers__ops__rand__seeded_uniform(
+def intercept_seeded_uniform(
     *size,
     seeds: torch.Tensor,
     out: Optional[torch.Tensor] = None,
@@ -69,7 +69,7 @@ def sinfer__model_executor__layers__ops__rand__seeded_uniform(
     =============================
     @brief: disable custom_all_reduce, re-set block_size to support paged and unpaged mode
     '''
-    sinfer__model_executor__layers__ops__rand__seeded_uniform_triton[(n_rows, n_3d, 1)](
+    intercept_seeded_uniform_triton[(n_rows, n_3d, 1)](
         out,
         seeds,
         stride_row,
@@ -79,15 +79,10 @@ def sinfer__model_executor__layers__ops__rand__seeded_uniform(
         n_3d,
         n_cols,
     )
-    '''
-    ==================
-    End of MLU Hijack
-    ==================
-    '''
     return out
 
 @triton.jit
-def sinfer__model_executor__layers__ops__rand__seeded_uniform_triton(
+def intercept_seeded_uniform_triton(
     out_ptr: torch.Tensor,
     seed_ptr: torch.Tensor,
     out_row_stride: int,
@@ -159,16 +154,11 @@ def sinfer__model_executor__layers__ops__rand__seeded_uniform_triton(
             tl.store(output_row_start_ptr + out4_offsets,
                      out4,
                      mask=out4_offsets < n_cols)
-    """
-    ===================================
-    End of MLU Hijack
-    ===================================
-    """
 
-MluHijackObject.add_hijack_object(sinfer.model_executor.layers.ops.rand,
+InterceptObject.add_intercept(sinfer.model_executor.layers.ops.rand,
                                   sinfer.model_executor.layers.ops.rand.seeded_uniform,
-                                  sinfer__model_executor__layers__ops__rand__seeded_uniform)
+                                  intercept_seeded_uniform)
 
-MluHijackObject.add_hijack_object(sinfer.model_executor.layers.ops.sample,
+InterceptObject.add_intercept(sinfer.model_executor.layers.ops.sample,
                                   sinfer.model_executor.layers.ops.sample.seeded_uniform,
-                                  sinfer__model_executor__layers__ops__rand__seeded_uniform)
+                                  intercept_seeded_uniform)

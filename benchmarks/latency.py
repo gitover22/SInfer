@@ -41,7 +41,7 @@ def main(args: argparse.Namespace):
               load_format=args.load_format)
 
     max_length = args.input_len + args.output_len
-    max_model_len = llm.llm_engine.model_config.max_model_len
+    max_model_len = llm.llm_runtime.model_config.max_model_len
     if max_length > max_model_len:
         logger.warning(
             f"The sum of input length({args.input_len}) and output"

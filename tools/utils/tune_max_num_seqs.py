@@ -12,8 +12,8 @@ def run_sinfer(config: Dict[str, Any]) -> float:
     print(f'Evaluate with max_num_seqs: {config["max_num_seqs"]}')
     from sinfer import LLM
     llm = LLM(**config)
-    print(f'The num of gpu blocks is: {llm.llm_engine.cache_config.num_gpu_blocks}')
-    return llm.llm_engine.cache_config.num_gpu_blocks
+    print(f'The num of gpu blocks is: {llm.llm_runtime.cache_config.num_gpu_blocks}')
+    return llm.llm_runtime.cache_config.num_gpu_blocks
 
 
 def main(args: argparse.Namespace):

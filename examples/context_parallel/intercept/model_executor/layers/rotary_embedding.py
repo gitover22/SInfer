@@ -1,7 +1,7 @@
 from typing import Optional, Tuple, Union, Type
 import torch
 import sinfer
-from sinfer.Intercept.mlu_hijack_utils import MluHijackObject
+from sinfer.Intercept.mlu_hijack_utils import InterceptObject
 from bangtransformer.torch import bt_ops
 from sinfer.model_executor.layers.rotary_embedding import RotaryEmbedding
 from ...distributed.parallel_state import get_context_model_parallel_world_size
@@ -60,6 +60,6 @@ def sinfer__module_executor__layers__rotary_embedding__RotaryEmbedding__forward_
     '''
 
 
-MluHijackObject.add_hijack_object(RotaryEmbedding,
+InterceptObject.add_intercept(RotaryEmbedding,
                                   RotaryEmbedding.forward,
                                   sinfer__module_executor__layers__rotary_embedding__RotaryEmbedding__forward_wraper)

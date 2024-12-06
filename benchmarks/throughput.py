@@ -136,7 +136,7 @@ def run_sinfer(
 
     # 如果输入长度和输出长度的最大值之和 大于 模型的最大长度，则生成一个警告，因为只有前 `max_model_len` 的部分会被处理。
     max_length = max((req[1] + req[2] for req in requests), default=0)
-    max_model_len = llm.llm_engine.model_config.max_model_len
+    max_model_len = llm.llm_runtime.model_config.max_model_len
     if max_length > max_model_len:
         logger.warning(
             f"The sum of input and output length({max_length}) is larger than"

@@ -9,7 +9,7 @@ from sinfer.model_executor.layers.quantization.base_config import QuantizationCo
 from sinfer.model_executor.layers.layernorm import RMSNorm
 from sinfer.Intercept.mlu_definitions import *
 from sinfer.Intercept.model_executor.layers.feed_forward import FeedForward
-from sinfer.Intercept.mlu_hijack_utils import MluHijackObject
+from sinfer.Intercept.mlu_hijack_utils import InterceptObject
 from sinfer.logger import init_logger
 
 from sinfer.model_executor.models.gpt_neox import GPTNeoXAttention, GPTNeoXLayer
@@ -17,7 +17,7 @@ from sinfer.model_executor.models.gpt_neox import GPTNeoXAttention, GPTNeoXLayer
 logger = init_logger(__name__)
 
 
-def sinfer__module_executor__models__gpt_neox__GPTNeoXAttention__forward(
+def intercept_GPTNeoXAttention_forward(
     self,
     position_ids: torch.Tensor,
     hidden_states: torch.Tensor,
@@ -35,7 +35,7 @@ def sinfer__module_executor__models__gpt_neox__GPTNeoXAttention__forward(
     return output
 
 
-def sinfer__module_executor__models__gpt_neox__GPTNeoXLayer__init__(
+def intercept_GPTNeoXLayer__init__(
     self,
     config: GPTNeoXConfig,
     quant_config: Optional[QuantizationConfig] = None,
@@ -58,9 +58,9 @@ def sinfer__module_executor__models__gpt_neox__GPTNeoXLayer__init__(
                             quant_config=quant_config)
 
 
-MluHijackObject.add_hijack_object(GPTNeoXAttention,
+InterceptObject.add_intercept(GPTNeoXAttention,
                                   GPTNeoXAttention.forward,
-                                  sinfer__module_executor__models__gpt_neox__GPTNeoXAttention__forward)
-MluHijackObject.add_hijack_object(GPTNeoXLayer,
+                                  intercept_GPTNeoXAttention_forward)
+InterceptObject.add_intercept(GPTNeoXLayer,
                                   GPTNeoXLayer.__init__,
-                                  sinfer__module_executor__models__gpt_neox__GPTNeoXLayer__init__)
+                                  intercept_GPTNeoXLayer__init__)

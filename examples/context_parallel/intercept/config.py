@@ -1,6 +1,6 @@
 from sinfer.config import ParallelConfig, TokenizerPoolConfig
 from typing import Optional
-from sinfer.Intercept.mlu_hijack_utils import MluHijackObject
+from sinfer.Intercept.mlu_hijack_utils import InterceptObject
 
 def sinfer__config__ParallelConfig___init__(
     self,
@@ -41,6 +41,6 @@ def sinfer__config__ParallelConfig___init__(
     self._verify_args()
     
 
-MluHijackObject.add_hijack_object(ParallelConfig,
+InterceptObject.add_intercept(ParallelConfig,
                                   ParallelConfig.__init__,
                                   sinfer__config__ParallelConfig___init__)

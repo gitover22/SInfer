@@ -8,7 +8,7 @@ from sinfer.model_executor.layers.quantization.base_config import QuantizationCo
 from sinfer.model_executor.layers.layernorm import RMSNorm
 from sinfer.Intercept.mlu_definitions import *
 from sinfer.Intercept.model_executor.layers.feed_forward import FeedForward
-from sinfer.Intercept.mlu_hijack_utils import MluHijackObject
+from sinfer.Intercept.mlu_hijack_utils import InterceptObject
 from sinfer.logger import init_logger
 
 from sinfer.model_executor.models.qwen import QWenAttention, QWenBlock
@@ -16,7 +16,7 @@ from sinfer.model_executor.models.qwen import QWenAttention, QWenBlock
 logger = init_logger(__name__)
 
 
-def sinfer__module_executor__models__qwen__QwenAttention__forward(
+def intercept_QwenAttention_forward(
     self,
     positions: torch.Tensor,
     hidden_states: torch.Tensor,
@@ -35,7 +35,7 @@ def sinfer__module_executor__models__qwen__QwenAttention__forward(
     return output
 
 
-def sinfer__module_executor__models__qwen__QWenBlock__init__(
+def intercept_QWenBlock__init__(
     self,
     config: PretrainedConfig,
     quant_config: Optional[QuantizationConfig] = None,
@@ -63,9 +63,9 @@ def sinfer__module_executor__models__qwen__QWenBlock__init__(
                             bias=False,
                             quant_config=quant_config)
 
-MluHijackObject.add_hijack_object(QWenAttention,
+InterceptObject.add_intercept(QWenAttention,
                                   QWenAttention.forward,
-                                  sinfer__module_executor__models__qwen__QwenAttention__forward)
-MluHijackObject.add_hijack_object(QWenBlock,
+                                  intercept_QwenAttention_forward)
+InterceptObject.add_intercept(QWenBlock,
                                   QWenBlock.__init__,
-                                  sinfer__module_executor__models__qwen__QWenBlock__init__)
+                                  intercept_QWenBlock__init__)
