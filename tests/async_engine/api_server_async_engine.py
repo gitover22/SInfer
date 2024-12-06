@@ -7,12 +7,12 @@ from fastapi.responses import JSONResponse, Response
 
 import sinfer.entrypoints.api_server
 from sinfer.sys.arg_utils import AsyncEngineArgs
-from sinfer.sys.async_runtime import AsyncLLMEngine
+from sinfer.sys.async_runtime import AsyncLLMRuntime
 
 app = sinfer.entrypoints.api_server.app
 
 
-class AsyncLLMEngineWithStats(AsyncLLMEngine):
+class AsyncLLMEngineWithStats(AsyncLLMRuntime):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

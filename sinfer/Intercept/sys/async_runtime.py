@@ -1,6 +1,6 @@
 
 
-from sinfer.sys.async_runtime import AsyncLLMEngine
+from sinfer.sys.async_runtime import AsyncLLMRuntime
 from sinfer.Intercept.mlu_hijack_utils import MluHijackObject
 from sinfer.logger import init_logger
 
@@ -13,6 +13,6 @@ def sinfer__engine__async_llm_engine__AsyncLLMEngine__save_scheduler_view(self):
         self.engine.scheduler.__del__()
 
 
-MluHijackObject.add_hijack_object(AsyncLLMEngine,
+MluHijackObject.add_hijack_object(AsyncLLMRuntime,
                                   "save_scheduler_view",
                                   sinfer__engine__async_llm_engine__AsyncLLMEngine__save_scheduler_view)

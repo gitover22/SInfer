@@ -3,7 +3,7 @@ from dataclasses import dataclass
 
 import pytest
 
-from sinfer.sys.async_runtime import AsyncLLMEngine
+from sinfer.sys.async_runtime import AsyncLLMRuntime
 
 
 @dataclass
@@ -50,7 +50,7 @@ class MockEngine:
         return self.request_id is not None
 
 
-class MockAsyncLLMEngine(AsyncLLMEngine):
+class MockAsyncLLMEngine(AsyncLLMRuntime):
 
     def _init_engine(self, *args, **kwargs):
         return MockEngine()

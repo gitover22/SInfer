@@ -1,4 +1,3 @@
-"""CacheEngine class for managing the KV cache."""
 from typing import Dict, List
 
 import torch

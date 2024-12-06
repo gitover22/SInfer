@@ -78,7 +78,7 @@ class AsyncStream:
         return result
 
 
-class RequestTracker:
+class RequestPool:
     """
     负责管理和追踪多个异步请求的状态和数据流
     """
@@ -275,7 +275,7 @@ class _AsyncLLMRuntime(LLMRuntime):
         self.model_executor.check_health()
 
 
-class AsyncLLMEngine:
+class AsyncLLMRuntime:
     """对LLMEngine的异步包装
 
     这个类用于封装 LLMEngine 类，使其支持异步操作。  
@@ -299,7 +299,7 @@ class AsyncLLMEngine:
         **kwargs: Arguments for LLMEngine.
     """
 
-    _engine_class: Type[_AsyncLLMRuntime] = _AsyncLLMRuntime
+    _runtime_class: Type[_AsyncLLMRuntime] = _AsyncLLMRuntime
 
     def __init__(self,
                  worker_use_ray: bool,
@@ -324,7 +324,7 @@ class AsyncLLMEngine:
         self._errored_with: Optional[BaseException] = None
 
         # Lazy initialized fields
-        self._request_tracker: RequestTracker
+        self._request_pool: RequestPool
 
     @classmethod
     def from_engine_args(
@@ -332,7 +332,7 @@ class AsyncLLMEngine:
         engine_args: AsyncEngineArgs,
         start_engine_loop: bool = True,
         usage_context: UsageContext = UsageContext.ENGINE_CONTEXT,
-    ) -> "AsyncLLMEngine":
+    ) -> "AsyncLLMRuntime":
         """创建一个异步的LLMEngine"""
         # Create the engine configs.
         engine_config = engine_args.create_engine_config() # 创建一个EngineConfig实例
@@ -386,7 +386,7 @@ class AsyncLLMEngine:
 
     def _error_callback(self, exc: Exception) -> None:
         self.set_errored(exc)
-        self._request_tracker.propagate_exception(exc)
+        self._request_pool.propagate_exception(exc)
 
     async def get_tokenizer(self) -> "PreTrainedTokenizer":
         if self.engine_use_ray:
@@ -402,7 +402,7 @@ class AsyncLLMEngine:
         if self.is_running:
             raise RuntimeError("Background loop is already running.")
         # Initialize the RequestTracker here so it uses the right event loop.
-        self._request_tracker = RequestTracker()
+        self._request_pool = RequestPool()
 
         self._background_loop_unshielded = asyncio.get_event_loop(
         ).create_task(self.run_engine_loop())
@@ -414,9 +414,9 @@ class AsyncLLMEngine:
     def _init_engine(self, *args,
                      **kwargs) -> Union[_AsyncLLMRuntime, "ray.ObjectRef"]:
         if not self.engine_use_ray:
-            engine_class = self._engine_class
+            engine_class = self._runtime_class
         elif self.worker_use_ray:
-            engine_class = ray.remote(num_cpus=0)(self._engine_class).remote
+            engine_class = ray.remote(num_cpus=0)(self._runtime_class).remote
         else:
             # This is a bit hacky. Be careful when changing the
             # order of the arguments.
@@ -427,7 +427,7 @@ class AsyncLLMEngine:
             else:
                 num_gpus = 1
             engine_class = ray.remote(num_gpus=num_gpus)(
-                self._engine_class).remote
+                self._runtime_class).remote
         return engine_class(*args, **kwargs)
 
     async def engine_step(self) -> bool:
@@ -436,7 +436,7 @@ class AsyncLLMEngine:
         如果有正在处理的请求，则返回 True"""
 
         new_requests, finished_requests = (
-            self._request_tracker.get_new_and_finished_requests())
+            self._request_pool.get_new_and_finished_requests())
 
         for new_request in new_requests:
             # 将请求添加到 SInfer 引擎的等待队列中
@@ -449,7 +449,7 @@ class AsyncLLMEngine:
                     await self.engine.add_request_async(**new_request)
             except ValueError as e:
                 # TODO: use a SInfer specific error for failed validation
-                self._request_tracker.process_exception(
+                self._request_pool.process_exception(
                     new_request["request_id"],
                     e,
                     verbose=self.log_requests,
@@ -465,7 +465,7 @@ class AsyncLLMEngine:
 
         # Put the outputs into the corresponding streams.
         for request_output in request_outputs:
-            self._request_tracker.process_request_output(
+            self._request_pool.process_request_output(
                 request_output, verbose=self.log_requests)
 
         return len(request_outputs) > 0
@@ -481,7 +481,7 @@ class AsyncLLMEngine:
         while True:
             if not has_requests_in_progress:
                 logger.debug("Waiting for new requests...")
-                await self._request_tracker.wait_for_new_requests()
+                await self._request_pool.wait_for_new_requests()
                 logger.debug("Got new requests!")
 
             # Abort if iteration takes too long due to unrecoverable errors
@@ -548,7 +548,7 @@ class AsyncLLMEngine:
                 prompt_token_ids=prompt_token_ids,
                 lora_request=lora_request)
 
-        stream = self._request_tracker.add_request(
+        stream = self._request_pool.add_request(
             request_id,
             prompt=prompt,
             sampling_params=sampling_params,
@@ -677,7 +677,7 @@ class AsyncLLMEngine:
         this method will be a no-op.
 
         """
-        self._request_tracker.abort_request(request_id,
+        self._request_pool.abort_request(request_id,
                                             verbose=self.log_requests)
 
     async def get_model_config(self) -> ModelConfig:

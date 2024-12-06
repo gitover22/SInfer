@@ -26,7 +26,7 @@ class SinferMluHijack:
         import sinfer.Intercept.core
         if check_scheduler_profile_enable():
             import sinfer.Intercept.core.scheduler
-            import sinfer.Intercept.sys.async_llm_engine
+            import sinfer.Intercept.sys.async_runtime
             import sinfer.Intercept.entrypoints.openai.serving_engine
         import sinfer.Intercept.distributed
         import sinfer.Intercept.sys

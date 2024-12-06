@@ -8,7 +8,7 @@ from fastapi import Request
 from openai.types.chat import (ChatCompletionContentPartParam,
                                ChatCompletionRole)
 
-from sinfer.sys.async_runtime import AsyncLLMEngine
+from sinfer.sys.async_runtime import AsyncLLMRuntime
 from sinfer.entrypoints.openai.protocol import (
     ChatCompletionRequest, ChatCompletionResponse,
     ChatCompletionResponseChoice, ChatCompletionResponseStreamChoice,
@@ -34,7 +34,7 @@ class ConversationMessage(TypedDict):
 class OpenAIServingChat(OpenAIServing):
 
     def __init__(self,
-                 engine: AsyncLLMEngine,
+                 engine: AsyncLLMRuntime,
                  served_model_names: List[str],
                  response_role: str,
                  lora_modules: Optional[List[LoRAModulePath]] = None,

@@ -12,7 +12,7 @@ from pynvml import (nvmlDeviceGetHandleByIndex, nvmlDeviceGetMemoryInfo,
 from tests.conftest import cleanup
 from sinfer import LLM
 from sinfer.sys.arg_utils import AsyncEngineArgs
-from sinfer.sys.async_runtime import AsyncLLMEngine
+from sinfer.sys.async_runtime import AsyncLLMRuntime
 from sinfer.lora.request import LoRARequest
 from sinfer.model_executor.utils import set_random_seed
 from sinfer.outputs import RequestOutput
@@ -88,7 +88,7 @@ class AsyncLLM:
         multi_modal_data: Optional[MultiModalData] = None,
     ) -> List[RequestOutput]:
 
-        llm_engine = AsyncLLMEngine.from_engine_args(
+        llm_engine = AsyncLLMRuntime.from_engine_args(
             self.engine_args, usage_context=UsageContext.LLM_CLASS)
 
         if prompts is None:

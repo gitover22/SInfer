@@ -8,7 +8,7 @@ from pydantic import Field
 from transformers import PreTrainedTokenizer, PreTrainedTokenizerFast
 from typing_extensions import Annotated
 
-from sinfer.sys.async_runtime import AsyncLLMEngine
+from sinfer.sys.async_runtime import AsyncLLMRuntime
 from sinfer.entrypoints.openai.protocol import (ChatCompletionRequest,
                                               CompletionRequest, ErrorResponse,
                                               LogProbs, ModelCard, ModelList,
@@ -30,7 +30,7 @@ class LoRAModulePath:
 class OpenAIServing:
     '''用于管理模型的初始化、配置、请求验证以及相关服务功能。 '''
     def __init__(self,
-                 engine: AsyncLLMEngine,
+                 engine: AsyncLLMRuntime,
                  served_model_names: List[str],
                  lora_modules: Optional[List[LoRAModulePath]],
                  await_post_init: Optional[Awaitable[Any]] = None):

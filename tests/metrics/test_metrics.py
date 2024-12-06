@@ -5,7 +5,7 @@ from prometheus_client import REGISTRY
 
 from sinfer import EngineArgs, LLMEngine
 from sinfer.sys.arg_utils import AsyncEngineArgs
-from sinfer.sys.async_runtime import AsyncLLMEngine
+from sinfer.sys.async_runtime import AsyncLLMRuntime
 from sinfer.sampling_params import SamplingParams
 
 import os
@@ -128,7 +128,7 @@ async def test_async_engine_log_metrics_regression(
     engine_args = AsyncEngineArgs(model=model,
                                   dtype=dtype,
                                   disable_log_stats=disable_log_stats)
-    async_engine = AsyncLLMEngine.from_engine_args(engine_args)
+    async_engine = AsyncLLMRuntime.from_engine_args(engine_args)
     for i, prompt in enumerate(example_prompts):
         results = async_engine.generate(
             prompt,

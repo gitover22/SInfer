@@ -18,7 +18,7 @@ from starlette.routing import Mount
 import sinfer
 import sinfer.envs as envs
 from sinfer.sys.arg_utils import AsyncEngineArgs
-from sinfer.sys.async_runtime import AsyncLLMEngine
+from sinfer.sys.async_runtime import AsyncLLMRuntime
 from sinfer.entrypoints.openai.cli_args import make_arg_parser
 from sinfer.entrypoints.openai.protocol import (ChatCompletionRequest,
                                               ChatCompletionResponse,
@@ -164,7 +164,7 @@ if __name__ == "__main__":
     else:
         served_model_names = [args.model]
     engine_args = AsyncEngineArgs.from_cli_args(args)  # 创建异步AsyncEngineArgs实例
-    engine = AsyncLLMEngine.from_engine_args(
+    engine = AsyncLLMRuntime.from_engine_args(
         engine_args, usage_context=UsageContext.OPENAI_API_SERVER) # 创建AsyncLLMEngine实例
     openai_serving_chat = OpenAIServingChat(engine, served_model_names,
                                             args.response_role,

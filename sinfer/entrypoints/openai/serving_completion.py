@@ -4,7 +4,7 @@ from typing import (AsyncGenerator, AsyncIterator, Callable, Dict, List,
 
 from fastapi import Request
 
-from sinfer.sys.async_runtime import AsyncLLMEngine
+from sinfer.sys.async_runtime import AsyncLLMRuntime
 from sinfer.entrypoints.openai.protocol import (CompletionRequest,
                                               CompletionResponse,
                                               CompletionResponseChoice,
@@ -53,7 +53,7 @@ def parse_prompt_format(prompt) -> Tuple[bool, list]:
 class OpenAIServingCompletion(OpenAIServing):
 
     def __init__(self,
-                 engine: AsyncLLMEngine,
+                 engine: AsyncLLMRuntime,
                  served_model_names: List[str],
                  lora_modules: Optional[List[LoRAModulePath]] = None):
         super().__init__(engine=engine,
