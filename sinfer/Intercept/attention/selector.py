@@ -5,7 +5,7 @@ import sinfer
 import sinfer.envs as envs
 from sinfer.logger import init_logger
 from sinfer.utils import is_cpu
-from sinfer.Intercept.mlu_hijack_utils import InterceptObject
+from sinfer.Intercept.intercept_utils import InterceptObject
 from sinfer.attention.selector import _Backend
 
 logger = init_logger(__name__)

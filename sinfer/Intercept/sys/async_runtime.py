@@ -1,7 +1,7 @@
 
 
 from sinfer.sys.async_runtime import AsyncLLMRuntime
-from sinfer.Intercept.mlu_hijack_utils import InterceptObject
+from sinfer.Intercept.intercept_utils import InterceptObject
 from sinfer.logger import init_logger
 
 logger = init_logger(__name__)

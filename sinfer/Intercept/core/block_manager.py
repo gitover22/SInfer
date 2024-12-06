@@ -1,6 +1,6 @@
 from sinfer.sequence import SequenceGroup, SequenceStatus
 from sinfer.Intercept.mlu_definitions import USE_PAGED
-from sinfer.Intercept.mlu_hijack_utils import InterceptObject
+from sinfer.Intercept.intercept_utils import InterceptObject
 from sinfer.core.block_manager import _BlockSpaceManager
 from sinfer.logger import init_logger
 

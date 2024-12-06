@@ -5,8 +5,8 @@ import warnings
 warnings.filterwarnings("ignore", category=ResourceWarning)
 
 from sinfer.Intercept.mlu_definitions import *
-from sinfer.Intercept.mlu_hijack_utils import InterceptObject
-from sinfer.Intercept.mlu_hijack import SinferMluHijack
+from sinfer.Intercept.intercept_utils import InterceptObject
+from sinfer.Intercept.mlu_intercept import SinferMluIntercept
      
 InterceptObject.remove_intercept()
 

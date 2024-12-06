@@ -1,5 +1,5 @@
 import statistics
-from sinfer.Intercept.mlu_hijack_utils import InterceptObject
+from sinfer.Intercept.intercept_utils import InterceptObject
 from sinfer.executor.ray_gpu_executor import RayGPUExecutor
 from typing import Any, Dict
 import os

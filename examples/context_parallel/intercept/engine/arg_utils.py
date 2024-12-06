@@ -2,7 +2,7 @@ import argparse
 import torch
 from sinfer.config import RuntimeConfig, ParallelConfig
 from sinfer.sys.arg_utils import RuntimeArgs, AsyncRuntimeArgs
-from sinfer.Intercept.mlu_hijack_utils import InterceptObject, set_batch_sizes_to_capture
+from sinfer.Intercept.intercept_utils import InterceptObject, set_batch_sizes_to_capture
 from sinfer.Intercept.sys.arg_utils import intercept_create_runtime_config
 from sinfer.Intercept.sys.arg_utils import intercept_add_cli_args
 from sinfer.Intercept.sys.arg_utils import intercept_from_cli_args
@@ -12,9 +12,6 @@ sinfer__engine__arg_utils__AsyncEngineArgs__from_cli_args_org = AsyncRuntimeArgs
 
 def sinfer__engine__arg_utils__EngineArgs__create_engine_config_wraper(self, ) -> RuntimeConfig:
     '''
-    ==========================
-    Modify by Context Parallel
-    ==========================
     @brief: set parallel_config context_parallel_size
     '''
     if self.context_parallel_size > 1 and ("3" in torch.cuda.get_device_name(0)):
@@ -23,8 +20,6 @@ def sinfer__engine__arg_utils__EngineArgs__create_engine_config_wraper(self, ) -
     setattr(ParallelConfig, 'context_parallel_size', self.context_parallel_size)
     engine_config = intercept_create_runtime_config(self)
     '''
-    =======================
-    End of Context Parallel
     =======================
     '''
     return engine_config
@@ -36,9 +31,6 @@ def sinfer__engine__arg_utils__EngineArgs__add_cli_args_wraper(
     """Shared CLI arguments for SInfer engine."""
     parser = intercept_add_cli_args(parser)
     '''
-    ==========================
-    Modify by Context Parallel
-    ==========================
     @brief: add context-parallel-size choices
     '''
     parser.add_argument('--context-parallel-size',
@@ -47,8 +39,6 @@ def sinfer__engine__arg_utils__EngineArgs__add_cli_args_wraper(
                         default=RuntimeArgs.context_parallel_size,
                         help='number of context parallel replicas')
     '''
-    =======================
-    End of Context Parallel
     =======================
     '''
     return parser

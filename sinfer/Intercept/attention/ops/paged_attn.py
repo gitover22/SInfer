@@ -2,7 +2,7 @@ from typing import Tuple, List, Dict
 import torch
 import sinfer
 from sinfer.logger import init_logger
-from sinfer.Intercept.mlu_hijack_utils import InterceptObject
+from sinfer.Intercept.intercept_utils import InterceptObject
 from bangtransformer.torch import bt_ops
 from sinfer.attention.ops.paged_attn import PagedAttention
 

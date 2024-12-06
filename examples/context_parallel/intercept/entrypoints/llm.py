@@ -1,6 +1,6 @@
 from typing import Optional
 from sinfer.entrypoints.llm import LLM
-from sinfer.Intercept.mlu_hijack_utils import InterceptObject, set_batch_sizes_to_capture
+from sinfer.Intercept.intercept_utils import InterceptObject, set_batch_sizes_to_capture
 from sinfer.sys.arg_utils import RuntimeArgs
 from sinfer.sys.runtime import LLMRuntime
 from sinfer.usage.usage_lib import UsageContext

@@ -2,7 +2,7 @@ import os
 import time
 import torch
 import sinfer
-from sinfer.Intercept.mlu_hijack_utils import InterceptObject
+from sinfer.Intercept.intercept_utils import InterceptObject
 from sinfer.logger import init_logger
 from sinfer.worker.worker import Worker, init_worker_distributed_environment
 from sinfer.model_executor import set_random_seed

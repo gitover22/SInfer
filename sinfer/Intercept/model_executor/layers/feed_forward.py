@@ -12,7 +12,7 @@ from sinfer.model_executor.layers.linear import (
     ColumnParallelLinear,
     RowParallelLinear
 )
-from sinfer.Intercept.mlu_hijack_utils import set_is_gated
+from sinfer.Intercept.intercept_utils import set_is_gated
 
 logger = init_logger(__name__)
 

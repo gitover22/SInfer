@@ -4,7 +4,7 @@ from torch import nn
 from typing import List, Optional, Tuple
 from sinfer.attention import AttentionMetadata
 from sinfer.Intercept.mlu_definitions import *
-from sinfer.Intercept.mlu_hijack_utils import InterceptObject
+from sinfer.Intercept.intercept_utils import InterceptObject
 from sinfer.logger import init_logger
 
 from sinfer.model_executor.models.qwen import QWenAttention, QWenBlock, QWenModel

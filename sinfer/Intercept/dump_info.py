@@ -3,7 +3,7 @@
 #
 
 from sinfer.logger import init_logger
-from sinfer.Intercept.mlu_hijack_utils import get_is_gated, ModelConfig
+from sinfer.Intercept.intercept_utils import get_is_gated, ModelConfig
 import ctypes
 import json
 from sinfer.transformers_utils.config import get_config

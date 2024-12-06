@@ -1,7 +1,7 @@
 from typing import Optional
 import torch
 import sinfer
-from sinfer.Intercept.mlu_hijack_utils import InterceptObject
+from sinfer.Intercept.intercept_utils import InterceptObject
 from sinfer.distributed import broadcast
 from sinfer.model_executor.sampling_metadata import SamplingMetadata
 from sinfer.attention import AttentionMetadata

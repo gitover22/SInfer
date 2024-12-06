@@ -5,7 +5,7 @@ import triton
 import triton.language as tl
 
 import sinfer
-from sinfer.Intercept.mlu_hijack_utils import InterceptObject
+from sinfer.Intercept.intercept_utils import InterceptObject
 
 def intercept_seeded_uniform(
     *size,

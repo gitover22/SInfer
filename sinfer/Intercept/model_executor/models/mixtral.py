@@ -6,10 +6,10 @@ from typing import List, Optional, Tuple, Union
 from sinfer.attention import AttentionMetadata
 from sinfer.model_executor.layers.quantization.base_config import QuantizationConfig
 from sinfer.Intercept.mlu_definitions import *
-from sinfer.Intercept.mlu_hijack_utils import InterceptObject
+from sinfer.Intercept.intercept_utils import InterceptObject
 from sinfer.distributed import tensor_model_parallel_all_reduce
 from sinfer.model_executor.models.mixtral import MixtralAttention, MixtralMoE
-from sinfer.Intercept.mlu_hijack_utils import set_is_gated
+from sinfer.Intercept.intercept_utils import set_is_gated
 
 def intercept_MixtralAttention_forward(
     self,

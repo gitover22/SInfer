@@ -2,7 +2,7 @@ import time
 from typing import Optional, List
 from sinfer.sys.runtime import LLMRuntime
 from sinfer.Intercept.mlu_definitions import USE_PAGED, BlockSizeInfo
-from sinfer.Intercept.mlu_hijack_utils import InterceptObject
+from sinfer.Intercept.intercept_utils import InterceptObject
 from sinfer.sampling_params import SamplingParams
 from sinfer.sequence import MultiModalData, Sequence, SequenceGroup
 from sinfer.lora.request import LoRARequest

@@ -4,7 +4,7 @@ from typing import Optional
 import torch
 from sinfer.logger import init_logger
 from sinfer.model_executor.layers.logits_processor import LogitsProcessor
-from sinfer.Intercept.mlu_hijack_utils import InterceptObject
+from sinfer.Intercept.intercept_utils import InterceptObject
 from sinfer.Intercept.distributed.communication_op import intercept_tensor_model_parallel_gather
 
 

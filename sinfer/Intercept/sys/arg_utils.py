@@ -3,7 +3,7 @@ import torch
 from sinfer.config import RuntimeConfig
 from sinfer.sys.arg_utils import RuntimeArgs, AsyncRuntimeArgs
 from sinfer.Intercept.mlu_definitions import BlockSizeInfo, USE_PAGED
-from sinfer.Intercept.mlu_hijack_utils import InterceptObject, set_batch_sizes_to_capture
+from sinfer.Intercept.intercept_utils import InterceptObject, set_batch_sizes_to_capture
 from sinfer.logger import init_logger
 
 logger = init_logger(__name__)

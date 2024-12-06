@@ -2,7 +2,7 @@ from typing import Optional, Type, List
 import torch
 import sinfer
 from sinfer.Intercept.mlu_definitions import USE_PAGED
-from sinfer.Intercept.mlu_hijack_utils import InterceptObject
+from sinfer.Intercept.intercept_utils import InterceptObject
 from sinfer.attention.backends.abstract import AttentionMetadata
 from sinfer.attention.backends.flash_attn import FlashAttentionImpl, FlashAttentionMetadata
 from sinfer.attention.ops.paged_attn import PagedAttention
@@ -21,9 +21,6 @@ def sinfer__attention__backends__flash_attn__FlashAttentionImpl__forward_wraper(
     kv_scale: float,
 ) -> torch.Tensor:
     '''
-    ==========================
-    Modify by Context Parallel
-    ==========================
     @brief: use ring attn when context parallel
     '''
     if get_context_model_parallel_world_size() > 1 and attn_metadata.prefill_metadata:
@@ -34,8 +31,6 @@ def sinfer__attention__backends__flash_attn__FlashAttentionImpl__forward_wraper(
                                 kv_cache=kv_cache,
                                 attn_metadata=attn_metadata)
     '''
-    =======================
-    End of Context Parallel
     =======================
     '''
     return intercept_FlashAttentionImpl__forward(self, query, key, value, kv_cache, attn_metadata, kv_scale)

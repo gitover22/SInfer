@@ -4,7 +4,7 @@ from sinfer.distributed import communication_op
 from sinfer.distributed.parallel_state import (get_tensor_model_parallel_group,
                                              get_tensor_model_parallel_rank,
                                              get_tensor_model_parallel_world_size)
-from sinfer.Intercept.mlu_hijack_utils import InterceptObject
+from sinfer.Intercept.intercept_utils import InterceptObject
 
 
 def intercept_tensor_model_parallel_gather(

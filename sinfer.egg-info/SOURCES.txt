@@ -29,9 +29,9 @@ sinfer.egg-info/top_level.txt
 sinfer/Intercept/__init__.py
 sinfer/Intercept/device_info.py
 sinfer/Intercept/dump_info.py
+sinfer/Intercept/intercept_utils.py
 sinfer/Intercept/mlu_definitions.py
-sinfer/Intercept/mlu_hijack.py
-sinfer/Intercept/mlu_hijack_utils.py
+sinfer/Intercept/mlu_intercept.py
 sinfer/Intercept/mlu_metric.py
 sinfer/Intercept/attention/__init__.py
 sinfer/Intercept/attention/selector.py
@@ -228,7 +228,6 @@ sinfer/model_executor/models/gpt_bigcode.py
 sinfer/model_executor/models/gpt_j.py
 sinfer/model_executor/models/gpt_neox.py
 sinfer/model_executor/models/internlm2.py
-sinfer/model_executor/models/jais.py
 sinfer/model_executor/models/llama.py
 sinfer/model_executor/models/llava.py
 sinfer/model_executor/models/minicpm.py

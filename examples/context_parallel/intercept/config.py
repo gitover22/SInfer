@@ -1,6 +1,6 @@
 from sinfer.config import ParallelConfig, TokenizerPoolConfig
 from typing import Optional
-from sinfer.Intercept.mlu_hijack_utils import InterceptObject
+from sinfer.Intercept.intercept_utils import InterceptObject
 
 def sinfer__config__ParallelConfig___init__(
     self,
@@ -24,15 +24,10 @@ def sinfer__config__ParallelConfig___init__(
     self.placement_group = placement_group
 
     '''
-    ==========================
-    Modify by Context Parallel
-    ==========================
     @brief: context parallel world_size
     '''
     self.world_size = pipeline_parallel_size * tensor_parallel_size * self.context_parallel_size
     '''
-    =======================
-    End of Context Parallel
     =======================
     '''
     

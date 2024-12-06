@@ -1,7 +1,7 @@
 import os
 import torch
 import torch.distributed
-from sinfer.Intercept.mlu_hijack_utils import InterceptObject
+from sinfer.Intercept.intercept_utils import InterceptObject
 from typing import Optional
 from sinfer.worker.worker import Worker
 from sinfer.worker import worker

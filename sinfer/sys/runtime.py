@@ -233,25 +233,25 @@ class LLMRuntime:
         usage_context: UsageContext = UsageContext.ENGINE_CONTEXT,
     ) -> "LLMRuntime":
         # 创建engine的配置
-        engine_config = runtime_args.create_runtime_config()
+        runtime_config = runtime_args.create_runtime_config()
 
         # 明确executor_class指向的执行器
-        if engine_config.device_config.device_type == "cpu":
+        if runtime_config.device_config.device_type == "cpu":
             from sinfer.executor.cpu_executor import CPUExecutor
             executor_class = CPUExecutor
-        elif engine_config.parallel_config.worker_use_ray:
-            initialize_ray_cluster(engine_config.parallel_config)
+        elif runtime_config.parallel_config.worker_use_ray:
+            initialize_ray_cluster(runtime_config.parallel_config)
             from sinfer.executor.ray_gpu_executor import RayGPUExecutor
             executor_class = RayGPUExecutor # 启用TP时为RayGPUExecutor
         else:
-            assert engine_config.parallel_config.world_size == 1, (
+            assert runtime_config.parallel_config.world_size == 1, (
                 "Ray is required if parallel_config.world_size > 1.")
             from sinfer.executor.gpu_executor import GPUExecutor
             executor_class = GPUExecutor # 单卡时为GPUExecutor
 
         # 运行构造函数创建engine实例对象
         engine = cls(
-            **engine_config.to_dict(),
+            **runtime_config.to_dict(),
             executor_class=executor_class,
             log_stats=not runtime_args.disable_log_stats,
             usage_context=usage_context,

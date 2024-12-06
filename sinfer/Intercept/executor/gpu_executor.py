@@ -1,4 +1,4 @@
-from sinfer.Intercept.mlu_hijack_utils import InterceptObject
+from sinfer.Intercept.intercept_utils import InterceptObject
 from sinfer.executor.gpu_executor import GPUExecutor
 
 

@@ -6,7 +6,7 @@ import warnings
 warnings.filterwarnings("ignore", category=ResourceWarning)
 
 from sinfer.Intercept.mlu_definitions import *
-from sinfer.Intercept.mlu_hijack_utils import InterceptObject
+from sinfer.Intercept.intercept_utils import InterceptObject
 from sinfer.logger import init_logger
 from sinfer.model_executor.models import ModelRegistry
 from sinfer.Intercept.model_executor.custom_model.custom import CustomForCausalLM
@@ -16,7 +16,7 @@ from sinfer.Intercept.transformers_utils.configs import CustomConfig
 logger = init_logger(__name__)
 
 
-class SinferMluHijack:
+class SinferMluIntercept:
     def __init__(self):
         pass
 
@@ -40,8 +40,8 @@ class SinferMluHijack:
         logger.info("Undo MLU optimization!")
         InterceptObject.remove_intercept()
 
-sinfer_mlu_hijack = SinferMluHijack()
-sinfer_mlu_hijack.apply_optimizations(USE_PAGED)
+sinfer_mlu_intercept = SinferMluIntercept()
+sinfer_mlu_intercept.apply_optimizations(USE_PAGED)
 
 
 AutoConfig.register("custom", CustomConfig)

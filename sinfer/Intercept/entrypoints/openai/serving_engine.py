@@ -5,7 +5,7 @@ from typing import Optional, Union
 from sinfer.entrypoints.openai.protocol import (ChatCompletionRequest,
                                               CompletionRequest, ErrorResponse)
 from sinfer.entrypoints.openai.serving_engine import OpenAIServing
-from sinfer.Intercept.mlu_hijack_utils import InterceptObject
+from sinfer.Intercept.intercept_utils import InterceptObject
 from sinfer.logger import init_logger
 
 logger = init_logger(__name__)

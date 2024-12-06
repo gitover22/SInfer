@@ -2,7 +2,7 @@ import torch
 import torch.distributed
 from sinfer.distributed import init_distributed_environment
 from sinfer.worker.cpu_worker import CPUWorker
-from sinfer.Intercept.mlu_hijack_utils import InterceptObject
+from sinfer.Intercept.intercept_utils import InterceptObject
 from ..distributed.parallel_state import sinfer__distributed__parallel_state__ensure_model_parallel_initialized_wraper
 
 

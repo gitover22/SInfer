@@ -2,7 +2,7 @@
 import torch
 from torch import nn
 from typing import List, Tuple, Generator, Optional
-from sinfer.Intercept.mlu_hijack_utils import InterceptObject
+from sinfer.Intercept.intercept_utils import InterceptObject
 from sinfer.model_executor.model_loader.loader import DefaultModelLoader
 from sinfer.model_executor.model_loader.loader import DummyModelLoader, _initialize_model
 from sinfer.model_executor.model_loader.weight_utils import (np_cache_weights_iterator, initialize_dummy_weights)

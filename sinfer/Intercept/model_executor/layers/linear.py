@@ -3,7 +3,7 @@ import torch
 import sinfer
 import torch.nn.functional as F
 from sinfer.logger import init_logger
-from sinfer.Intercept.mlu_hijack_utils import InterceptObject
+from sinfer.Intercept.intercept_utils import InterceptObject
 from bangtransformer.torch import bt_ops
 from sinfer.model_executor.layers.linear import UnquantizedLinearMethod
 

@@ -4,7 +4,7 @@ from typing import Optional, List
 from sinfer.entrypoints.llm import LLM
 from sinfer.outputs import RequestOutput
 from sinfer.Intercept.mlu_definitions import check_latency_debug, check_latency_debug_with_device
-from sinfer.Intercept.mlu_hijack_utils import InterceptObject, set_batch_sizes_to_capture
+from sinfer.Intercept.intercept_utils import InterceptObject, set_batch_sizes_to_capture
 from sinfer.Intercept.mlu_metric import LLMMetric
 from sinfer.Intercept.dump_info import LLMDumpInfo
 from sinfer.logger import init_logger

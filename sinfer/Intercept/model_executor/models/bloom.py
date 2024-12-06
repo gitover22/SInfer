@@ -8,7 +8,7 @@ from sinfer.logger import init_logger
 from sinfer.model_executor.layers.quantization.base_config import (
     QuantizationConfig)
 from sinfer.Intercept.model_executor.layers.feed_forward import FeedForward
-from sinfer.Intercept.mlu_hijack_utils import InterceptObject
+from sinfer.Intercept.intercept_utils import InterceptObject
 
 from sinfer.model_executor.models.bloom import BloomAttention, BloomBlock
 

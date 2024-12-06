@@ -8,7 +8,7 @@ from torch.distributed import ProcessGroup, ReduceOp
 
 from sinfer.distributed.parallel_state import get_cpu_world_group, get_local_rank
 from sinfer.logger import init_logger
-from sinfer.Intercept.mlu_hijack_utils import find_cncl_library
+from sinfer.Intercept.intercept_utils import find_cncl_library
 
 logger = init_logger(__name__)
 

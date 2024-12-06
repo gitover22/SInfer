@@ -1,7 +1,7 @@
 
 import torch
 from typing import List, Optional
-from sinfer.Intercept.mlu_hijack_utils import InterceptObject
+from sinfer.Intercept.intercept_utils import InterceptObject
 from sinfer.Intercept.mlu_definitions import check_latency_debug_with_device
 from sinfer.worker.model_runner import (ModelRunner, _PAD_SLOT_ID)
 from sinfer.sequence import SequenceGroupMetadata, SamplerOutput

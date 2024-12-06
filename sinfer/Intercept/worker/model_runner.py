@@ -4,7 +4,7 @@ import torch
 import sinfer
 import numpy as np
 from typing import List, Optional, Set
-from sinfer.Intercept.mlu_hijack_utils import InterceptObject, make_tensor_with_pad, make_tensor_without_pad
+from sinfer.Intercept.intercept_utils import InterceptObject, make_tensor_with_pad, make_tensor_without_pad
 from sinfer.Intercept.mlu_definitions import USE_PAGED, BlockSizeInfo, check_latency_debug_with_device, CUDA_GRAPH_DEBUG
 from sinfer.logger import init_logger
 from sinfer.distributed.device_communicators import pynccl_utils, custom_all_reduce

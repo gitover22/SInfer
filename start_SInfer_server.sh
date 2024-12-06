@@ -7,9 +7,9 @@ python -m sinfer.entrypoints.openai.api_server \
     --gpu-memory-utilization 0.9 \
     --swap-space 64 \
     --api-key token-abc123 \
+    --enable-prefix-caching \
     # --kv-cache-dtype \
     # --device cuda \
-    # --enable-prefix-caching \
     # --block-size 16 \ 目前mlu不支持
     # --host \
     # --port \

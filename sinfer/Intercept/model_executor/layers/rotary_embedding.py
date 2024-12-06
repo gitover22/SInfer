@@ -2,7 +2,7 @@ from typing import Optional, Tuple, Union, Type
 import torch
 import sinfer
 from sinfer.logger import init_logger
-from sinfer.Intercept.mlu_hijack_utils import InterceptObject
+from sinfer.Intercept.intercept_utils import InterceptObject
 from bangtransformer.torch import bt_ops
 from sinfer.model_executor.layers.rotary_embedding import RotaryEmbedding, LinearScalingRotaryEmbedding
 

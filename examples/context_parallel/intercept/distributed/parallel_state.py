@@ -1,6 +1,6 @@
 import torch
 from sinfer.distributed import parallel_state
-from sinfer.Intercept.mlu_hijack_utils import InterceptObject
+from sinfer.Intercept.intercept_utils import InterceptObject
 from typing import Optional
 from sinfer.distributed.parallel_state import (get_tensor_model_parallel_world_size, 
                                              get_pipeline_model_parallel_world_size)

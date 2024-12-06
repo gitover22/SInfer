@@ -7,7 +7,7 @@ from sinfer.config import CacheConfig, LoRAConfig, SchedulerConfig
 from sinfer.core.policy import Policy
 from sinfer.core.scheduler import SchedulingBudget, SchedulerPrefillOutputs, SchedulerRunningOutputs, SchedulerSwappedInOutputs, SchedulerOutputs, Scheduler
 from sinfer.sequence import SequenceGroup, Sequence
-from sinfer.Intercept.mlu_hijack_utils import InterceptObject
+from sinfer.Intercept.intercept_utils import InterceptObject
 from sinfer.logger import init_logger
 
 logger = init_logger(__name__)

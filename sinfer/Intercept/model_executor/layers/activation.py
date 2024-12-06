@@ -1,7 +1,7 @@
 import torch
 import sinfer
 from sinfer.logger import init_logger
-from sinfer.Intercept.mlu_hijack_utils import InterceptObject
+from sinfer.Intercept.intercept_utils import InterceptObject
 from sinfer.model_executor.layers.activation import SiluAndMul, GeluAndMul, NewGELU, FastGELU
 
 logger = init_logger(__name__)
