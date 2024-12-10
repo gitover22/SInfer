@@ -350,7 +350,7 @@ def intercept_ModelRunner_prepare_decode(
         @brief: Use the refact function to get right batch size to inference
         ''' 
         graph_batch_size = \
-            sinfer__worker__model_runner__ModelRunner___get_graph_batch_size(batch_size)
+            intercept_ModelRunner_get_graph_batch_size(batch_size)
         
         assert graph_batch_size >= batch_size
         for _ in range(graph_batch_size - batch_size):
@@ -627,7 +627,7 @@ def intercept_ModelRunner_execute_model(
     return output
 
 
-def sinfer__worker__model_runner__ModelRunner___get_graph_batch_size(batch_size: int) -> int:
+def intercept_ModelRunner_get_graph_batch_size(batch_size: int) -> int:
     """Returns the padded batch size given actual batch size.
 
     Batch sizes are 1, 2, 4, _BATCH_SIZE_ALIGNMENT,
@@ -655,7 +655,7 @@ def intercept_CUDAGraphRunner_forward(
     attn_metadata: AttentionMetadata,
     **kwargs,
 ) -> torch.Tensor:
-    # KV caches are fixed tensors, so we don't need to copy them.
+    # KV缓存是固定的张量，所以我们不需要复制它们。
     del kv_caches
 
     # Copy the input tensors to the input buffers.
@@ -672,30 +672,15 @@ def intercept_CUDAGraphRunner_forward(
         self.start = torch.cuda.Event(enable_timing=True)
         self.start.record()
     
-    # Run the graph.
     self.graph.replay()
 
     # Return the output tensor.
     return self.output_buffers["hidden_states"]
 
-InterceptObject.add_intercept(ModelRunner,
-                                  ModelRunner.set_block_size,
-                                  intercept_ModelRunner_set_block_size)
-InterceptObject.add_intercept(ModelRunner,
-                                  ModelRunner.get_max_block_per_batch,
-                                  intercept_ModelRunner_get_max_block_per_batch)
-InterceptObject.add_intercept(ModelRunner,
-                                  ModelRunner._prepare_prompt,
-                                  intercept_ModelRunner_prepare_prompt)
-InterceptObject.add_intercept(ModelRunner,
-                                  ModelRunner._prepare_decode,
-                                  intercept_ModelRunner_prepare_decode)
-InterceptObject.add_intercept(ModelRunner,
-                                  ModelRunner.capture_model,
-                                  intercept_ModelRunner_capture_model)
-InterceptObject.add_intercept(ModelRunner,
-                                  ModelRunner.execute_model,
-                                  intercept_ModelRunner_execute_model)
-InterceptObject.add_intercept(CUDAGraphRunner,
-                                  CUDAGraphRunner.forward,
-                                  intercept_CUDAGraphRunner_forward)
+InterceptObject.add_intercept(ModelRunner,     ModelRunner.set_block_size,          intercept_ModelRunner_set_block_size)
+InterceptObject.add_intercept(ModelRunner,     ModelRunner.get_max_block_per_batch, intercept_ModelRunner_get_max_block_per_batch)
+InterceptObject.add_intercept(ModelRunner,     ModelRunner._prepare_prompt,         intercept_ModelRunner_prepare_prompt)
+InterceptObject.add_intercept(ModelRunner,     ModelRunner._prepare_decode,         intercept_ModelRunner_prepare_decode)
+InterceptObject.add_intercept(ModelRunner,     ModelRunner.capture_model,           intercept_ModelRunner_capture_model)
+InterceptObject.add_intercept(ModelRunner,     ModelRunner.execute_model,           intercept_ModelRunner_execute_model)
+InterceptObject.add_intercept(CUDAGraphRunner, CUDAGraphRunner.forward,             intercept_CUDAGraphRunner_forward)

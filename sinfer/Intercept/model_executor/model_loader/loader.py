@@ -20,14 +20,14 @@ CAST_BFLOAT16_TO_FLOAT16_ENABLE = (torch.cuda.get_device_capability()[0] == 3)
 def intercept_safetensors_weights_iterator(
     hf_weights_files: List[str]
 ) -> Generator[Tuple[str, torch.Tensor], None, None]:
-    """Iterate over the weights in the model safetensor files."""
-    for st_file in hf_weights_files:
-        with safe_open(st_file, framework="pt") as f:
-            for name in f.keys():  # noqa: SIM118
-                param = f.get_tensor(name)
+    """迭代模型中的 safetensor 权重文件"""
+    for st_file in hf_weights_files:  # 遍历所有 safetensor 权重文件
+        with safe_open(st_file, framework="pt") as f: # 打开 safetensor 文件，指定使用 PyTorch 框架
+            for name in f.keys():  # 遍历文件中的所有张量名称
+                param = f.get_tensor(name) # 根据名称获取对应的张量
                 # cast bfloat16 to float16 for MLU3xx
                 if CAST_BFLOAT16_TO_FLOAT16_ENABLE and param.dtype == torch.bfloat16:
-                    param = param.to(torch.float16)
+                    param = param.to(torch.float16) 
                 yield name, param
 
 
@@ -50,7 +50,7 @@ def intercept_get_weights_iterator(
     self, model_name_or_path: str, revision: Optional[str],
     fall_back_to_pt: bool
 ) -> Generator[Tuple[str, torch.Tensor], None, None]:
-    """Get an iterator for the model weights based on the load format."""
+    """根据加载格式获取模型权重的迭代器"""
     hf_folder, hf_weights_files, use_safetensors = self._prepare_weights(
         model_name_or_path, revision, fall_back_to_pt)
     if self.load_config.load_format == LoadFormat.NPCACHE:

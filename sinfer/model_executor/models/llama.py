@@ -379,28 +379,33 @@ class LlamaForCausalLM(nn.Module):
         return next_tokens
 
     def load_weights(self, weights: Iterable[Tuple[str, torch.Tensor]]):
+        """
+        加载权重文件并将其映射到模型的参数中。
+        @param weights: 一个可迭代对象，包含权重名称和对应的张量数据。
+        """
+        # 定义一个映射列表，用于将分片权重文件名与模型参数名进行转换
         stacked_params_mapping = [
-            # (param_name, shard_name, shard_id)
-            (".qkv_proj", ".q_proj", "q"),
+            # (param_name, shard_name, shard_id):(模型中的参数名片段, 权重文件中的片段, 分片ID)
+            (".qkv_proj", ".q_proj", "q"), # 将 q_proj 转换为 qkv_proj 的 q 分片
             (".qkv_proj", ".k_proj", "k"),
             (".qkv_proj", ".v_proj", "v"),
             (".gate_up_proj", ".gate_proj", 0),
             (".gate_up_proj", ".up_proj", 1),
         ]
-        params_dict = dict(self.named_parameters())
+        params_dict = dict(self.named_parameters())  # 获取当前模型中所有参数的字典 {参数名: 参数对象}
         for name, loaded_weight in weights:
             if "rotary_emb.inv_freq" in name:
                 continue
             if ("rotary_emb.cos_cached" in name
                     or "rotary_emb.sin_cached" in name):
-                # Models trained using ColossalAI may include these tensors in
-                # the checkpoint. Skip them.
+                # 跳过包含 "rotary_emb.cos_cached" 或 "rotary_emb.sin_cached" 的权重
+                # 这些权重通常是 ColossalAI 训练生成的，不需要加载
                 continue
             for (param_name, weight_name, shard_id) in stacked_params_mapping:
                 if weight_name not in name:
                     continue
                 name = name.replace(weight_name, param_name)
-                # Skip loading extra bias for GPTQ models.
+                # 跳过未在模型参数中定义的偏置（通常用于 GPTQ 模型的额外偏置）
                 if name.endswith(".bias") and name not in params_dict:
                     continue
                 param = params_dict[name]
@@ -411,10 +416,10 @@ class LlamaForCausalLM(nn.Module):
                 # Skip loading extra bias for GPTQ models.
                 if name.endswith(".bias") and name not in params_dict:
                     continue
-                param = params_dict[name]
+                param = params_dict[name]  # 获取参数对象
                 weight_loader = getattr(param, "weight_loader",
                                         default_weight_loader)
-                weight_loader(param, loaded_weight)
+                weight_loader(param, loaded_weight) # 使用加载器加载权重
 
     # If this function is called, it should always initialize KV cache scale
     # factors (or else raise an exception). Thus, handled exceptions should

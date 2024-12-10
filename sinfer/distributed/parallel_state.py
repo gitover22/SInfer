@@ -168,7 +168,7 @@ def ensure_model_parallel_initialized(
     values if the model parallel groups are initialized.
     """
     # get the backend of _DEVICE_WORLD_GROUP
-    backend = backend or torch.distributed.get_backend()
+    backend = backend or torch.distributed.get_backend() # cncl
     if not model_parallel_is_initialized():
         initialize_model_parallel(tensor_model_parallel_size,
                                   pipeline_model_parallel_size, backend)

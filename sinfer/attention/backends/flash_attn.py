@@ -1,8 +1,5 @@
-"""Attention layer with Flash and PagedAttention.
-
-NOTE(woosuk): At the moment, this file includes a lot of duplicated code from
-XFormers backend. The duplicated code will be removed once we use flash-attn or
-flashinfer for all the attention operations.
+"""
+带有 Flash 和 PagedAttention 的 Attention 层
 """
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple, Type

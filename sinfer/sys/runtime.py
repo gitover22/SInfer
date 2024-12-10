@@ -141,9 +141,9 @@ class LLMRuntime:
             lora_config=lora_config,
             vision_language_config=vision_language_config,
             load_config=load_config,
-        ) # 实例化GPUExecutor , 实例化Worker，ModelRunner(初始化kv cache时实例化),加载模型权重
+        ) # 实例化GPUExecutor , 实例化Worker，ModelRunner(初始化kv cache时实例化CacheEngine),加载模型权重
 
-        self._initialize_kv_caches() # 初始化kv cache缓存，ModelRunner
+        self._initialize_kv_caches() # 初始化kv cache缓存，CacheEngine
 
         # 收集信息
         if is_usage_stats_enabled():

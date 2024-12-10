@@ -12,17 +12,17 @@ logger = init_logger(__name__)
 
 
 def intercept_which_attn_to_use(dtype: torch.dtype) -> _Backend:
-    """Returns which flash attention backend to use."""
+    """返回应该使用哪个 Flash Attention 后端."""
     if is_cpu():
         return _Backend.TORCH_SDPA
-    # add flash_attn backend on mlu device Cambricon MLUs.
+    # 增加mlu设备上的后端
     if 3 <= torch.mlu.get_device_capability()[0] <= 5 and dtype in (torch.float16, torch.bfloat16):
         logger.info("Use mlu flash_atten as Attention backend.")
         return _Backend.FLASH_ATTN
 
-    # NVIDIA GPUs.
+    # N 卡.
     if torch.cuda.get_device_capability()[0] < 8:
-        # Volta and Turing NVIDIA GPUs.
+        # Volta & Turing
         logger.info("Cannot use FlashAttention-2 backend for Volta and Turing "
                     "GPUs.")
         return _Backend.XFORMERS
@@ -44,7 +44,7 @@ def intercept_which_attn_to_use(dtype: torch.dtype) -> _Backend:
     if backend_by_env_var is not None:
         return _Backend[backend_by_env_var]
 
-    # Default case.
+    # 默认
     return _Backend.FLASH_ATTN
 
 

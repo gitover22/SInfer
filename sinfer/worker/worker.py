@@ -92,8 +92,8 @@ class Worker(WorkerBase):
             # 通过设置该环境变量可以禁用这种行为
             os.environ["TORCH_NCCL_AVOID_RECORD_STREAMS"] = "1"
 
-            # This env var set by Ray causes exceptions with graph building.
-            os.environ.pop("NCCL_ASYNC_ERROR_HANDLING", None)
+            
+            os.environ.pop("NCCL_ASYNC_ERROR_HANDLING", None) # 删掉一个Ray产生的环境变量
             self.device = torch.device(f"cuda:{self.local_rank}")
             torch.cuda.set_device(self.device)
 
@@ -103,11 +103,11 @@ class Worker(WorkerBase):
         else:
             raise RuntimeError(
                 f"Not support device type: {self.device_config.device}")
-        # Initialize the distributed environment.
+        # 初始化分布式环境--》 模型并行组划分等（动态划分，根据设备数量）
         init_worker_distributed_environment(self.parallel_config, self.rank,
                                             self.distributed_init_method,
                                             self.local_rank)
-        # Set random seed.
+        # 设置随机种子
         set_random_seed(self.model_config.seed)
 
     def load_model(self):
@@ -119,26 +119,19 @@ class Worker(WorkerBase):
             分析模型的峰值内存使用情况, 以确定可以分配多少个 KV 块而不会发生内存溢出(OOM)
             引擎会首先对现有的内存使用情况进行分析,然后计算在剩余的可用内存中设备可分配的最大块数量。
         """
-        # Profile the memory usage of the model and get the maximum number of
-        # cache blocks that can be allocated with the remaining free memory.
-        torch.cuda.empty_cache()
-
-        
+        # 分析模型的内存使用情况，获取在剩余空闲内存中可以分配的缓存块的最大数量
+        torch.cuda.empty_cache() # 清理 CUDA 缓存内存
         # 执行一次前向传递，使用虚拟输入以分析模型的内存使用情况。
         self.model_runner.profile_run()
-
-        # Calculate the number of blocks that can be allocated with the
-        # profiled peak memory.
-        torch.cuda.synchronize()
-        free_gpu_memory, total_gpu_memory = torch.cuda.mem_get_info()
-        # Here we assume that the other processes using the same
-        # GPU did not change their memory usage during the profiling.
-        peak_memory = self.init_gpu_memory - free_gpu_memory
+        torch.cuda.synchronize() # 同步 CUDA 操作，确保内存分析准确
+        free_gpu_memory, total_gpu_memory = torch.cuda.mem_get_info() # 24.9GB  41.5GB
+        # 假设在内存分析期间使用同一 GPU 的其他进程没有改变其内存使用情况
+        peak_memory = self.init_gpu_memory - free_gpu_memory  # 16.5GB
         assert peak_memory > 0, (
             "Error in memory profiling. This happens when the GPU memory was "
             "not properly cleaned up before initializing the SInfer instance.")
 
-        cache_block_size = self.get_cache_block_size_bytes()
+        cache_block_size = self.get_cache_block_size_bytes() # 获取单个缓存块的大小 128MB
         num_gpu_blocks = int(
             (total_gpu_memory * self.cache_config.gpu_memory_utilization -
              peak_memory) // cache_block_size)
@@ -271,7 +264,7 @@ def init_worker_distributed_environment(
 ) -> None:
     init_distributed_environment(parallel_config.world_size, rank,
                                  distributed_init_method, local_rank)
-
+    # 确保模型的并行化已初始化
     ensure_model_parallel_initialized(parallel_config.tensor_parallel_size,
                                       parallel_config.pipeline_parallel_size)
 
@@ -283,16 +276,16 @@ def init_worker_distributed_environment(
                 "size does not match parallel_config.world_size "
                 f"({pynccl_world_size} vs. {parallel_config.world_size}).")
     elif parallel_config.world_size > 1:
-        # NOTE(woosuk): We don't initialize pynccl process group when world size is 1.
-        # NOTE(kaichao): By default, pynccl is initialized for tp group.
+        # 当 world size 为 1 时，我们不会初始化 pynccl 进程组.
+        # 默认情况下，pynccl 为 tp group 初始化
         pynccl_utils.init_process_group(
             group=get_tensor_model_parallel_cpu_group())
 
-    # Initialize a custom fast all-reduce implementation.
+    # 初始化自定义的all-reduce
     if not parallel_config.disable_custom_all_reduce:
         init_custom_ar()
 
-    # A small all_reduce for warmup.
+    # 执行 all-reduce，用于预热分布式训练中的通信系统
     torch.distributed.all_reduce(torch.zeros(1).cuda())
     if pynccl_utils.is_initialized():
         pynccl_utils.all_reduce(torch.zeros(1).cuda())

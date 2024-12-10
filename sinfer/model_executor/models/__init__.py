@@ -60,19 +60,19 @@ _MODELS = {
 # out of tree models
 _OOT_MODELS: Dict[str, Type[nn.Module]] = {}
 
-# Models not supported by ROCm.
-_ROCM_UNSUPPORTED_MODELS = []
+# # Models not supported by ROCm.
+# _ROCM_UNSUPPORTED_MODELS = []
 
 # Models partially supported by ROCm.
 # Architecture -> Reason.
-_ROCM_PARTIALLY_SUPPORTED_MODELS = {
-    "Qwen2ForCausalLM":
-    "Sliding window attention is not yet supported in ROCm's flash attention",
-    "MistralForCausalLM":
-    "Sliding window attention is not yet supported in ROCm's flash attention",
-    "MixtralForCausalLM":
-    "Sliding window attention is not yet supported in ROCm's flash attention",
-}
+# _ROCM_PARTIALLY_SUPPORTED_MODELS = {
+#     "Qwen2ForCausalLM":
+#     "Sliding window attention is not yet supported in ROCm's flash attention",
+#     "MistralForCausalLM":
+#     "Sliding window attention is not yet supported in ROCm's flash attention",
+#     "MixtralForCausalLM":
+#     "Sliding window attention is not yet supported in ROCm's flash attention",
+# }
 
 
 class ModelRegistry:
@@ -84,9 +84,9 @@ class ModelRegistry:
         if model_arch not in _MODELS:
             return None
 
-        module_name, model_cls_name = _MODELS[model_arch]
+        module_name, model_cls_name = _MODELS[model_arch] # llama, LlamaForCausalLM
         module = importlib.import_module(
-            f"sinfer.model_executor.models.{module_name}")
+            f"sinfer.model_executor.models.{module_name}") # 导入对应的py文件，llama.py
         return getattr(module, model_cls_name, None)
 
     @staticmethod

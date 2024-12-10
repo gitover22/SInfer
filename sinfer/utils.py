@@ -452,7 +452,7 @@ def print_warning_once(msg: str) -> None:
 def is_pin_memory_available() -> bool:
 
     if in_wsl():
-        # Pinning memory in WSL is not supported.
+        # wsl不支持pinning memory
         # https://docs.nvidia.com/cuda/wsl-user-guide/index.html#known-limitations-for-linux-cuda-applications
         print_warning_once("Using 'pin_memory=False' as WSL is detected. "
                            "This may slow down the performance.")

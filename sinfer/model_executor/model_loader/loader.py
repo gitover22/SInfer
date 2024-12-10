@@ -62,7 +62,7 @@ def _get_model_initialization_kwargs(
         model_class: Type[nn.Module], lora_config: Optional[LoRAConfig],
         vision_language_config: Optional[VisionLanguageConfig]
 ) -> Dict[str, Any]:
-    """Get extra kwargs for model initialization."""
+    """获取模型初始化的额外参数kwargs"""
     extra_kwargs = {}
     if hasattr(model_class, "supported_lora_modules"):
         extra_kwargs["lora_config"] = lora_config
@@ -81,14 +81,14 @@ def _initialize_model(
         model_config: ModelConfig, load_config: LoadConfig,
         lora_config: Optional[LoRAConfig],
         vision_language_config: Optional[VisionLanguageConfig]) -> nn.Module:
-    """Initialize a model with the given configurations."""
+    
     model_class = get_model_architecture(model_config)[0]
     quant_config = _get_quantization_config(model_config, load_config)
 
     return model_class(config=model_config.hf_config,
                        quant_config=quant_config,
                        **_get_model_initialization_kwargs(
-                           model_class, lora_config, vision_language_config))
+                           model_class, lora_config, vision_language_config)) # 调用具体模型的构造函数
 
 
 class BaseModelLoader(ABC):
@@ -109,8 +109,7 @@ class BaseModelLoader(ABC):
 
 
 class DefaultModelLoader(BaseModelLoader):
-    """Model loader that can load different file types from disk."""
-
+    """模型加载器"""
     def __init__(self, load_config: LoadConfig):
         super().__init__(load_config)
         if load_config.model_loader_extra_config:
@@ -119,14 +118,10 @@ class DefaultModelLoader(BaseModelLoader):
 
     def _maybe_download_from_modelscope(
             self, model: str, revision: Optional[str]) -> Optional[str]:
-        """Download model from ModelScope hub if SINFER_USE_MODELSCOPE is True.
-        
-        Returns the path to the downloaded model, or None if the model is not
-        downloaded from ModelScope."""
+        """如果 `SINFER_USE_MODELSCOPE` 为 `True`，则从 ModelScope hub 下载模型。
+            返回下载模型的路径，如果模型未从 ModelScope 下载，则返回 `None`。
+        """
         if SINFER_USE_MODELSCOPE:
-            # download model from ModelScope hub,
-            # lazy import so that modelscope is not required for normal use.
-            # pylint: disable=C.
             from modelscope.hub.snapshot_download import snapshot_download
 
             if not os.path.exists(model):
@@ -144,16 +139,14 @@ class DefaultModelLoader(BaseModelLoader):
     def _prepare_weights(self, model_name_or_path: str,
                          revision: Optional[str],
                          fall_back_to_pt: bool) -> Tuple[str, List[str], bool]:
-        """Prepare weights for the model.
-
-        If the model is not local, it will be downloaded."""
+        """为模型准备权重, 如果模型不在本地将会被下载"""
         model_name_or_path = self._maybe_download_from_modelscope(
             model_name_or_path, revision) or model_name_or_path
 
-        is_local = os.path.isdir(model_name_or_path)
+        is_local = os.path.isdir(model_name_or_path)  # 判断模型路径是否是本地路径
         load_format = self.load_config.load_format
         use_safetensors = False
-        # Some quantized models use .pt files for storing the weights.
+        # 根据加载格式确定允许的文件模式(不一定唯一)
         if load_format == LoadFormat.AUTO:
             allow_patterns = ["*.safetensors", "*.bin"]
         elif load_format == LoadFormat.SAFETENSORS:
@@ -198,7 +191,7 @@ class DefaultModelLoader(BaseModelLoader):
         self, model_name_or_path: str, revision: Optional[str],
         fall_back_to_pt: bool
     ) -> Generator[Tuple[str, torch.Tensor], None, None]:
-        """Get an iterator for the model weights based on the load format."""
+        """根据加载格式获取模型权重的迭代器"""
         hf_folder, hf_weights_files, use_safetensors = self._prepare_weights(
             model_name_or_path, revision, fall_back_to_pt)
         if self.load_config.load_format == LoadFormat.NPCACHE:
@@ -218,16 +211,16 @@ class DefaultModelLoader(BaseModelLoader):
                    parallel_config: ParallelConfig,
                    scheduler_config: SchedulerConfig) -> nn.Module:
         with set_default_torch_dtype(model_config.dtype):
-            # with torch.device(device_config.device):
             model = _initialize_model(model_config, self.load_config,
-                                        lora_config, vision_language_config).cuda()
+                                        lora_config, vision_language_config)
+            model = model.cuda()  # 将模型参数空间转移到加速卡
             model.load_weights(
                 self._get_weights_iterator(model_config.model,
                                            model_config.revision,
                                            fall_back_to_pt=getattr(
                                                model,
                                                "fall_back_to_pt_during_load",
-                                               True)), )
+                                               True)), )   # 加载模型权重到参数空间中
             for _, module in model.named_modules():
                 quant_method = getattr(module, "quant_method", None)
                 if quant_method is not None:
@@ -347,7 +340,7 @@ class TensorizerLoader(BaseModelLoader):
 
 
 def get_model_loader(load_config: LoadConfig) -> BaseModelLoader:
-    """Get a model loader based on the load format."""
+    """获取一个模型加载器"""
 
     if isinstance(load_config.load_format, type):
         return load_config.load_format(load_config)

@@ -32,8 +32,8 @@ logger = init_logger(__name__)
 _PAD_SLOT_ID = -1
 LORA_WARMUP_RANK = 8
 _BATCH_SIZE_ALIGNMENT = 8
-# Capture graphs for token size 1, 2, 4, 8, 16, 24, 32, 40, ..., 256.
-# NOTE: _get_graph_batch_size needs to be updated if this list is changed.
+# 捕获令牌大小为 1、2、4、8、16、24、32、40、...、256 的图
+# 如果此列表发生变化，_get_graph_batch_size 需要更新
 _BATCH_SIZES_TO_CAPTURE = [1, 2, 4] + [
     _BATCH_SIZE_ALIGNMENT * i for i in range(1, 33)
 ]
@@ -66,7 +66,6 @@ class PreparePromptMetadata(NamedTuple):
             slot_mapping=[],
         )
 
-
 class PrepareDecodeMetadata(NamedTuple):
     input_tokens: List[int]
     input_positions: List[int]
@@ -89,13 +88,13 @@ class PrepareDecodeMetadata(NamedTuple):
         )
 
 
-# How batches are constructed.
+# 批次的组成
 class BatchType(IntEnum):
-    # Every batch is prefill.
+    # 全prefill
     PREFILL = 0
-    # Every batch is decode.
+    # 全decode
     DECODE = 1
-    # Batch is a mixture of prefill and decode.
+    # prefill/decode的混合
     MIXED = 2
 
 
@@ -120,33 +119,33 @@ class ModelRunner:
         self.load_config = load_config
         self.is_driver_worker = is_driver_worker
 
-        # model_config can be None in tests/samplers/test_sampler.py.
-        # This is a hack to make the tests work. Refactor this.
+        # model_config 在 tests/samplers/test_sampler.py 中可以为 None
+        # 临时的解决方法，以使测试能够正常工作。需要重构这部分代码
         self.sliding_window = (model_config.get_sliding_window()
                                if model_config is not None else None)
         self.device_config = (device_config
                               if device_config is not None else DeviceConfig())
-        self.device = self.device_config.device
+        self.device = self.device_config.device   # cuda
 
-        # Set after load_model.
+        # 模型加载后设置，LoRA管理器，用于管理LoRA相关操作
         self.lora_manager: LRUCacheWorkerLoRAManager = None
 
         self.graph_runners: Dict[int, CUDAGraphRunner] = {}
         self.graph_memory_pool: Optional[Tuple[
-            int, int]] = None  # Set during graph capture.
+            int, int]] = None   # 图形内存池，在捕获CUDA图形时设置
 
         self.max_seq_len_to_capture = (self.model_config.max_seq_len_to_capture
                                        if self.model_config is not None else 0)
 
-        self.pin_memory = is_pin_memory_available()
-        self.kv_cache_dtype = kv_cache_dtype
+        self.pin_memory = is_pin_memory_available() # cuda: true
+        self.kv_cache_dtype = kv_cache_dtype # auto
         self.vision_language_config = vision_language_config
 
         self.attn_backend = get_attn_backend(
             self.model_config.dtype if model_config is not None else None)
 
-        # Lazy initialization
-        self.model: torch.nn.Module  # Set after load_model
+
+        self.model: torch.nn.Module  # load_model函数中初始化
         self.block_size: int  # Set after initial profiling.
         # When using CUDA graph, the input block tables must be padded to
         # max_seq_len_to_capture. However, creating the block table in
@@ -278,7 +277,7 @@ class ModelRunner:
             query_lens.append(seq_len - context_len)
 
             input_tokens.extend(prompt_tokens)
-            # NOTE(woosuk): Here we assume that the first token in the prompt
+            # Here we assume that the first token in the prompt
             # is always the first token in the sequence.
             input_positions.extend(list(range(context_len, seq_len)))
             lora_id = seq_group_metadata.lora_int_id
@@ -792,14 +791,14 @@ class ModelRunner:
             execute_model_kwargs.update({"image_input": multi_modal_input})
         hidden_states = model_executable(**execute_model_kwargs)
 
-        # Compute the logits.
+        # 计算logits.
         logits = self.model.compute_logits(hidden_states, sampling_metadata)
 
-        # Only perform sampling in the driver worker.
+        # 只有driver worker节点才进行采样
         if not self.is_driver_worker:
             return None
 
-        # Sample the next token.
+        # Sample下一个token
         output = self.model.sample(
             logits=logits,
             sampling_metadata=sampling_metadata,
@@ -1110,8 +1109,7 @@ def _maybe_pynccl():
 def _get_graph_batch_size(batch_size: int) -> int:
     """Returns the padded batch size given actual batch size.
 
-    Batch sizes are 1, 2, 4, _BATCH_SIZE_ALIGNMENT,
-    2*_BATCH_SIZE_ALIGNMENT, 3*_BATCH_SIZE_ALIGNMENT...
+    Batch sizes are 1, 2, 4, _BATCH_SIZE_ALIGNMENT, 2*_BATCH_SIZE_ALIGNMENT, 3*_BATCH_SIZE_ALIGNMENT...
     """
     if batch_size <= 2:
         return batch_size

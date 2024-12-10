@@ -20,43 +20,33 @@ from sinfer.model_executor.layers.linear import (
     QKVParallelLinear,
     RowParallelLinear)
 
-
 logger = init_logger(__name__)
 
 
 def intercept_Worker_init_device(self) -> None:
     if self.device_config.device.type == "cuda":
-        # torch.distributed.all_reduce does not free the input tensor until
-        # the synchronization point. This causes the memory usage to grow
-        # as the number of all_reduce calls increases. This env var disables
-        # this behavior.
-        # Related issue:
-        # https://discuss.pytorch.org/t/cuda-allocation-lifetime-for-inputs-to-distributed-all-reduce/191573
-
-        # change NCCL -> CNCL
+        # torch.distributed.all_reduce 在同步点之前不会释放输入张量
+        # 这会导致随着 all_reduce 调用次数的增加，内存使用量不断增长。
+        # 通过设置该环境变量可以禁用这种行为
+        # NCCL -> CNCL
         os.environ["TORCH_CNCL_AVOID_RECORD_STREAMS"] = "1"
-
-        # This env var set by Ray causes exceptions with graph building.
-        os.environ.pop("CNCL_ASYNC_ERROR_HANDLING", None)
+        os.environ.pop("CNCL_ASYNC_ERROR_HANDLING", None)  # 这个环境变量是由 Ray 设置的，它会导致图形构建时出现异常
         self.device = torch.device(f"cuda:{self.local_rank}")
         torch.cuda.set_device(self.device)
-
         intercept_check_if_gpu_supports_dtype(self.model_config.dtype)
         torch.cuda.empty_cache()
         self.init_gpu_memory = torch.cuda.mem_get_info()[0]
     else:
         raise RuntimeError(
             f"Not support device type: {self.device_config.device}")
-    # Initialize the distributed environment.
+    # 初始化分布式环境
     init_worker_distributed_environment(self.parallel_config, self.rank,
                                         self.distributed_init_method,
                                         self.local_rank)
-    # Set random seed.
+    # 随机种子
     set_random_seed(self.model_config.seed)
 
-
 def intercept_Worker_warm_up_model(self) -> None:
-
     # add num_gpu_blocks for mlu graph capture
     if not self.model_config.enforce_eager:
         self.model_runner.capture_model(self.gpu_cache, self.cache_config.num_gpu_blocks)
@@ -74,10 +64,9 @@ def intercept_Worker_get_latency(self):
 
 
 def intercept_check_if_gpu_supports_dtype(torch_dtype: torch.dtype):
-
-    # modify capability check for mlu
+    # for mlu
     logger.info(f"SInfer is using dtype: {torch_dtype}")
-    # Check if the GPU supports the dtype.
+    
     if torch_dtype == torch.bfloat16:
         compute_capability = torch.cuda.get_device_capability()
         if compute_capability[0] < 5:
@@ -211,7 +200,6 @@ InterceptObject.add_intercept(Worker,
 InterceptObject.add_intercept(sinfer.worker.worker,
                                   sinfer.worker.worker._check_if_gpu_supports_dtype,
                                   intercept_check_if_gpu_supports_dtype)
-
 InterceptObject.add_intercept(Worker,
                                   "stat_tensor",
                                   intercept_Worker_stat_tensor)
