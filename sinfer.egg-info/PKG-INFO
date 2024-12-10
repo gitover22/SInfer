@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: sinfer
-Version: 1.0.0+mlu.a767e2e
+Version: 1.0.0+mlu.a012dcb
 Summary: A smart inference framework for LLMs on MLU backend
 Home-page: 
 Author: huafeng

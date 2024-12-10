@@ -3,7 +3,6 @@ MANIFEST.in
 README.md
 pyproject.toml
 requirements-common.txt
-requirements-cpu.txt
 setup.py
 ray_mlu/__init__.py
 ray_mlu/mlu.py

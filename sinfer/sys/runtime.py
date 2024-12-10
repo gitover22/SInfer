@@ -34,7 +34,6 @@ from sinfer.utils import Counter
 logger = init_logger(__name__)
 _LOCAL_LOGGING_INTERVAL_SEC = 5
 
-
 def _load_generation_config_dict(model_config: ModelConfig):
     try:
         return GenerationConfig.from_pretrained(

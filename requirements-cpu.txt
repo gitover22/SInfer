@@ -1,6 +1,0 @@
-# Common dependencies
--r requirements-common.txt
-
-# Dependencies for x86_64 CPUs
-torch == 2.3.0+cpu
-triton >= 1.0.0 

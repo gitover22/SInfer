@@ -122,8 +122,7 @@ if _find_device_info_file():
     ext_modules=[
            Extension(
                 'get_device_info',
-                sources=['device_info/get_device_info.cpp'],
-            )
+                sources=['device_info/get_device_info.cpp'],)
             ]
 
     cmdclass={"build_ext": cmake_build_ext}

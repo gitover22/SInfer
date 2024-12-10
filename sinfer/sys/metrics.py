@@ -10,9 +10,6 @@ from prometheus_client import (REGISTRY, Counter, Gauge, Histogram, Info,
 
 from sinfer.logger import init_logger
 
-# if TYPE_CHECKING:
-#     from sinfer.spec_decode_test.metrics import SpecDecodeWorkerMetrics
-
 logger = init_logger(__name__)
 
 disable_created_metrics()

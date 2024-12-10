@@ -37,7 +37,7 @@ if TYPE_CHECKING:
     VERBOSE: bool = False
 
 environment_variables: Dict[str, Callable[[], Any]] = {
-    # Target device of SInfer, supporting [cuda (by default), rocm, neuron, cpu]
+    # Target device of SInfer, supporting [cuda/mlu (by default), cpu]
     "SINFER_TARGET_DEVICE":
     lambda: os.getenv("SINFER_TARGET_DEVICE", "cuda"),
 
@@ -51,10 +51,6 @@ environment_variables: Dict[str, Callable[[], Any]] = {
     # If set, `MAX_JOBS` will be reduced to avoid oversubscribing the CPU.
     "NVCC_THREADS":
     lambda: os.getenv("NVCC_THREADS", None),
-
-    # If set, sinfer will build with Neuron support
-    "SINFER_BUILD_WITH_NEURON":
-    lambda: bool(os.environ.get("SINFER_BUILD_WITH_NEURON", False)),
 
     # If set, sinfer will use precompiled binaries (*.so)
     "SINFER_USE_PRECOMPILED":

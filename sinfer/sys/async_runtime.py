@@ -3,7 +3,6 @@ import time
 from functools import partial
 from typing import (Any, AsyncIterator, Callable, Dict, Iterable, List,
                     Optional, Set, Tuple, Type, Union)
-
 from transformers import PreTrainedTokenizer
 
 import sinfer.envs as envs
