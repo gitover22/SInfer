@@ -244,15 +244,6 @@ sinfer/model_executor/models/qwen2_moe.py
 sinfer/model_executor/models/stablelm.py
 sinfer/model_executor/models/starcoder2.py
 sinfer/model_executor/models/xverse.py
-sinfer/spec_decode/__init__.py
-sinfer/spec_decode/batch_expansion.py
-sinfer/spec_decode/interfaces.py
-sinfer/spec_decode/metrics.py
-sinfer/spec_decode/multi_step_worker.py
-sinfer/spec_decode/ngram_worker.py
-sinfer/spec_decode/spec_decode_worker.py
-sinfer/spec_decode/top1_proposer.py
-sinfer/spec_decode/util.py
 sinfer/sys/__init__.py
 sinfer/sys/arg_utils.py
 sinfer/sys/async_runtime.py
