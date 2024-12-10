@@ -53,10 +53,10 @@ def parse_prompt_format(prompt) -> Tuple[bool, list]:
 class OpenAIServingCompletion(OpenAIServing):
 
     def __init__(self,
-                 engine: AsyncLLMRuntime,
+                 runtime: AsyncLLMRuntime,
                  served_model_names: List[str],
                  lora_modules: Optional[List[LoRAModulePath]] = None):
-        super().__init__(engine=engine,
+        super().__init__(runtime=runtime,
                          served_model_names=served_model_names,
                          lora_modules=lora_modules)
 
@@ -89,13 +89,13 @@ class OpenAIServingCompletion(OpenAIServing):
         try:
             sampling_params = request.to_sampling_params()
             lora_request = self._maybe_get_lora(request)
-            decoding_config = await self.engine.get_decoding_config()
+            decoding_config = await self.runtime.get_decoding_config()
             guided_decoding_backend = request.guided_decoding_backend \
                 or decoding_config.guided_decoding_backend
             guided_decode_logit_processor = (
                 await get_guided_decoding_logits_processor(
                     guided_decoding_backend, request, await
-                    self.engine.get_tokenizer()))
+                    self.runtime.get_tokenizer()))
             if guided_decode_logit_processor is not None:
                 if sampling_params.logits_processors is None:
                     sampling_params.logits_processors = []
@@ -119,7 +119,7 @@ class OpenAIServingCompletion(OpenAIServing):
                 prompt_ids, prompt_text = prompt_formats
 
                 generators.append(
-                    self.engine.generate(prompt_text,
+                    self.runtime.generate(prompt_text,
                                          sampling_params,
                                          f"{request_id}-{i}",
                                          prompt_token_ids=prompt_ids,
@@ -154,7 +154,7 @@ class OpenAIServingCompletion(OpenAIServing):
             async for i, res in result_generator:
                 if await raw_request.is_disconnected():
                     # Abort the request if the client disconnects.
-                    await self.engine.abort(f"{request_id}-{i}")
+                    await self.runtime.abort(f"{request_id}-{i}")
                     return self.create_error_response("Client disconnected")
                 final_res_batch[i] = res
             response = self.request_output_to_completion_response(
@@ -196,7 +196,7 @@ class OpenAIServingCompletion(OpenAIServing):
 
                 # Abort the request if the client disconnects.
                 if await raw_request.is_disconnected():
-                    await self.engine.abort(f"{request_id}-{prompt_idx}")
+                    await self.runtime.abort(f"{request_id}-{prompt_idx}")
                     raise StopAsyncIteration()
 
                 for output in res.outputs:

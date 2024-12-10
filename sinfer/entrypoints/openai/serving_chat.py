@@ -34,12 +34,12 @@ class ConversationMessage(TypedDict):
 class OpenAIServingChat(OpenAIServing):
 
     def __init__(self,
-                 engine: AsyncLLMRuntime,
+                 runtime: AsyncLLMRuntime,
                  served_model_names: List[str],
                  response_role: str,
                  lora_modules: Optional[List[LoRAModulePath]] = None,
                  chat_template: Optional[str] = None):
-        super().__init__(engine=engine,
+        super().__init__(runtime=runtime,
                          served_model_names=served_model_names,
                          lora_modules=lora_modules,
                          await_post_init=self._load_chat_template(
@@ -111,13 +111,13 @@ class OpenAIServingChat(OpenAIServing):
                 request, prompt=prompt) # 对 prompt 进行分词, 返回token ids
             sampling_params = request.to_sampling_params()
             lora_request = self._maybe_get_lora(request)
-            decoding_config = await self.engine.get_decoding_config()
+            decoding_config = await self.runtime.get_decoding_config()
             guided_decoding_backend = request.guided_decoding_backend \
                 or decoding_config.guided_decoding_backend
             guided_decode_logits_processor = (
                 await get_guided_decoding_logits_processor(
                     guided_decoding_backend, request, await
-                    self.engine.get_tokenizer()))
+                    self.runtime.get_tokenizer()))
             if guided_decode_logits_processor:
                 if sampling_params.logits_processors is None:
                     sampling_params.logits_processors = []
@@ -126,7 +126,7 @@ class OpenAIServingChat(OpenAIServing):
         except ValueError as e:
             return self.create_error_response(str(e))
 
-        result_generator = self.engine.generate(prompt_text, sampling_params,
+        result_generator = self.runtime.generate(prompt_text, sampling_params,
                                                 request_id, prompt_ids,
                                                 lora_request)
         # 流式回复
@@ -301,7 +301,7 @@ class OpenAIServingChat(OpenAIServing):
         async for res in result_generator:
             if await raw_request.is_disconnected():
                 # Abort the request if the client disconnects.
-                await self.engine.abort(request_id)
+                await self.runtime.abort(request_id)
                 return self.create_error_response("Client disconnected")
             final_res = res
         assert final_res is not None

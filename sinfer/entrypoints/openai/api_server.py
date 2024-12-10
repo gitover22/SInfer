@@ -76,7 +76,7 @@ async def validation_exception_handler(_, exc):
 # 推理引擎健康检查
 @app.get("/health")
 async def health() -> Response:
-    await openai_serving_chat.engine.check_health()
+    await openai_serving_chat.runtime.check_health()
     return Response(status_code=200)
 
 # 展示可用模型

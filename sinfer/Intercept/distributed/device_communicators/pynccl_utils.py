@@ -3,7 +3,7 @@ import sinfer
 from sinfer.Intercept.intercept_utils import InterceptObject
 from typing import Optional
 from torch.distributed import ProcessGroup
-# from sinfer.mlu_hijack.pycncl import CNCLCommunicator, cnclGetVersion
+# from sinfer.intercept.pycncl import CNCLCommunicator, cnclGetVersion
 from sinfer.distributed.device_communicators import pynccl_utils
 from sinfer.logger import init_logger
 

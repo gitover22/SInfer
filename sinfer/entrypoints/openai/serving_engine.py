@@ -30,11 +30,11 @@ class LoRAModulePath:
 class OpenAIServing:
     '''用于管理模型的初始化、配置、请求验证以及相关服务功能。 '''
     def __init__(self,
-                 engine: AsyncLLMRuntime,
+                 runtime: AsyncLLMRuntime,
                  served_model_names: List[str],
                  lora_modules: Optional[List[LoRAModulePath]],
                  await_post_init: Optional[Awaitable[Any]] = None):
-        self.engine = engine
+        self.runtime = runtime
         self.served_model_names = served_model_names
         if lora_modules is None:
             self.lora_requests = []
@@ -57,7 +57,6 @@ class OpenAIServing:
             event_loop = None
 
         if event_loop is not None and event_loop.is_running():
-            #
             # 如果当前是由 Ray Serve 实例化的，那么已经有一个正在运行的事件循环。
             event_loop.create_task(self._post_init(await_post_init))
         else:
@@ -65,7 +64,7 @@ class OpenAIServing:
             asyncio.run(self._post_init(await_post_init))
 
     async def _post_init(self, await_post_init):
-        engine_model_config = await self.engine.get_model_config()
+        engine_model_config = await self.runtime.get_model_config()
         self.max_model_len = engine_model_config.max_model_len
 
         # A separate tokenizer to map token IDs to strings.

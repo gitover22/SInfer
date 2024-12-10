@@ -276,7 +276,7 @@ def init_worker_distributed_environment(
                 "size does not match parallel_config.world_size "
                 f"({pynccl_world_size} vs. {parallel_config.world_size}).")
     elif parallel_config.world_size > 1:
-        # 当 world size 为 1 时，我们不会初始化 pynccl 进程组.
+        # 当 world size 为 1 时，不会初始化 pynccl 进程组.
         # 默认情况下，pynccl 为 tp group 初始化
         pynccl_utils.init_process_group(
             group=get_tensor_model_parallel_cpu_group())

@@ -341,7 +341,6 @@ class TensorizerLoader(BaseModelLoader):
 
 def get_model_loader(load_config: LoadConfig) -> BaseModelLoader:
     """获取一个模型加载器"""
-
     if isinstance(load_config.load_format, type):
         return load_config.load_format(load_config)
 

@@ -188,7 +188,7 @@ class RayGPUExecutor(DistributedGPUExecutor):
         use_ray_compiled_dag: bool = False,
         **kwargs,
     ) -> Any:
-        """在所有worker上运行指定的方法参数通过以下方式使用:
+        """在所有worker上运行指定的方法, 参数通过以下方式使用:
 
         - args/kwargs: 所有工作进程共享的相同参数和关键字参数
         - args/kwargs and driver_args/driver_kwargs: 驱动进程使用不同的参数
@@ -198,21 +198,21 @@ class RayGPUExecutor(DistributedGPUExecutor):
         if max_concurrent_workers:
             raise NotImplementedError(
                 "max_concurrent_workers is not supported yet.")
-
+        # 初始化驱动进程的参数
         if driver_args is None:
             driver_args = args if all_args is None else all_args[0]
         if driver_kwargs is None:
             driver_kwargs = kwargs if all_kwargs is None else all_kwargs[0]
 
         count = len(self.workers) # 获取工作进程的数量
-        # 如果 `all_args` 为空，则所有工作进程共享相同的参数；否则，每个工作进程有独立的参数
+        # 如果 all_args 为空，则所有工作进程共享相同的参数；否则，每个工作进程有独立的参数
         all_worker_args = repeat(args, count) if all_args is None \
             else islice(all_args, 1, None)
         all_worker_kwargs = repeat(kwargs, count) if all_kwargs is None \
             else islice(all_kwargs, 1, None)
 
         if use_ray_compiled_dag:
-            # Right now, compiled DAG can only accept a single input. 
+            # compiled DAG can only accept a single input. 
             assert self.forward_dag is not None
             output_channels = self.forward_dag.execute(1)
         else:

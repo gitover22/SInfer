@@ -62,12 +62,14 @@ class VocabParallelEmbedding(torch.nn.Module):
         self.embedding_dim = embedding_dim
         if params_dtype is None:
             params_dtype = torch.get_default_dtype()
-        self.tp_size = get_tensor_model_parallel_world_size()
-        # Divide the weight matrix along the vocaburaly dimension.
+        self.tp_size = get_tensor_model_parallel_world_size()  # 获取张量模型并行的GPU数量
+        # 根据全局词汇表大小计算当前并行分区的词汇表范围
+        # the_rank =get_tensor_model_parallel_rank()
         self.vocab_start_index, self.vocab_end_index = (
             vocab_range_from_global_vocab_size(
                 self.num_embeddings_padded, get_tensor_model_parallel_rank(),
                 self.tp_size))
+        # print(f"self.vocab_start_index:{self.vocab_start_index}  and self.vocab_end_index:{self.vocab_end_index}")
         self.num_embeddings_per_partition = (self.vocab_end_index -
                                              self.vocab_start_index)
         self.weight = Parameter(
@@ -81,10 +83,9 @@ class VocabParallelEmbedding(torch.nn.Module):
 
     def weight_loader(self, param: Parameter, loaded_weight: torch.Tensor):
         parallel_dim = param.parallel_dim
-        assert loaded_weight.shape[parallel_dim] == self.org_vocab_size
-        loaded_weight = loaded_weight[self.vocab_start_index:self.
-                                      vocab_end_index]
-        param[:loaded_weight.shape[0]].data.copy_(loaded_weight)
+        assert loaded_weight.shape[parallel_dim] == self.org_vocab_size  # 128256
+        loaded_weight = loaded_weight[self.vocab_start_index:self.vocab_end_index] # 截取权重张量的一部分以支持模型并行 debug:[0,32064]
+        param[:loaded_weight.shape[0]].data.copy_(loaded_weight) # 将截取的权重部分复制到参数 param 的对应范围中存储
 
     def forward(self, input_):
         if self.tp_size > 1:

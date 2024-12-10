@@ -1,6 +1,4 @@
-# Copyright 2023 The vLLM team.
-# Adapted from
-# https://github.com/NVIDIA/Megatron-LM/blob/main/megatron/core/parallel_state.py
+# Adapted from https://github.com/NVIDIA/Megatron-LM/blob/main/megatron/core/parallel_state.py
 # Copyright (c) 2022, NVIDIA CORPORATION. All rights reserved.
 """Tensor and pipeline parallel groups."""
 import contextlib
@@ -13,44 +11,40 @@ from sinfer.logger import init_logger
 
 logger = init_logger(__name__)
 
-# Tensor model parallel group that the current rank belongs to.
+# 当前 rank 所属的张量模型并行组 TP
 _TP_DEVICE_GROUP = None
 _TP_CPU_GROUP = None
-# Pipeline model parallel group that the current rank belongs to.
+# 当前 rank 所属的流水线模型并行组 PP
 _PIPELINE_MODEL_PARALLEL_GROUP = None
 
-# when people blindly call `torch.distributed.all_reduce` etc,
-# it will use this group. It is initialized with the `backend`
-# parameter of `init_distributed_environment` below.
-# Essentially, this is `torch.distributed.group.WORLD`.
-# We leave a line here to note that this is device-specific.
-# Note that this variable is not safe to use, because when users
-# call `init_distributed_environment` first, and then destroy
-# the process group themselves, this variable will keep a reference to the
-# destroyed process group, which is not useful.
+# 当用户直接调用 `torch.distributed.all_reduce` 等操作时，
+# 会默认使用这个分组。该分组通过 `init_distributed_environment` 函数中的
+# `backend` 参数初始化。实际上，这个分组就是 `torch.distributed.group.WORLD`。
+# 这里特别注明，这个变量是设备相关的。
+# 注意，这个变量并不安全，因为如果用户先调用了 `init_distributed_environment`
+# 然后又手动销毁了进程组，这个变量仍然会引用已被销毁的进程组，导致无效
 _DEVICE_WORLD_GROUP = None
 
-# duing `init_distributed_environment`, we will also initialize a
-# group with `gloo` backend, to allow direct coordination between
-# processes through the CPU.
+# 在调用 init_distributed_environment 时，我们还会初始化一个使用 `gloo` 后端的分组，用于通过 CPU 在进程之间直接协调。
 _CPU_WORLD_GROUP = None
 
-# In summary, after calling `init_distributed_environment`, we will
-# always have two groups: one for device-specific (and is the default)
-# and one for CPU. All processes will be part of both groups.
+# 总结：在调用 `init_distributed_environment` 后，
+# 我们始终会有两个分组：一个是设备相关的（默认分组），另一个是 CPU 分组。
+# 所有的进程都会属于这两个分组。
 
-# A list of global ranks for each pipeline group to ease calculation of the
-# source rank when broadcasting from the first or last pipeline stage.
+# 每个流水线分组的全局 rank 列表，用于在广播操作中
+# 方便地计算来自流水线第一阶段或最后阶段的源 rank
 _PIPELINE_GLOBAL_RANKS = None
 
 _LOCAL_RANK = -1
+
 
 
 def get_local_rank():
     global _LOCAL_RANK
     return _LOCAL_RANK
 
-
+# 初始化分布式环境
 def init_distributed_environment(
     world_size: int = -1,
     rank: int = -1,
@@ -85,39 +79,36 @@ def init_distributed_environment(
         global _LOCAL_RANK
         _LOCAL_RANK = local_rank
 
-
+# 模型并行初始化
 def initialize_model_parallel(
     tensor_model_parallel_size: int = 1,
     pipeline_model_parallel_size: int = 1,
     backend: Optional[str] = None,
 ) -> None:
     """
-    Initialize model parallel groups.
+    初始化模型并行组。
 
-    Arguments:
-        tensor_model_parallel_size: number of GPUs used for tensor model
-            parallelism.
-        pipeline_model_parallel_size: number of GPUs used for pipeline model
-            parallelism.
+    参数:
 
-    Let's say we have a total of 8 GPUs denoted by g0 ... g7 and we
-    use 2 GPUs to parallelize the model tensor, and 4 GPUs to parallelize
-    the model pipeline. The present function will
-    create 4 tensor model-parallel groups and 2 pipeline model-parallel groups:
-        4 tensor model-parallel groups:
-            [g0, g1], [g2, g3], [g4, g5], [g6, g7]
-        2 pipeline model-parallel groups:
-            [g0, g2, g4, g6], [g1, g3, g5, g7]
-    Note that for efficiency, the caller should make sure adjacent ranks
-    are on the same DGX box. For example if we are using 2 DGX-1 boxes
-    with a total of 16 GPUs, rank 0 to 7 belong to the first box and
-    ranks 8 to 15 belong to the second box.
+    - tensor_model_parallel_size: 用于张量模型并行的GPU数量。
+    - pipeline_model_parallel_size: 用于流水线模型并行的GPU数量。
+
+    示例解释:
+
+    假设总共有8个GPU, 标记为g0到g7, 使用2个GPU进行张量模型并行, 4个GPU进行流水线模型并行。
+    这个函数将创建以下并行组：
+    1. 张量模型并行组 4个组: [g0, g1] [g2, g3] [g4, g5] [g6, g7]
+    2. 流水线模型并行组 2个组: [g0, g2, g4, g6] [g1, g3, g5, g7]
+
+    注意事项
+    为了提高效率, 要确保相邻的GPU排名位于同一个DGX服务器中。例如使用2台DGX-1服务器(每台有8个GPU) ,则排名0到7属于第一台服务器, 排名8到15属于第二台服务器
+    这能够确保通信效率最优，并最大化分布式训练的性能优势。
     """
-    # Get world size and rank. Ensure some consistencies.
+
     assert torch.distributed.is_initialized()
     world_size: int = torch.distributed.get_world_size()
     # get the backend of _DEVICE_WORLD_GROUP
-    backend = backend or torch.distributed.get_backend()
+    backend = backend or torch.distributed.get_backend() # cncl
 
     if (world_size !=
             tensor_model_parallel_size * pipeline_model_parallel_size):
@@ -127,12 +118,12 @@ def initialize_model_parallel(
             f"pipeline_model_parallel_size ({pipeline_model_parallel_size})")
 
     num_tensor_model_parallel_groups: int = (world_size //
-                                             tensor_model_parallel_size)
+                                             tensor_model_parallel_size) # 计算张量并行组的数量
     num_pipeline_model_parallel_groups: int = (world_size //
-                                               pipeline_model_parallel_size)
+                                               pipeline_model_parallel_size) # 计算流水线并行组的数量
     rank = torch.distributed.get_rank()
 
-    # Build the tensor model-parallel groups.
+    # 创建张量模型并行组
     global _TP_DEVICE_GROUP, _TP_CPU_GROUP
     assert _TP_DEVICE_GROUP is None, (
         "tensor model parallel group is already initialized")
@@ -145,7 +136,7 @@ def initialize_model_parallel(
             _TP_DEVICE_GROUP = group
             _TP_CPU_GROUP = cpu_group
 
-    # Build the pipeline model-parallel groups.
+    # 创建流水线模型并行组
     global _PIPELINE_MODEL_PARALLEL_GROUP
     global _PIPELINE_GLOBAL_RANKS
     assert _PIPELINE_MODEL_PARALLEL_GROUP is None, (
@@ -157,15 +148,14 @@ def initialize_model_parallel(
             _PIPELINE_MODEL_PARALLEL_GROUP = group
             _PIPELINE_GLOBAL_RANKS = ranks
 
-
+# 确保并行组已初始化
 def ensure_model_parallel_initialized(
     tensor_model_parallel_size: int,
     pipeline_model_parallel_size: int,
     backend: Optional[str] = None,
 ) -> None:
-    """Helper to initialize model parallel groups if they are not initialized,
-    or ensure tensor-parallel and pipeline-parallel sizes are equal to expected
-    values if the model parallel groups are initialized.
+    """辅助函数，用于在模型并行组尚未初始化时进行初始化；
+    或者在模型并行组已经初始化的情况下，确保张量并行和流水线并行的大小与预期值相等。
     """
     # get the backend of _DEVICE_WORLD_GROUP
     backend = backend or torch.distributed.get_backend() # cncl
@@ -187,7 +177,7 @@ def ensure_model_parallel_initialized(
 
 
 def model_parallel_is_initialized():
-    """Check if tensor and pipeline parallel groups are initialized."""
+    """检查张量并行组和流水线并行组是否已初始化。"""
     return (_TP_DEVICE_GROUP is not None
             and _PIPELINE_MODEL_PARALLEL_GROUP is not None)
 
@@ -307,9 +297,7 @@ def destroy_model_parallel():
     pynccl_utils.destroy_process_group()
 
 
-# Whether to use pynccl for nccl all reduce.
-# We use pynccl for all reduce when using CUDA graph, because torch.distributed
-# is not well supported by CUDA graph.
+# 在使用 CUDA 图时，使用 PyNCCL 进行 all reduce 操作，因为 torch.distributed 对 CUDA 图的支持并不完善
 _ENABLE_PYNCCL_FOR_ALL_REDUCE = False
 
 
@@ -319,8 +307,7 @@ def with_pynccl_for_all_reduce():
     """use pynccl instead of torch.distributed for all reduce"""
     tp_size = get_tensor_model_parallel_world_size()
     if tp_size == 1:
-        # No-op.
-        # NOTE(woosuk): We don't initialize pynccl when tp_size is 1.
+        # don't initialize pynccl when tp_size is 1.
         yield
     else:
         global _ENABLE_PYNCCL_FOR_ALL_REDUCE
