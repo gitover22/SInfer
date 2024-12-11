@@ -13,10 +13,6 @@ if 'USE_PAGED' in os.environ:
         USE_PAGED = True
     else:
         USE_PAGED = False
-if USE_PAGED:
-    print("\n============================USE PAGED=============================\n")
-else:
-    print("\n============================NO PAGED=============================\n")
 
 USE_CONTEXT_PARALLEL = 'USE_CONTEXT_PARALLEL'
 SCHEDULER_PROFILE_ENABLE = 'SINFER_SCHEDULER_PROFILE_ENABLE'

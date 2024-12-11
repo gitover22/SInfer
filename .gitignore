@@ -1,4 +1,5 @@
 models/Meta-Llama-3-8B-Instruct
+models/llama-3-chinese-8b-lora
 models/proxy_timeout
 models/test_python.py
 sinfer/**/__pycache__/

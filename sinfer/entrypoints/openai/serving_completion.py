@@ -51,7 +51,6 @@ def parse_prompt_format(prompt) -> Tuple[bool, list]:
 
 
 class OpenAIServingCompletion(OpenAIServing):
-
     def __init__(self,
                  runtime: AsyncLLMRuntime,
                  served_model_names: List[str],

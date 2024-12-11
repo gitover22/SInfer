@@ -4,15 +4,11 @@ from dataclasses import dataclass
 @dataclass
 class LoRARequest:
     """
-    Request for a LoRA adapter.
+        请求一个 LoRA 适配器。
 
-    Note that this class should be be used internally. For online
-    serving, it is recommended to not allow users to use this class but
-    instead provide another layer of abstraction to prevent users from
-    accessing unauthorized LoRA adapters.
+        请注意，此类应仅在内部使用。对于在线服务，建议不要允许用户直接使用此类，而是提供另一层抽象以防止用户访问未经授权的 LoRA 适配器。
 
-    lora_int_id must be globally unique for a given adapter.
-    This is currently not enforced in SInfer.
+        lora_int_id 对于给定的适配器必须全局唯一
     """
 
     lora_name: str
