@@ -5,6 +5,9 @@ import time
 from collections import deque
 from dataclasses import dataclass, field
 from typing import Deque, Dict, Iterable, List, Optional, Set, Tuple, Union
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
 
 from sinfer.config import CacheConfig, LoRAConfig, SchedulerConfig
 from sinfer.core.interfaces import AllocStatus, SpaceManager
@@ -202,7 +205,6 @@ class SchedulerSwappedInOutputs:
 @dataclass
 class SchedulerPrefillOutputs:
     """从waiting队列调度的序列组
-
     可能包含新的预填充请求或被抢占的请求(抢占策略为重计算),这些请求需要从头重新计算
     """
     # Selected sequences for prefill.
@@ -219,7 +221,6 @@ class SchedulerPrefillOutputs:
             num_lookahead_slots=0,
         )
 
-
 class Scheduler:
 
     def __init__(
@@ -230,7 +231,7 @@ class Scheduler:
     ) -> None:
         self.scheduler_config = scheduler_config
         self.cache_config = cache_config
-        # LoRA 调度的说明：当前的策略非常简单且不公平,可能导致某些 LoRA 的饥饿问题
+        # LoRA配置
         self.lora_config = lora_config
 
         if self.scheduler_config.chunked_prefill_enabled:
@@ -266,6 +267,29 @@ class Scheduler:
         self.artificial_preempt_cnt = (ARTIFICIAL_PREEMPTION_MAX_CNT
                                        if self.enable_artificial_preemption
                                        else 0)
+        
+        # add for scheduler profiling
+        logger.info(f"start SInfer scheduler profiling...")
+        
+        self.df = pd.DataFrame(
+            data={
+                'waiting': [], 'running': [], 'swapped': [], 'finished': [],
+                'batch_utils': [], 'block_utils': [], 'preempt_ratio': []
+            },
+            dtype=np.float32
+        )
+        self.sched_step = 0
+        self.running_seqs = 0
+        self.waiting_seqs = 0
+        self.swapped_seqs = 0
+        self.finished_seqs = 0
+        self.total_seqs = 0
+        self.running_to_waiting_seqs = 0
+        self.batch_utils = 0
+        self.block_utils = 0
+        self.preempt_ratio = 0
+
+        self.finished_seq_groups = []
 
     @property
     def lora_enabled(self) -> bool:
@@ -350,6 +374,7 @@ class Scheduler:
             A tuple of remaining running queue (should be always 0) after
             scheduling and SchedulerRunningOutputs.
         """
+        init_queue = running_queue
         # 模型执行前需要swap和copy的块
         blocks_to_swap_out: Dict[int, int] = {}
         blocks_to_copy: Dict[int, List[int]] = {}
@@ -418,7 +443,12 @@ class Scheduler:
                     budget.add_num_seqs(seq_group.request_id, num_running_seqs)
                 if curr_loras is not None and seq_group.lora_int_id > 0:
                     curr_loras.add(seq_group.lora_int_id)
-
+        # add for scheduler profiling
+        # run_reqs = len(init_queue)
+        # sched_reqs = run_reqs - len(running_queue)
+        sched_to_preempt = [s.request_id for s in preempted]
+        # sched_to_swap_out = [s.request_id for s in swapped_out]
+        self.running_to_waiting_seqs += len(sched_to_preempt)
         return running_queue, SchedulerRunningOutputs(
             decode_seq_groups=decode_seq_groups,
             prefill_seq_groups=prefill_seq_groups,
@@ -531,7 +561,10 @@ class Scheduler:
             budget.add_num_seqs(seq_group.request_id, num_new_seqs)
 
         swapped_queue.extendleft(leftover_swapped)
-
+        # add for scheduler profiling
+        # swap_reqs = len(swapped_queue)
+        # sched_reqs = swap_reqs - len(swapped_queue)
+        # sched_to_swap_in = [s.seq_group.request_id for s in decode_seq_groups]
         return swapped_queue, SchedulerSwappedInOutputs(
             decode_seq_groups=decode_seq_groups,
             prefill_seq_groups=prefill_seq_groups,
@@ -571,6 +604,7 @@ class Scheduler:
             A tuple of remaining waiting_queue after scheduling and
             SchedulerSwappedInOutputs.
         """
+        init_queue = waiting_queue
         ignored_seq_groups: List[SequenceGroup] = []
         seq_groups: List[SequenceGroup] = []
         # 不对等待队列进行排序，因为假设它已经是有序的
@@ -654,6 +688,12 @@ class Scheduler:
         if len(seq_groups) > 0:
             self.prev_prompt = True
 
+        # add for scheduler profiling
+        # wait_reqs = len(init_queue)
+        # sched_reqs = wait_reqs - len(waiting_queue)
+        # sched_to_run = [s.seq_group.request_id for s in prefills.seq_groups]
+        # sched_to_ingore = [s.seq_group.request_id for s in prefills.ignored_seq_groups]
+
         return waiting_queue, SchedulerPrefillOutputs(
             seq_groups=seq_groups,
             ignored_seq_groups=ignored_seq_groups,
@@ -731,6 +771,8 @@ class Scheduler:
         # 没开启chunked prefill时，running队列和swapped队列都不应该包含prefill阶段的SG
         assert len(running_scheduled.prefill_seq_groups) == 0
         assert len(swapped_in.prefill_seq_groups) == 0
+        # add for scheduler profiling
+        self.sched_step += 1
         # 包装一下调度结果并返回
         return SchedulerOutputs(
             scheduled_seq_groups=(prefills.seq_groups +
@@ -937,8 +979,37 @@ class Scheduler:
 
     def free_finished_seq_groups(self) -> None:
         # 释放已经完成的序列组
+        # self.running = deque(seq_group for seq_group in self.running
+        #                      if not seq_group.is_finished())
+        # add for scheduler profiling
+        finished_seq_groups_ = [seq_group for seq_group in self.running
+                                        if seq_group.is_finished()]
+
         self.running = deque(seq_group for seq_group in self.running
-                             if not seq_group.is_finished())
+                                if not seq_group.is_finished())
+
+        self.running_seqs = len(self.running)
+        self.waiting_seqs = len(self.waiting)
+        self.swapped_seqs = len(self.swapped)
+        self.finished_seqs += len(finished_seq_groups_)
+        self.finished_seq_groups += finished_seq_groups_
+
+        total_seqs_ = self.running_seqs + self.waiting_seqs + self.swapped_seqs + self.finished_seqs
+        if total_seqs_ > self.total_seqs:
+            self.total_seqs = total_seqs_
+
+        self.batch_utils = self.running_seqs / self.scheduler_config.max_num_seqs
+        self.block_utils = (self.block_manager.num_total_gpu_blocks -
+                            self.block_manager.get_num_free_gpu_blocks()) / self.block_manager.num_total_gpu_blocks
+        self.preempt_ratio = self.running_to_waiting_seqs / self.total_seqs
+
+        df_ = pd.DataFrame(
+            [[self.waiting_seqs, self.running_seqs, self.swapped_seqs,
+            len(finished_seq_groups_), self.batch_utils, self.block_utils, self.preempt_ratio]],
+            columns=['waiting', 'running', 'swapped',
+                    'finished','batch_utils', 'block_utils', 'preempt_ratio'],
+            index=[str(self.sched_step)])
+        self.df = pd.concat([self.df, df_])
 
     def _allocate_and_set_running(self, seq_group: SequenceGroup) -> None:
         self.block_manager.allocate(seq_group)
@@ -1102,3 +1173,56 @@ class Scheduler:
             num_new_tokens = min(num_new_tokens,
                                  budget.remaining_token_budget())
         return num_new_tokens
+    def summary_finished_seq_groups(self,seq_groups: List[SequenceGroup]):
+        df = pd.DataFrame(
+        data={
+            'ttft/s': [], 'time_in_queue/s': [], 'context_latency/s': [], 'decoder_latency/s': []
+        },
+        dtype=np.float32
+        )
+        for seq_group in seq_groups:
+            ttft = seq_group.metrics.first_token_time - seq_group.metrics.arrival_time
+            time_in_queue = seq_group.metrics.time_in_queue
+            context_latency = seq_group.metrics.first_token_time - seq_group.metrics.first_scheduled_time
+            decoder_latency = seq_group.metrics.finished_time - seq_group.metrics.first_token_time
+            decoder_token_num = seq_group.get_seqs()[0].get_output_len() - 1
+            per_token_latency = decoder_latency if decoder_token_num == 0 \
+                                                else decoder_latency / decoder_token_num
+            df_ = pd.DataFrame(
+                [[ttft, time_in_queue, context_latency, decoder_latency, per_token_latency, decoder_token_num]],
+                columns=['ttft/s', 'time_in_queue/s', 'context_latency/s', 'decoder_latency/s', 'per_token_latency/s', 'decoder_tokens'],
+                index=[str(seq_group.request_id)]
+            )
+            df = pd.concat([df, df_])
+        sum_, max_, mean_, min_, p99_ = df.sum(), df.max(), df.mean(), df.min(), df.quantile(0.99)
+        df.loc['Sum'] = sum_
+        df.loc['Max'] = max_
+        df.loc['Mean'] = mean_
+        df.loc['Min'] = min_
+        df.loc['P99'] = p99_
+        return df
+
+    def __del__(self):
+        logger.info(f"SInfer scheduler profiling save...")
+        figure = self.df.plot(y=['waiting', 'running', 'swapped', 'finished']).get_figure()
+        figure.savefig("sinfer_queue_view.jpg", dpi=300)
+        plt.close(figure)
+        figure = self.df.plot(y=['batch_utils', 'block_utils', 'preempt_ratio']).get_figure()
+        figure.savefig("sinfer_utilization_view.jpg", dpi=300)
+        plt.close(figure)
+
+        time_df = self.summary_finished_seq_groups(self.finished_seq_groups)
+
+        max_, mean_, min_ = self.df.max(), self.df.mean(), self.df.min()
+        self.df.loc["Max"] = max_
+        self.df.loc["Mean"] = mean_
+        self.df.loc["Min"] = min_
+        with pd.option_context('display.max_rows', None,
+                            'display.max_columns', None,
+                            'display.max_colwidth', None,
+                            'display.float_format', '{:^6,.2f}'.format,
+                            'expand_frame_repr', False):
+            logger.info(self.df.loc[["Max", "Mean", "Min"]])
+            logger.info(time_df.loc[["Sum", "Max", "Mean", "Min", "P99"]])
+        self.df.astype(str).to_csv("sinfer_scheduler_view.csv", mode="w")
+        time_df.astype(str).to_csv("sinfer_time_view.csv", mode="w")

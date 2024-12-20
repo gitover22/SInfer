@@ -42,7 +42,6 @@ sinfer/Intercept/attention/ops/prefix_prefill.py
 sinfer/Intercept/attention/ops/triton_flash_attention.py
 sinfer/Intercept/core/__init__.py
 sinfer/Intercept/core/block_manager.py
-sinfer/Intercept/core/scheduler.py
 sinfer/Intercept/distributed/__init__.py
 sinfer/Intercept/distributed/communication_op.py
 sinfer/Intercept/distributed/device_communicators/__init__.py
