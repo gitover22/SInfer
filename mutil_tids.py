@@ -55,7 +55,7 @@ def start():
 
     # 请求模型生成结果
     completion = client.chat.completions.create(
-        model="./models/Meta-Llama-3-8B-Instruct",
+        model="./test/Meta-Llama-3-8B-Instruct",
         messages=[user_message],
         max_tokens=512  # 确保生成内容不超过上下文窗口限制
     )

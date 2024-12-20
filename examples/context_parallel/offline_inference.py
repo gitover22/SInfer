@@ -1,16 +1,15 @@
 from sinfer import LLM, SamplingParams
 
 if __name__ == '__main__':    
-    # Sample prompts.
     prompts = [
         "Hello, my name is",
         "The president of the United States is",
         "The capital of France is",
         "The future of AI is",
     ]
-    # Create a sampling params object.
+
     sampling_params = SamplingParams(temperature=0.8, max_tokens=16)
-    # Create an LLM.
+
     llm = LLM(model="/data/AE/llm/models/Llama-2-7b-hf/", enforce_eager=True, tensor_parallel_size = 1, context_parallel_size = 2)
     # Generate texts from the prompts. The output is a list of RequestOutput objects
     # that contain the prompt, generated text, and other information.

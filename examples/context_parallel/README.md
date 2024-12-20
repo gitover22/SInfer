@@ -1,6 +1,6 @@
 ### 简介
 
-该example是SInfer中进行Context Parallel和Ring Attention的实验，mlu_hijack是对仓库代码的劫持，避免修改主仓库代码
+该example是SInfer中进行Context Parallel和Ring Attention的实验
 
 ### 支持模型
 
@@ -8,7 +8,7 @@
 
 ### 支持板卡
 
-暂不支持300系列设备
+暂不支持 MLU370 设备
 
 ### 运行demo
 ```python
