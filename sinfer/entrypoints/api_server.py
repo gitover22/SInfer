@@ -1,5 +1,5 @@
 """
-仅用于演示 AsyncEngine 的用法和简单性能基准测试,并不适用于生产环境
+仅用于演示 AsyncRuntime 的用法和简单性能基准测试,并不适用于生产环境
 """
 
 import argparse

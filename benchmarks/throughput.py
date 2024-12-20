@@ -1,5 +1,3 @@
-
-
 # 离线推理吞吐量
 import argparse
 import json

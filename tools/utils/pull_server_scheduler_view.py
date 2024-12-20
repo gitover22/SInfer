@@ -1,7 +1,7 @@
 import argparse
 import requests
 
-""" Post a request to server, let server save scheduler profiling data. """
+""" 向服务器发送POST请求, 保存调度器剖析数据"""
 def post_http_request(api_url: str) -> requests.Response:
     headers = {"User-Agent": "Test Client"}
     pload = {
@@ -17,10 +17,5 @@ def post_http_request(api_url: str) -> requests.Response:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--host", type=str, default="localhost")
-    parser.add_argument("--port", type=int, default=6000)
-    args = parser.parse_args()
-    api_url = f"http://{args.host}:{args.port}/v1/completions"
-
+    api_url = f"http://localhost:8000/v1/completions"
     _ = post_http_request(api_url)

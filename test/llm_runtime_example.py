@@ -41,7 +41,7 @@ def process_requests(engine: LLMRuntime,
                 print(request_output)
 
 
-def initialize_engine(args: argparse.Namespace) -> LLMRuntime:
+def initialize_runtime(args: argparse.Namespace) -> LLMRuntime:
     """Initialize the LLMRuntime from the command line arguments."""
     engine_args = RuntimeArgs.from_cli_args(args)
     return LLMRuntime.from_runtime_args(engine_args)
@@ -49,7 +49,7 @@ def initialize_engine(args: argparse.Namespace) -> LLMRuntime:
 
 def main(args: argparse.Namespace):
     """Main function that sets up and runs the prompt processing."""
-    engine = initialize_engine(args)
+    engine = initialize_runtime(args)
     test_prompts = create_test_prompts()
     process_requests(engine, test_prompts)
 

@@ -26,7 +26,7 @@ user_message2 = [{
     }]
 # 请求模型生成结果，该方法对应post请求
 completion = client.chat.completions.create(
-    model="./models/Meta-Llama-3-8B-Instruct",
+    model="./test/Meta-Llama-3-8B-Instruct",
     messages=user_message2,
     max_tokens=512  # 限制模型最大生成内容长度，注意token_num(messages长度) + max_tokens < max_model_len(模型支持的最大上下文长度)
 )

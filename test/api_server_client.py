@@ -1,14 +1,12 @@
-"""Example Python client for sinfer.entrypoints.api_server
-server command:
-python -m sinfer.entrypoints.api_server  --model ${MODEL_PATH} --swap-space 16 --disable-log-requests --port 8000
-"""
-
 import argparse
 import json
 from typing import Iterable, List
-
 import requests
 
+'''
+python -m sinfer.entrypoints.api_server  --model /home/zouguoqiang/SInfer/test/Meta-Llama-3-8B-Instruct --swap-space 16 --disable-log-requests --dtype float16 --port 8000
+
+'''
 
 def clear_line(n: int = 1) -> None:
     LINE_UP = '\033[1A'
@@ -27,7 +25,7 @@ def post_http_request(prompt: str,
         "n": n,
         "use_beam_search": False,
         "temperature": 0.0,
-        "max_tokens": 16,
+        "max_tokens": 128,
         "stream": stream,
     }
     response = requests.post(api_url, headers=headers, json=pload, stream=True)
@@ -46,6 +44,7 @@ def get_streaming_response(response: requests.Response) -> Iterable[List[str]]:
 
 def get_response(response: requests.Response) -> List[str]:
     data = json.loads(response.content)
+    # print(data)
     output = data["text"]
     return output
 
@@ -71,6 +70,7 @@ if __name__ == "__main__":
         for h in get_streaming_response(response):
             clear_line(num_printed_lines)
             num_printed_lines = 0
+            print(h, flush=True)
             for i, line in enumerate(h):
                 num_printed_lines += 1
                 print(f"Beam candidate {i}: {line!r}", flush=True)

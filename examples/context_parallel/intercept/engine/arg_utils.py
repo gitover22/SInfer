@@ -3,9 +3,6 @@ import torch
 from sinfer.config import RuntimeConfig, ParallelConfig
 from sinfer.sys.arg_utils import RuntimeArgs, AsyncRuntimeArgs
 from sinfer.Intercept.intercept_utils import InterceptObject, set_batch_sizes_to_capture
-from sinfer.Intercept.sys.arg_utils import intercept_create_runtime_config
-from sinfer.Intercept.sys.arg_utils import intercept_add_cli_args
-from sinfer.Intercept.sys.arg_utils import intercept_from_cli_args
 
 sinfer__engine__arg_utils__EngineArgs__from_cli_args_org = RuntimeArgs.from_cli_args
 sinfer__engine__arg_utils__AsyncEngineArgs__from_cli_args_org = AsyncRuntimeArgs.from_cli_args
@@ -18,7 +15,7 @@ def sinfer__engine__arg_utils__EngineArgs__create_engine_config_wraper(self, ) -
         raise ValueError('Context parallel does not support MLU370.')
     
     setattr(ParallelConfig, 'context_parallel_size', self.context_parallel_size)
-    engine_config = intercept_create_runtime_config(self)
+    engine_config = RuntimeArgs.create_runtime_config(self)
     '''
     =======================
     '''
@@ -29,7 +26,7 @@ def sinfer__engine__arg_utils__EngineArgs__create_engine_config_wraper(self, ) -
 def sinfer__engine__arg_utils__EngineArgs__add_cli_args_wraper(
         parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
     """Shared CLI arguments for SInfer engine."""
-    parser = intercept_add_cli_args(parser)
+    parser = RuntimeArgs.add_cli_args(parser)
     '''
     @brief: add context-parallel-size choices
     '''
@@ -46,7 +43,7 @@ def sinfer__engine__arg_utils__EngineArgs__add_cli_args_wraper(
 
 @classmethod
 def sinfer__engine__arg_utils__EngineArgs__from_cli_args_wraper(cls, args: argparse.Namespace) -> 'RuntimeArgs':
-    engine_args = intercept_from_cli_args(cls, args)
+    engine_args = RuntimeArgs.from_cli_args(cls, args)
     setattr(engine_args, 'context_parallel_size', getattr(args, "context_parallel_size"))
     return engine_args
 
