@@ -48,14 +48,21 @@ class RayGPUExecutor(DistributedGPUExecutor):
         # If nsight profiling is enabled, we need to set the profiling
         # configuration for the ray workers as runtime env.
         runtime_env = ray_remote_kwargs.setdefault("runtime_env", {})
+        # runtime_env.update({
+        #     "nsight": {
+        #         "t": "cuda,cudnn,cublas",
+        #         "o": "'worker_process_%p'",
+        #         "cuda-graph-trace": "node",
+        #     }
+        # })
+        
+        # 获取cnperf data 在每一个mlu的worker上
         runtime_env.update({
             "nsight": {
-                "t": "cuda,cudnn,cublas",
-                "o": "'worker_process_%p'",
-                "cuda-graph-trace": "node",
+                "o": os.getcwd(),
+                "force_overwrite": "false"
             }
         })
-
         return ray_remote_kwargs
 
     def _init_workers_ray(self, placement_group: "PlacementGroup",
@@ -269,8 +276,6 @@ class RayGPUExecutor(DistributedGPUExecutor):
             ])
         return forward_dag.experimental_compile()
 
-
-
     def check_health(self) -> None:
         """Raises an error if engine is unhealthy."""
         self._check_if_any_actor_is_dead()
@@ -287,6 +292,14 @@ class RayGPUExecutor(DistributedGPUExecutor):
             raise RuntimeError("At least one Worker is dead. "
                                f"Dead Workers: {dead_actors}. ")
 
+    def get_latency(self):
+        '''
+        调用此方法之前，必须执行 torch.cuda.synchronize()，以确保 CUDA 的操作完成（同步 GPU 和 CPU 操作），从而提供准确的延迟数据
+        '''
+        all_latencies = self._run_workers(method="get_latency")
+
+        # 只有主驱动节点（driver worker）完成了 model.compute_logits() 过程，而其他 Ray 工作者（workers）在计算各自对应的 logit 后便停止运行
+        return all_latencies[0]
 class RayGPUExecutorAsync(RayGPUExecutor, DistributedGPUExecutorAsync):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

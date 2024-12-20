@@ -94,7 +94,14 @@ class GPUExecutor(ExecutorBase):
         # GPUExecutor will always be healthy as long as
         # it's running.
         return
-
+    
+    def get_latency(self):
+        '''
+        requires that torch.cuda.synchronize() be executed before this function 
+        for getting an accurate reading
+        '''
+        latency = self.driver_worker.get_latency()
+        return latency
 
 class GPUExecutorAsync(GPUExecutor, ExecutorAsyncBase):
 

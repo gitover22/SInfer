@@ -21,16 +21,15 @@ class SinferMluIntercept:
         pass
 
     def apply_optimizations(self, paged=False):
-        logger.info("MLU optimization opened!")
+        logger.info("intercepting Layer opend!")
         import sinfer.Intercept.attention
         import sinfer.Intercept.distributed
-        import sinfer.Intercept.executor
         import sinfer.Intercept.model_executor
         import sinfer.Intercept.worker
         InterceptObject.apply_intercept()
 
     def undo_optimization(self):
-        logger.info("MLU optimization closed!")
+        logger.info("intercepting Layer closed!")
         InterceptObject.remove_intercept()
 
 sinfer_mlu_intercept = SinferMluIntercept()
@@ -48,7 +47,7 @@ def use_context_parallel_hijack():
     file_path = Path(os.path.abspath(__file__))
     SInfer_dir = file_path.parent.parent.parent
     sys.path.append(str(SInfer_dir))
-    importlib.import_module("examples.context_parallel.mlu_hijack.mlu_hijack") # 动态导入模块
+    importlib.import_module("examples.context_parallel.intercept.mlu_hijack") # 动态导入模块
 
 if check_context_parallel():
     use_context_parallel_hijack()
