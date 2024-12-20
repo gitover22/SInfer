@@ -3,8 +3,9 @@ import torch
 from typing import List, Optional
 from sinfer.Intercept.intercept_utils import InterceptObject
 from sinfer.Intercept.mlu_definitions import check_latency_debug_with_device
+from sinfer.task import TaskMetadata
 from sinfer.worker.model_runner import (ModelRunner, _PAD_SLOT_ID)
-from sinfer.sequence import SequenceGroupMetadata, SamplerOutput
+from sinfer.request import SamplerOutput
 from ..zigzag_utils import get_context_model_parallel_world_size, zigzag_split
 import sinfer.envs as envs
 
@@ -12,7 +13,7 @@ import sinfer.envs as envs
 @torch.inference_mode()
 def sinfer__worker__model_runner__ModelRunner__execute_model(
     self,
-    seq_group_metadata_list: List[SequenceGroupMetadata],
+    seq_group_metadata_list: List[TaskMetadata],
     kv_caches: List[torch.Tensor],
 ) -> Optional[SamplerOutput]:
     (input_tokens, input_positions, attn_metadata, sampling_metadata,

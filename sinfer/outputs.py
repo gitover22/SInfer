@@ -1,9 +1,10 @@
 import time
 from typing import List, Optional, Union
 
+from sinfer.task import Task
 from sinfer.lora.request import LoRARequest
-from sinfer.sequence import (PromptLogprobs, RequestMetrics, SampleLogprobs,
-                           SequenceGroup, SequenceStatus)
+from sinfer.request import (PromptLogprobs, RequestMetrics, SampleLogprobs,
+                           RequestStatus)
 
 
 class CompletionOutput:
@@ -92,7 +93,7 @@ class RequestOutput:
         self.lora_request = lora_request
 
     @classmethod
-    def from_seq_group(cls, seq_group: SequenceGroup) -> "RequestOutput":
+    def from_seq_group(cls, seq_group: Task) -> "RequestOutput":
         seqs = seq_group.get_seqs()
         if len(seqs) == 1:
             top_n_seqs = seqs
@@ -119,7 +120,7 @@ class RequestOutput:
                              seq.get_output_token_ids(),
                              seq.get_cumulative_logprob(),
                              seq.output_logprobs if include_logprobs else None,
-                             SequenceStatus.get_finished_reason(seq.status),
+                             RequestStatus.get_finished_reason(seq.status),
                              seq.stop_reason) for seq in top_n_seqs
         ]
 

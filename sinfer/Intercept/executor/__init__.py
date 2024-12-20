@@ -1,2 +1,0 @@
-import sinfer.Intercept.executor.gpu_executor
-import sinfer.Intercept.executor.ray_gpu_executor

@@ -8,6 +8,7 @@ from sinfer.Intercept.intercept_utils import InterceptObject, make_tensor_with_p
 from sinfer.Intercept.mlu_definitions import USE_PAGED, BlockSizeInfo, check_latency_debug_with_device, CUDA_GRAPH_DEBUG
 from sinfer.logger import init_logger
 from sinfer.distributed.device_communicators import pynccl_utils, custom_all_reduce
+from sinfer.task import TaskMetadata
 from sinfer.worker.model_runner import (ModelRunner, CUDAGraphRunner,
                                       PreparePromptMetadata, PrepareDecodeMetadata,
                                       _get_graph_batch_size, _BATCH_SIZES_TO_CAPTURE,
@@ -16,7 +17,7 @@ from sinfer.attention.backends.abstract import AttentionMetadata
 from sinfer.attention.backends.flashinfer import FlashInferBackend
 from sinfer.lora.layers import LoRAMapping
 from sinfer.lora.request import LoRARequest
-from sinfer.sequence import SequenceGroupMetadata, SamplerOutput
+from sinfer.request import SamplerOutput
 from sinfer.utils import get_kv_cache_torch_dtype
 
 import sinfer.envs as envs
@@ -45,7 +46,7 @@ def intercept_ModelRunner_get_max_block_per_batch(self) -> int:
 
 def intercept_ModelRunner_prepare_prompt(
     self,
-    seq_group_metadata_list: List[SequenceGroupMetadata],
+    seq_group_metadata_list: List[TaskMetadata],
 ) -> PreparePromptMetadata:
     input_tokens: List[int] = []
     input_positions: List[int] = []
@@ -255,7 +256,7 @@ def intercept_ModelRunner_prepare_prompt(
 
 def intercept_ModelRunner_prepare_decode(
     self,
-    seq_group_metadata_list: List[SequenceGroupMetadata],
+    seq_group_metadata_list: List[TaskMetadata],
 ) -> PrepareDecodeMetadata:
     input_tokens: List[int] = []
     input_positions: List[int] = []
@@ -565,7 +566,7 @@ def intercept_ModelRunner_capture_model(self, kv_caches: List[torch.Tensor], num
 @torch.inference_mode()
 def intercept_ModelRunner_execute_model(
     self,
-    seq_group_metadata_list: List[SequenceGroupMetadata],
+    seq_group_metadata_list: List[TaskMetadata],
     kv_caches: List[torch.Tensor],
 ) -> Optional[SamplerOutput]:
     (input_tokens, input_positions, attn_metadata, sampling_metadata,

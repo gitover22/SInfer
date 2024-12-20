@@ -2,7 +2,8 @@ import enum
 from abc import ABC, abstractmethod
 from typing import Dict, List
 from typing import Sequence as GenericSequence
-from sinfer.sequence import Sequence, SequenceGroup
+from sinfer.task import Task
+from sinfer.request import Request
 
 class AllocStatus(enum.Enum):
     """BlockSpaceManager.can_allocate的结果
@@ -25,54 +26,54 @@ class SpaceManager(ABC):
         return _BlockSpaceManager
 
     @abstractmethod
-    def can_allocate(self, seq_group: SequenceGroup) -> AllocStatus:
+    def can_allocate(self, seq_group: Task) -> AllocStatus:
         pass
 
     @abstractmethod
-    def allocate(self, seq_group: SequenceGroup) -> None:
+    def allocate(self, seq_group: Task) -> None:
         pass
 
     @abstractmethod
-    def can_append_slots(self, seq_group: SequenceGroup,
+    def can_append_slots(self, seq_group: Task,
                          num_lookahead_slots: int) -> bool:
         pass
 
     @abstractmethod
     def append_slots(
         self,
-        seq: Sequence,
+        seq: Request,
         num_lookahead_slots: int,
     ) -> Dict[int, List[int]]:
         pass
 
     @abstractmethod
-    def fork(self, parent_seq: Sequence, child_seq: Sequence) -> None:
+    def fork(self, parent_seq: Request, child_seq: Request) -> None:
         pass
 
     @abstractmethod
-    def can_swap_in(self, seq_group: SequenceGroup,
+    def can_swap_in(self, seq_group: Task,
                     num_lookahead_slots: int) -> AllocStatus:
         pass
 
     @abstractmethod
-    def swap_in(self, seq_group: SequenceGroup,
+    def swap_in(self, seq_group: Task,
                 num_lookahead_slots: int) -> Dict[int, int]:
         pass
 
     @abstractmethod
-    def can_swap_out(self, seq_group: SequenceGroup) -> bool:
+    def can_swap_out(self, seq_group: Task) -> bool:
         pass
 
     @abstractmethod
-    def swap_out(self, seq_group: SequenceGroup) -> Dict[int, int]:
+    def swap_out(self, seq_group: Task) -> Dict[int, int]:
         pass
 
     @abstractmethod
-    def free(self, seq: Sequence) -> None:
+    def free(self, seq: Request) -> None:
         pass
 
     @abstractmethod
-    def get_block_table(self, seq: Sequence) -> List[int]:
+    def get_block_table(self, seq: Request) -> List[int]:
         pass
 
     @abstractmethod
@@ -86,16 +87,16 @@ class SpaceManager(ABC):
     @abstractmethod
     def access_all_blocks_in_seq(
         self,
-        seq: Sequence,
+        seq: Request,
         access_time: float,
     ) -> None:
         pass
 
     @abstractmethod
     def get_common_computed_block_ids(
-            self, seqs: List[Sequence]) -> GenericSequence[int]:
+            self, seqs: List[Request]) -> GenericSequence[int]:
         pass
 
     @abstractmethod
-    def mark_blocks_as_computed(self, seq_group: SequenceGroup):
+    def mark_blocks_as_computed(self, seq_group: Task):
         pass

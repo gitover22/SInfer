@@ -2,7 +2,10 @@ from typing import Dict, List, Optional, Tuple, Union
 
 from transformers import PreTrainedTokenizer, PreTrainedTokenizerFast
 
-from sinfer.sequence import Logprob, SamplingParams, Sequence, SequenceGroup
+from sinfer.task import Task
+# from sinfer.request import Logprob, SamplingParams, Request
+from sinfer.request import Logprob, Request
+from sinfer.sampling_params import SamplingParams
 from sinfer.transformers_utils.tokenizer_group.base_tokenizer_group import (
     BaseTokenizerGroup)
 
@@ -17,12 +20,12 @@ class Detokenizer:
         self.tokenizer_group = tokenizer_group
 
     def get_tokenizer_for_seq(self,
-                              sequence: Sequence) -> "PreTrainedTokenizer":
+                              sequence: Request) -> "PreTrainedTokenizer":
         """Returns the HF tokenizer to use for a given sequence."""
         return self.tokenizer_group.get_lora_tokenizer(sequence.lora_request)
 
     def decode_prompt_logprobs_inplace(
-            self, seq_group: SequenceGroup,
+            self, seq_group: Task,
             prompt_logprobs: List[Optional[Dict[int, Logprob]]]) -> None:
         """Decodes the logprobs for the prompt of a sequence group.
 
@@ -86,7 +89,7 @@ class Detokenizer:
             else:
                 prev_tokens.extend(next_iter_tokens)
 
-    def decode_sequence_inplace(self, seq: Sequence,
+    def decode_sequence_inplace(self, seq: Request,
                                 prms: SamplingParams) -> int:
         """Decodes the new token for a sequence. In-place operation.
 

@@ -1,7 +1,7 @@
 from collections import deque
 from typing import Deque
 
-from sinfer.sequence import SequenceGroup
+from sinfer.task import Task
 
 
 class Policy:
@@ -9,15 +9,15 @@ class Policy:
     def get_priority(
         self,
         now: float,
-        seq_group: SequenceGroup,
+        seq_group: Task,
     ) -> float:
         raise NotImplementedError
 
     def sort_by_priority(
         self,
         now: float,
-        seq_groups: Deque[SequenceGroup],
-    ) -> Deque[SequenceGroup]:
+        seq_groups: Deque[Task],
+    ) -> Deque[Task]:
         return deque(
             sorted(
                 seq_groups,
@@ -31,7 +31,7 @@ class FCFS(Policy):
     def get_priority(
         self,
         now: float,
-        seq_group: SequenceGroup,
+        seq_group: Task,
     ) -> float:
         return now - seq_group.metrics.arrival_time
 

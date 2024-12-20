@@ -15,7 +15,7 @@ from sinfer.entrypoints.openai.protocol import (ChatCompletionRequest,
                                               ModelPermission)
 from sinfer.logger import init_logger
 from sinfer.lora.request import LoRARequest
-from sinfer.sequence import Logprob
+from sinfer.request import Logprob
 from sinfer.transformers_utils.tokenizer import get_tokenizer
 
 logger = init_logger(__name__)
@@ -168,6 +168,14 @@ class OpenAIServing:
             return None
         if request.model in [lora.lora_name for lora in self.lora_requests]:
             return None
+        '''
+        @brief: when client send a request with model=save_scheduler_view,
+                scheduler will dump profile data.
+        '''
+        from sinfer.Intercept.mlu_definitions import check_scheduler_profile_enable
+        if check_scheduler_profile_enable() and request.model == "save_scheduler_view":
+            self.engine.save_scheduler_view()
+
         return self.create_error_response(
             message=f"The model `{request.model}` does not exist.",
             err_type="NotFoundError",

@@ -3,7 +3,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 from sinfer.executor.executor_base import ExecutorAsyncBase, ExecutorBase
 from sinfer.logger import init_logger
 from sinfer.lora.request import LoRARequest
-from sinfer.sequence import ExecuteModelRequest, SamplerOutput
+from sinfer.request import ExecuteModelRequest, SamplerOutput
 from sinfer.utils import (get_distributed_init_method, get_ip, get_open_port,
                         make_async)
 from sinfer.worker.worker_base import WorkerWrapperBase
@@ -94,7 +94,14 @@ class GPUExecutor(ExecutorBase):
         # GPUExecutor will always be healthy as long as
         # it's running.
         return
-
+    
+    def get_latency(self):
+        '''
+        requires that torch.cuda.synchronize() be executed before this function 
+        for getting an accurate reading
+        '''
+        latency = self.driver_worker.get_latency()
+        return latency
 
 class GPUExecutorAsync(GPUExecutor, ExecutorAsyncBase):
 

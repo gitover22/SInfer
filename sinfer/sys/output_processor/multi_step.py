@@ -3,14 +3,14 @@ from typing import Callable, List
 
 from transformers import PreTrainedTokenizer
 
+from sinfer.task import Task, TaskOutput
 from sinfer.core.scheduler import Scheduler
 from sinfer.sys.output_processor.interfaces import (
     SequenceGroupOutputProcessor)
 from sinfer.sys.output_processor.stop_checker import StopChecker
 from sinfer.logger import init_logger
 from sinfer.sampling_params import SamplingParams
-from sinfer.sequence import (Sequence, SequenceGroup, SequenceGroupOutput,
-                           SequenceOutput, SequenceStatus)
+from sinfer.request import (Request, RequestOutput, RequestStatus)
 from sinfer.transformers_utils.detokenizer import Detokenizer
 from sinfer.utils import Counter
 
@@ -36,7 +36,7 @@ class MultiStepOutputProcessor(SequenceGroupOutputProcessor):
         detokenizer: Detokenizer,
         scheduler: Scheduler,
         seq_counter: Counter,
-        get_tokenizer_for_seq: Callable[[Sequence], PreTrainedTokenizer],
+        get_tokenizer_for_seq: Callable[[Request], PreTrainedTokenizer],
         stop_checker: StopChecker,
     ):
         self.detokenizer = detokenizer
@@ -45,8 +45,8 @@ class MultiStepOutputProcessor(SequenceGroupOutputProcessor):
         self.get_tokenizer_for_seq = get_tokenizer_for_seq
         self.stop_checker = stop_checker
 
-    def process_prompt_logprob(self, seq_group: SequenceGroup,
-                               outputs: List[SequenceGroupOutput]) -> None:
+    def process_prompt_logprob(self, seq_group: Task,
+                               outputs: List[TaskOutput]) -> None:
         # TODO(sang): Prompt logprob currently not implemented in multi step
         # workers.
         self._log_prompt_logprob_unsupported_warning_once()
@@ -58,8 +58,8 @@ class MultiStepOutputProcessor(SequenceGroupOutputProcessor):
             "Prompt logprob is not supported by multi step workers. "
             "(e.g., speculative decode uses multi step workers).")
 
-    def process_outputs(self, sequence_group: SequenceGroup,
-                        outputs: List[SequenceGroupOutput]) -> None:
+    def process_outputs(self, sequence_group: Task,
+                        outputs: List[TaskOutput]) -> None:
         """Append new tokens in the outputs to sequences in the sequence group.
 
         This only supports sequence groups of size 1. It supports greater than
@@ -69,7 +69,7 @@ class MultiStepOutputProcessor(SequenceGroupOutputProcessor):
         including freeing finished sequences. It also handles cases where there
         are tokens emitted after the EOS token.
         """
-        seqs = sequence_group.get_seqs(status=SequenceStatus.RUNNING)
+        seqs = sequence_group.get_seqs(status=RequestStatus.RUNNING)
 
         assert seqs, "expected running sequences"
         assert len(seqs) == 1, (
@@ -90,8 +90,8 @@ class MultiStepOutputProcessor(SequenceGroupOutputProcessor):
         self._process_seq_outputs(seq, valid_samples,
                                   sequence_group.sampling_params)
 
-    def _process_seq_outputs(self, seq: Sequence,
-                             valid_samples: List[SequenceOutput],
+    def _process_seq_outputs(self, seq: Request,
+                             valid_samples: List[RequestOutput],
                              sampling_params: SamplingParams) -> None:
         output_token_ids = [sample.output_token for sample in valid_samples]
         output_logprobs = [sample.logprobs for sample in valid_samples]

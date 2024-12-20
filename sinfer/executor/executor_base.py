@@ -5,7 +5,7 @@ from sinfer.config import (CacheConfig, DeviceConfig, LoadConfig, LoRAConfig,
                          ModelConfig, ParallelConfig, SchedulerConfig,
                          VisionLanguageConfig)
 from sinfer.lora.request import LoRARequest
-from sinfer.sequence import ExecuteModelRequest, SamplerOutput
+from sinfer.request import ExecuteModelRequest, SamplerOutput
 
 
 class ExecutorBase(ABC):
