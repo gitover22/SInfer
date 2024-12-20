@@ -16,7 +16,7 @@ from sinfer.attention.backends.abstract import AttentionMetadata
 from sinfer.attention.backends.flashinfer import FlashInferBackend
 from sinfer.lora.layers import LoRAMapping
 from sinfer.lora.request import LoRARequest
-from sinfer.request import SequenceGroupMetadata, SamplerOutput
+from sinfer.request import TaskMetadata, SamplerOutput
 from sinfer.utils import get_kv_cache_torch_dtype
 
 import sinfer.envs as envs
@@ -45,7 +45,7 @@ def intercept_ModelRunner_get_max_block_per_batch(self) -> int:
 
 def intercept_ModelRunner_prepare_prompt(
     self,
-    seq_group_metadata_list: List[SequenceGroupMetadata],
+    seq_group_metadata_list: List[TaskMetadata],
 ) -> PreparePromptMetadata:
     input_tokens: List[int] = []
     input_positions: List[int] = []
@@ -255,7 +255,7 @@ def intercept_ModelRunner_prepare_prompt(
 
 def intercept_ModelRunner_prepare_decode(
     self,
-    seq_group_metadata_list: List[SequenceGroupMetadata],
+    seq_group_metadata_list: List[TaskMetadata],
 ) -> PrepareDecodeMetadata:
     input_tokens: List[int] = []
     input_positions: List[int] = []
@@ -565,7 +565,7 @@ def intercept_ModelRunner_capture_model(self, kv_caches: List[torch.Tensor], num
 @torch.inference_mode()
 def intercept_ModelRunner_execute_model(
     self,
-    seq_group_metadata_list: List[SequenceGroupMetadata],
+    seq_group_metadata_list: List[TaskMetadata],
     kv_caches: List[torch.Tensor],
 ) -> Optional[SamplerOutput]:
     (input_tokens, input_positions, attn_metadata, sampling_metadata,

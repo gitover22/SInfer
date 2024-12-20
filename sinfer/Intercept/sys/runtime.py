@@ -4,7 +4,7 @@ from sinfer.sys.runtime import LLMRuntime
 from sinfer.Intercept.mlu_definitions import USE_PAGED, BlockSizeInfo
 from sinfer.Intercept.intercept_utils import InterceptObject
 from sinfer.sampling_params import SamplingParams
-from sinfer.request import MultiModalData, Sequence, SequenceGroup
+from sinfer.request import MultiModalData, Request, Task
 from sinfer.lora.request import LoRARequest
 from sinfer.logger import init_logger
 
@@ -51,7 +51,7 @@ def intercept_add_request(
     else:
         logger.warning("Use None for EOS token id because tokenizer is "
                         "not initialized")
-    seq = Sequence(seq_id, prompt, prompt_token_ids, block_size, 
+    seq = Request(seq_id, prompt, prompt_token_ids, block_size, 
                     eos_token_id, lora_request)
 
     # Defensive copy of SamplingParams, which are used by the sampler,
@@ -72,7 +72,7 @@ def intercept_add_request(
             ") can't smaller than input_len(" + str(seq.get_len()) + ") + output_len(" + str(out_len) + ").")
 
     # 创建SG
-    seq_group = SequenceGroup(request_id, [seq], sampling_params,
+    seq_group = Task(request_id, [seq], sampling_params,
                                 arrival_time, lora_request, multi_modal_data)
 
     # 添加SG到调度器waiting队列.

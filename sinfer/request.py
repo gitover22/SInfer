@@ -32,7 +32,7 @@ PromptLogprobs = List[Optional[Dict[int, Logprob]]]
 SampleLogprobs = List[Dict[int, Logprob]]
 
 
-class SequenceStatus(enum.Enum):
+class RequestStatus(enum.Enum):
     """Status of a sequence."""
     WAITING = enum.auto()
     RUNNING = enum.auto()
@@ -44,23 +44,23 @@ class SequenceStatus(enum.Enum):
     FINISHED_IGNORED = enum.auto() # 因prompt过长而被终止执行的推理(忽略)
 
     @staticmethod
-    def is_finished(status: "SequenceStatus") -> bool:
+    def is_finished(status: "RequestStatus") -> bool:
         return status in [
-            SequenceStatus.FINISHED_STOPPED,
-            SequenceStatus.FINISHED_LENGTH_CAPPED,
-            SequenceStatus.FINISHED_ABORTED,
-            SequenceStatus.FINISHED_IGNORED,
+            RequestStatus.FINISHED_STOPPED,
+            RequestStatus.FINISHED_LENGTH_CAPPED,
+            RequestStatus.FINISHED_ABORTED,
+            RequestStatus.FINISHED_IGNORED,
         ]
 
     @staticmethod
-    def get_finished_reason(status: "SequenceStatus") -> Union[str, None]:
-        if status == SequenceStatus.FINISHED_STOPPED:
+    def get_finished_reason(status: "RequestStatus") -> Union[str, None]:
+        if status == RequestStatus.FINISHED_STOPPED:
             finish_reason = "stop"
-        elif status == SequenceStatus.FINISHED_LENGTH_CAPPED:
+        elif status == RequestStatus.FINISHED_LENGTH_CAPPED:
             finish_reason = "length"
-        elif status == SequenceStatus.FINISHED_ABORTED:
+        elif status == RequestStatus.FINISHED_ABORTED:
             finish_reason = "abort"
-        elif status == SequenceStatus.FINISHED_IGNORED:
+        elif status == RequestStatus.FINISHED_IGNORED:
             # The ignored sequences are the sequences whose prompt lengths
             # are longer than the model's length cap. Therefore, the stop
             # reason should also be "length" as in OpenAI API.
@@ -70,7 +70,7 @@ class SequenceStatus(enum.Enum):
         return finish_reason
 
 
-class SequenceStage(enum.Enum):
+class Request_Stage(enum.Enum):
     PREFILL = enum.auto()
     DECODE = enum.auto()
 
@@ -94,7 +94,7 @@ class RequestMetrics:
     finished_time: Optional[float] = None
 
 
-class SequenceData:
+class RequestData:
     """Data associated with a sequence.
 
     Args:
@@ -121,7 +121,7 @@ class SequenceData:
         self.cumulative_logprob = 0.0
         # The number of tokens that are computed (that run against the model).
         self._num_computed_tokens = 0
-        self._stage: SequenceStage = SequenceStage.PREFILL
+        self._stage: Request_Stage = Request_Stage.PREFILL
 
     def append_token_id(self, token_id: int, logprob: float) -> None:
         self.output_token_ids.append(token_id)
@@ -150,7 +150,7 @@ class SequenceData:
             self._num_computed_tokens, self.get_len())
         # If all tokens are computed, it means it is in decoding phase.
         if self.get_num_uncomputed_tokens() == 0:
-            self._stage = SequenceStage.DECODE
+            self._stage = Request_Stage.DECODE
 
     def reset_state_for_recompute(self) -> None:
         """Reset the number of computed tokens from this sequence. It is
@@ -158,7 +158,7 @@ class SequenceData:
         the beginning again (e.g., sequence is preempted).
         """
         self._num_computed_tokens = 0
-        self._stage = SequenceStage.PREFILL
+        self._stage = Request_Stage.PREFILL
 
     def get_num_uncomputed_tokens(self) -> int:
         """Return the number of prefill tokens that are not computed."""
@@ -179,7 +179,7 @@ class SequenceData:
         return self.output_token_ids
 
     @property
-    def stage(self) -> SequenceStage:
+    def stage(self) -> Request_Stage:
         return self._stage
 
     def __repr__(self) -> str:
@@ -189,7 +189,7 @@ class SequenceData:
                 f"cumulative_logprob={self.cumulative_logprob})")
 
 
-class Sequence:
+class Request:
     """Stores the data, status, and block information of a sequence.
 
     Args:
@@ -216,14 +216,14 @@ class Sequence:
         self.eos_token_id = eos_token_id
         self.lora_request = lora_request
 
-        self.data: SequenceData = SequenceData(prompt_token_ids)
+        self.data: RequestData = RequestData(prompt_token_ids)
         self.output_logprobs: SampleLogprobs = []
         self.output_text = ""
 
         self.logical_token_blocks: List[LogicalTokenBlock] = [] # 每个seq都会维护自己的逻辑块列表
         # 使用提示(prompt)的token ID初始化逻辑token块。
         self._append_tokens_to_blocks(prompt_token_ids)
-        self.status = SequenceStatus.WAITING
+        self.status = RequestStatus.WAITING
         self.stop_reason: Union[int, str, None] = None
 
         # Used for incremental detokenization
@@ -346,9 +346,9 @@ class Sequence:
         return self.get_cumulative_logprob() / (seq_len**length_penalty)
 
     def is_finished(self) -> bool:
-        return SequenceStatus.is_finished(self.status)
+        return RequestStatus.is_finished(self.status)
 
-    def fork(self, new_seq_id: int) -> "Sequence":
+    def fork(self, new_seq_id: int) -> "Request":
         new_seq = copy.deepcopy(self)
         new_seq.seq_id = new_seq_id
         return new_seq
@@ -360,12 +360,12 @@ class Sequence:
             The new number of tokens to be computed. I.e., 1 for decode, or
             the remaining prompt size for prefill.
         """
-        if self.data.stage == SequenceStage.DECODE:
+        if self.data.stage == Request_Stage.DECODE:
             return 1
         return self.data.get_num_uncomputed_tokens()
 
     def is_prefill(self) -> bool:
-        return self.data.stage == SequenceStage.PREFILL
+        return self.data.stage == Request_Stage.PREFILL
 
     def __repr__(self) -> str:
         return (f"Sequence(seq_id={self.seq_id}, "
@@ -374,7 +374,7 @@ class Sequence:
 
 
 @dataclass
-class SequenceGroupState:
+class Task_State:
     """Mutable state tied to a specific sequence group"""
 
     # torch.Generator used in seeded sampling
@@ -400,7 +400,7 @@ class MultiModalData:
         self.data = data
 
 
-class SequenceGroup:
+class Task:
     """A group of sequences that are generated from the same prompt.
 
     Args:
@@ -415,7 +415,7 @@ class SequenceGroup:
     def __init__(
         self,
         request_id: str,
-        seqs: List[Sequence],
+        seqs: List[Request],
         sampling_params: SamplingParams,
         arrival_time: float,
         lora_request: Optional[LoRARequest] = None,
@@ -431,7 +431,7 @@ class SequenceGroup:
                                       time_in_queue=None)
         self.lora_request = lora_request
         self.prompt_logprobs: Optional[PromptLogprobs] = None
-        self.state = SequenceGroupState()
+        self.state = Task_State()
         self.multi_modal_data = multi_modal_data
 
     @property
@@ -503,18 +503,18 @@ class SequenceGroup:
 
     def get_seqs(
         self,
-        status: Optional[SequenceStatus] = None,
-    ) -> List[Sequence]:
+        status: Optional[RequestStatus] = None,
+    ) -> List[Request]:
         return list(self.seqs_dict.values()) if status is None else [
             seq for seq in self.seqs_dict.values() if seq.status == status
         ]
 
-    def get_unfinished_seqs(self) -> List[Sequence]:
+    def get_unfinished_seqs(self) -> List[Request]:
         return [
             seq for seq in self.seqs_dict.values() if not seq.is_finished()
         ]
 
-    def get_finished_seqs(self) -> List[Sequence]:
+    def get_finished_seqs(self) -> List[Request]:
         return [seq for seq in self.seqs_dict.values() if seq.is_finished()]
 
     def update_num_computed_tokens(self, num_new_computed_tokens: int):
@@ -530,7 +530,7 @@ class SequenceGroup:
                 num_uncomputed_tokens += seq.data.get_num_uncomputed_tokens()
         return num_uncomputed_tokens
 
-    def num_seqs(self, status: Optional[SequenceStatus] = None) -> int:
+    def num_seqs(self, status: Optional[RequestStatus] = None) -> int:
         # 获取序列组中的序列数量
         if status is None:
             return len(self.seqs_dict)
@@ -543,12 +543,12 @@ class SequenceGroup:
     def num_finished_seqs(self) -> int:
         return len(self.get_finished_seqs())
 
-    def find(self, seq_id: int) -> Sequence:
+    def find(self, seq_id: int) -> Request:
         if seq_id not in self.seqs_dict:
             raise ValueError(f"Sequence {seq_id} not found.")
         return self.seqs_dict[seq_id]
 
-    def add(self, seq: Sequence) -> None:
+    def add(self, seq: Request) -> None:
         if seq.seq_id in self.seqs_dict:
             raise ValueError(f"Sequence {seq.seq_id} already exists.")
         self.seqs_dict[seq.seq_id] = seq
@@ -571,7 +571,7 @@ class SequenceGroup:
                 f"num_seqs={len(self.seqs_dict)})")
 
 
-class SequenceGroupMetadata:
+class TaskMetadata:
     """Metadata for a sequence group. Used to create `AttentionMetadata`.
 
     Args:
@@ -597,14 +597,14 @@ class SequenceGroupMetadata:
         self,
         request_id: str,
         is_prompt: bool,
-        seq_data: Dict[int, SequenceData],
+        seq_data: Dict[int, RequestData],
         sampling_params: SamplingParams,
         block_tables: Dict[int, List[int]],
         do_sample: bool = True,
         token_chunk_size: Optional[int] = None,
         lora_request: Optional[LoRARequest] = None,
         computed_block_nums: Optional[List[int]] = None,
-        state: Optional[SequenceGroupState] = None,
+        state: Optional[Task_State] = None,
         multi_modal_data: Optional[MultiModalData] = None,
     ) -> None:
         self.request_id = request_id
@@ -615,7 +615,7 @@ class SequenceGroupMetadata:
         self.lora_request = lora_request
         self.computed_block_nums = computed_block_nums
         self.multi_modal_data = multi_modal_data
-        self.state = SequenceGroupState() if state is None else state
+        self.state = Task_State() if state is None else state
         self._token_chunk_size = token_chunk_size
         self.do_sample = do_sample
 
@@ -635,7 +635,7 @@ class SequenceGroupMetadata:
         return self._token_chunk_size
 
 
-class SequenceOutput:
+class RequestOutput:
     """The model output associated with a sequence.
 
     Args:
@@ -661,7 +661,7 @@ class SequenceOutput:
                 f"logprobs={self.logprobs})")
 
     def __eq__(self, other: object) -> bool:
-        if not isinstance(other, SequenceOutput):
+        if not isinstance(other, RequestOutput):
             raise NotImplementedError()
         equal = (self.parent_seq_id == other.parent_seq_id
                  and self.output_token == other.output_token)
@@ -669,12 +669,12 @@ class SequenceOutput:
         return equal and log_probs_equal
 
 
-class SequenceGroupOutput:
+class TaskOutput:
     """The model output associated with a sequence group."""
 
     def __init__(
         self,
-        samples: List[SequenceOutput],
+        samples: List[RequestOutput],
         prompt_logprobs: Optional[PromptLogprobs],
     ) -> None:
         self.samples = samples
@@ -686,7 +686,7 @@ class SequenceGroupOutput:
                 f"prompt_logprobs={self.prompt_logprobs})")
 
     def __eq__(self, other: object) -> bool:
-        if not isinstance(other, SequenceGroupOutput):
+        if not isinstance(other, TaskOutput):
             raise NotImplementedError()
         return (self.samples == other.samples
                 and self.prompt_logprobs == other.prompt_logprobs)
@@ -701,7 +701,7 @@ class SamplerOutput:
     also has optional fields for device tensors.
     """
 
-    outputs: List[SequenceGroupOutput]
+    outputs: List[TaskOutput]
 
     # On-device tensor containing probabilities of each token.
     sampled_token_probs: Optional["torch.Tensor"] = None
@@ -743,7 +743,7 @@ class SamplerOutput:
 class ExecuteModelRequest:
     """The model execution request."""
     # The sequence group metadata list.
-    seq_group_metadata_list: List[SequenceGroupMetadata]
+    seq_group_metadata_list: List[TaskMetadata]
     # Blocks to swap in. Dict of CPU -> GPU block number.
     blocks_to_swap_in: Dict[int, int] = field(default_factory=dict)
     # Blocks to swap out. Dict of GPU -> CPU block number.
@@ -756,7 +756,7 @@ class ExecuteModelRequest:
     running_queue_size: int = 0
 
     def clone(
-        self, seq_group_metadata_list: List[SequenceGroupMetadata]
+        self, seq_group_metadata_list: List[TaskMetadata]
     ) -> "ExecuteModelRequest":
         """Clone the request with a new sequence group metadata list."""
         return ExecuteModelRequest(

@@ -6,7 +6,7 @@ from transformers import PreTrainedTokenizer
 from sinfer.config import SchedulerConfig
 from sinfer.core.scheduler import Scheduler
 from sinfer.sys.output_processor.stop_checker import StopChecker
-from sinfer.request import Sequence, SequenceGroup, SequenceGroupOutput
+from sinfer.request import Request, Task, TaskOutput
 from sinfer.transformers_utils.detokenizer import Detokenizer
 from sinfer.utils import Counter
 
@@ -29,7 +29,7 @@ class SequenceGroupOutputProcessor(ABC):
         detokenizer: Detokenizer,
         scheduler: Scheduler,
         seq_counter: Counter,
-        get_tokenizer_for_seq: Callable[[Sequence], PreTrainedTokenizer],
+        get_tokenizer_for_seq: Callable[[Request], PreTrainedTokenizer],
         stop_checker: "StopChecker",
     ):
         """Create an output processor.
@@ -61,8 +61,8 @@ class SequenceGroupOutputProcessor(ABC):
             )
 
     @abstractmethod
-    def process_outputs(self, sequence_group: SequenceGroup,
-                        outputs: List[SequenceGroupOutput]) -> None:
+    def process_outputs(self, sequence_group: Task,
+                        outputs: List[TaskOutput]) -> None:
         """Process new token ids for the sequence group. Handles logic such as
         detokenization, stop checking, and freeing/forking sequences in the
         scheduler.
@@ -70,7 +70,7 @@ class SequenceGroupOutputProcessor(ABC):
         pass
 
     @abstractmethod
-    def process_prompt_logprob(self, seq_group: SequenceGroup,
-                               outputs: List[SequenceGroupOutput]) -> None:
+    def process_prompt_logprob(self, seq_group: Task,
+                               outputs: List[TaskOutput]) -> None:
         """Update prompt logprobs received from outputs to seq_group."""
         pass

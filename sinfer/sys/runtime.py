@@ -22,8 +22,8 @@ from sinfer.lora.request import LoRARequest
 from sinfer.outputs import RequestOutput
 from sinfer.sampling_params import SamplingParams
 from sinfer.request import (ExecuteModelRequest, MultiModalData, SamplerOutput,
-                           Sequence, SequenceGroup, SequenceGroupMetadata,
-                           SequenceStatus)
+                           Request, Task, TaskMetadata,
+                           RequestStatus)
 from sinfer.transformers_utils.detokenizer import Detokenizer
 from sinfer.transformers_utils.tokenizer_group import (BaseTokenizerGroup,
                                                      get_tokenizer_group)
@@ -270,7 +270,7 @@ class LLMRuntime:
         return self.tokenizer.get_lora_tokenizer(None)
 
     def get_tokenizer_for_seq(self,
-                              sequence: Sequence) -> "PreTrainedTokenizer":
+                              sequence: Request) -> "PreTrainedTokenizer":
         return self.tokenizer.get_lora_tokenizer(sequence.lora_request)
 
     def _init_tokenizer(self, **tokenizer_init_kwargs):
@@ -358,7 +358,7 @@ class LLMRuntime:
         else:
             logger.warning("Use None for EOS token id because tokenizer is "
                            "not initialized")
-        seq = Sequence(seq_id, prompt, prompt_token_ids, block_size,
+        seq = Request(seq_id, prompt, prompt_token_ids, block_size,
                        eos_token_id, lora_request)
 
         # 对SamplingParams进行防御性拷贝，这些参数由采样器使用，但不会对LogitsProcessor对象进行深拷贝
@@ -370,7 +370,7 @@ class LLMRuntime:
             self.generation_config_fields)
 
         # 创建序列组SG：每个prompt被包装成一个SequenceGroup实例
-        seq_group = SequenceGroup(request_id, [seq], sampling_params,
+        seq_group = Task(request_id, [seq], sampling_params,
                                   arrival_time, lora_request, multi_modal_data)
 
         # 向调度器添加序列组, 添加进scheduler的self.waiting队列中
@@ -403,8 +403,8 @@ class LLMRuntime:
         self,
         output: List[SamplerOutput],
         scheduled_seq_groups: List[ScheduledSequenceGroup],
-        ignored_seq_groups: List[SequenceGroup],
-        seq_group_metadata_list: List[SequenceGroupMetadata],
+        ignored_seq_groups: List[Task],
+        seq_group_metadata_list: List[TaskMetadata],
     ) -> List[RequestOutput]:
         """Apply the model output to the sequences in the scheduled seq groups.
 
@@ -588,7 +588,7 @@ class LLMRuntime:
                     best_of_requests.append(seq_group.sampling_params.best_of)
                     n_requests.append(seq_group.sampling_params.n)
                     finished_reason_requests.extend([
-                        SequenceStatus.get_finished_reason(seq.status)
+                        RequestStatus.get_finished_reason(seq.status)
                         for seq in seq_group.get_finished_seqs()
                     ])
 

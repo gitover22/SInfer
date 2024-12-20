@@ -1,11 +1,11 @@
 from typing import List
 
-from sinfer.request import SamplerOutput, SequenceGroupOutput
+from sinfer.request import SamplerOutput, TaskOutput
 
 
 def create_output_by_sequence_group(
         sampler_outputs: List[SamplerOutput],
-        num_seq_groups: int) -> List[List[SequenceGroupOutput]]:
+        num_seq_groups: int) -> List[List[TaskOutput]]:
     """Helper method which transforms a 2d list organized by
     [step][sequence group] into [sequence group][step].
     """

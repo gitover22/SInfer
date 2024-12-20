@@ -3,7 +3,7 @@ from typing import Callable, Optional
 from transformers import PreTrainedTokenizer
 
 from sinfer.sampling_params import SamplingParams
-from sinfer.request import Sequence, SequenceStatus
+from sinfer.request import Request, RequestStatus
 
 
 class StopChecker:
@@ -14,12 +14,12 @@ class StopChecker:
     """
 
     def __init__(self, max_model_len: int,
-                 get_tokenizer_for_seq: Callable[[Sequence],
+                 get_tokenizer_for_seq: Callable[[Request],
                                                  PreTrainedTokenizer]):
         self.max_model_len = max_model_len
         self.get_tokenizer_for_seq = get_tokenizer_for_seq
 
-    def maybe_stop_sequence(self, seq: Sequence, new_char_count: int,
+    def maybe_stop_sequence(self, seq: Request, new_char_count: int,
                             sampling_params: SamplingParams) -> None:
         """Stop the finished sequences.
 
@@ -35,7 +35,7 @@ class StopChecker:
         # Check if the sequence has generated the EOS token.
         if ((not sampling_params.ignore_eos)
                 and seq.get_last_token_id() == seq.eos_token_id):
-            seq.status = SequenceStatus.FINISHED_STOPPED
+            seq.status = RequestStatus.FINISHED_STOPPED
             return
 
         # Check if a stop token was encountered.
@@ -46,7 +46,7 @@ class StopChecker:
                     not sampling_params.include_stop_str_in_output):
                 # Remove last token
                 seq.output_text = seq.output_text[:-new_char_count]
-            seq.status = SequenceStatus.FINISHED_STOPPED
+            seq.status = RequestStatus.FINISHED_STOPPED
             seq.stop_reason = last_token_id
             return
 
@@ -54,22 +54,22 @@ class StopChecker:
         stop_str = self._check_stop_strings(seq, new_char_count,
                                             sampling_params)
         if stop_str is not None:
-            seq.status = SequenceStatus.FINISHED_STOPPED
+            seq.status = RequestStatus.FINISHED_STOPPED
             seq.stop_reason = stop_str
             return
 
         # Check if the sequence has reached max_model_len.
         if seq.get_len() > self.max_model_len:
-            seq.status = SequenceStatus.FINISHED_LENGTH_CAPPED
+            seq.status = RequestStatus.FINISHED_LENGTH_CAPPED
             return
 
         # Check if the sequence has reached max_tokens.
         if seq.get_output_len() == sampling_params.max_tokens:
-            seq.status = SequenceStatus.FINISHED_LENGTH_CAPPED
+            seq.status = RequestStatus.FINISHED_LENGTH_CAPPED
             return
 
     @staticmethod
-    def _check_stop_strings(seq: Sequence, new_char_count: int,
+    def _check_stop_strings(seq: Request, new_char_count: int,
                             sampling_params: SamplingParams) -> Optional[str]:
         """Check if any stop strings are matched and truncate sequence
         output text accordingly.

@@ -10,7 +10,7 @@ from sinfer.distributed import broadcast_tensor_dict
 from sinfer.logger import init_logger
 from sinfer.model_executor import SamplingMetadata
 from sinfer.model_executor.model_loader import get_model
-from sinfer.request import SamplerOutput, SequenceGroupMetadata
+from sinfer.request import SamplerOutput, TaskMetadata
 from sinfer.utils import make_tensor_with_pad
 
 logger = init_logger(__name__)
@@ -73,7 +73,7 @@ class CPUModelRunner:
 
     def _prepare_prompt(
         self,
-        seq_group_metadata_list: List[SequenceGroupMetadata],
+        seq_group_metadata_list: List[TaskMetadata],
     ) -> Tuple[torch.Tensor, torch.Tensor, AttentionMetadata, List[int],
                Optional[torch.Tensor]]:
         assert len(seq_group_metadata_list) > 0
@@ -168,7 +168,7 @@ class CPUModelRunner:
 
     def _prepare_decode(
         self,
-        seq_group_metadata_list: List[SequenceGroupMetadata],
+        seq_group_metadata_list: List[TaskMetadata],
     ) -> Tuple[torch.Tensor, torch.Tensor, AttentionMetadata]:
         assert len(seq_group_metadata_list) > 0
         input_tokens: List[int] = []
@@ -255,7 +255,7 @@ class CPUModelRunner:
 
     def prepare_input_tensors(
         self,
-        seq_group_metadata_list: List[SequenceGroupMetadata],
+        seq_group_metadata_list: List[TaskMetadata],
     ) -> Tuple[torch.Tensor, torch.Tensor, AttentionMetadata, SamplingMetadata,
                Optional[torch.Tensor]]:
         multi_modal_input = None
@@ -312,7 +312,7 @@ class CPUModelRunner:
     @torch.inference_mode()
     def execute_model(
         self,
-        seq_group_metadata_list: List[SequenceGroupMetadata],
+        seq_group_metadata_list: List[TaskMetadata],
         kv_caches: List[torch.Tensor],
     ) -> Optional[SamplerOutput]:
         (input_tokens, input_positions, attn_metadata, sampling_metadata,

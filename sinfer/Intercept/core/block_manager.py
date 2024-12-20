@@ -1,4 +1,4 @@
-from sinfer.request import SequenceGroup, SequenceStatus
+from sinfer.request import Task, RequestStatus
 from sinfer.Intercept.mlu_definitions import USE_PAGED
 from sinfer.Intercept.intercept_utils import InterceptObject
 from sinfer.core.block_manager import _BlockSpaceManager
@@ -8,7 +8,7 @@ logger = init_logger(__name__)
 
 
 def intercept_can_append_slots(self,
-                      seq_group: SequenceGroup,
+                      seq_group: Task,
                       num_lookahead_slots: int = 0) -> bool:
     assert (num_lookahead_slots == 0
             ), "lookahead allocation not supported in BlockSpaceManagerV1"
@@ -17,7 +17,7 @@ def intercept_can_append_slots(self,
         return True
     else:
         num_free_gpu_blocks = self.gpu_allocator.get_num_free_blocks()
-        num_seqs = seq_group.num_seqs(status=SequenceStatus.RUNNING)
+        num_seqs = seq_group.num_seqs(status=RequestStatus.RUNNING)
         return num_seqs <= num_free_gpu_blocks
 
 InterceptObject.add_intercept(_BlockSpaceManager,

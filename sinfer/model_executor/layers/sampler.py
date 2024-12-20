@@ -11,7 +11,7 @@ from sinfer.model_executor.sampling_metadata import (SamplingMetadata,
                                                    SequenceGroupToSample)
 from sinfer.sampling_params import SamplingType
 from sinfer.request import (Logprob, PromptLogprobs, SampleLogprobs,
-                           SamplerOutput, SequenceGroupOutput, SequenceOutput)
+                           SamplerOutput, TaskOutput, RequestOutput)
 
 # (num_token_ids, num_parent_ids) per sequence group.
 SampleResultType = List[Tuple[List[int], List[int]]]
@@ -998,9 +998,9 @@ def _build_sampler_output(
                                                       next_token_ids,
                                                       group_sample_logprobs):
             seq_outputs.append(
-                SequenceOutput(seq_ids[parent_id], next_token_id, logprobs))
+                RequestOutput(seq_ids[parent_id], next_token_id, logprobs))
         sampler_output.append(
-            SequenceGroupOutput(seq_outputs, group_prompt_logprobs))
+            TaskOutput(seq_outputs, group_prompt_logprobs))
 
     # If not specified, store None values in SamplerOutput.
     if on_device_tensors is not None:

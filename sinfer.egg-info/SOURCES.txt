@@ -18,6 +18,7 @@ sinfer/outputs.py
 sinfer/py.typed
 sinfer/request.py
 sinfer/sampling_params.py
+sinfer/task.py
 sinfer/test_utils.py
 sinfer/utils.py
 sinfer.egg-info/PKG-INFO

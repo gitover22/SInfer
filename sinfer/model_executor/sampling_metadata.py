@@ -7,7 +7,7 @@ import torch
 
 from sinfer.model_executor.layers.ops.sample import get_num_triton_sampler_splits
 from sinfer.sampling_params import SamplingParams, SamplingType
-from sinfer.request import SequenceData, SequenceGroupMetadata
+from sinfer.request import RequestData, TaskMetadata
 from sinfer.utils import (async_tensor_h2d, is_pin_memory_available,expand_dim)
 
 _SAMPLING_EPS = 1e-5
@@ -27,7 +27,7 @@ class SequenceGroupToSample:
     seq_ids: List[int]
     sampling_params: SamplingParams
     # seq_id -> sequence data.
-    seq_data: Dict[int, SequenceData]
+    seq_data: Dict[int, RequestData]
     # The length of the sequence (all tokens seen in the past + new token to
     # compute attention) of the sequence group. None if it is in a decode
     # stage.
@@ -102,7 +102,7 @@ class SamplingMetadata:
 
     @staticmethod
     def prepare(
-        seq_group_metadata_list: List[SequenceGroupMetadata],
+        seq_group_metadata_list: List[TaskMetadata],
         seq_lens: List[int],
         query_lens: Optional[List[int]],
         device: str,
@@ -145,7 +145,7 @@ class SamplingMetadata:
 
 
 def _prepare_seq_groups(
-    seq_group_metadata_list: List[SequenceGroupMetadata],
+    seq_group_metadata_list: List[TaskMetadata],
     seq_lens: List[int],
     query_lens: Optional[List[int]],
     device: str,

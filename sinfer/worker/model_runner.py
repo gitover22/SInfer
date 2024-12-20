@@ -22,8 +22,8 @@ from sinfer.lora.worker_manager import LRUCacheWorkerLoRAManager
 from sinfer.model_executor import SamplingMetadata
 from sinfer.model_executor.model_loader import get_model
 from sinfer.sampling_params import SamplingParams
-from sinfer.request import (MultiModalData, SamplerOutput, SequenceData,
-                           SequenceGroupMetadata)
+from sinfer.request import (MultiModalData, SamplerOutput, RequestData,
+                           TaskMetadata)
 from sinfer.utils import (CudaMemoryProfiler, get_kv_cache_torch_dtype,
                         is_pin_memory_available, make_tensor_with_pad)
 
@@ -209,7 +209,7 @@ class ModelRunner:
 
     def _prepare_prompt(
         self,
-        seq_group_metadata_list: List[SequenceGroupMetadata],
+        seq_group_metadata_list: List[TaskMetadata],
     ) -> PreparePromptMetadata:
         input_tokens: List[int] = []
         input_positions: List[int] = []
@@ -415,7 +415,7 @@ class ModelRunner:
 
     def _prepare_decode(
         self,
-        seq_group_metadata_list: List[SequenceGroupMetadata],
+        seq_group_metadata_list: List[TaskMetadata],
     ) -> PrepareDecodeMetadata:
         input_tokens: List[int] = []
         input_positions: List[int] = []
@@ -597,7 +597,7 @@ class ModelRunner:
 
     def prepare_input_tensors(
         self,
-        seq_group_metadata_list: List[SequenceGroupMetadata],
+        seq_group_metadata_list: List[TaskMetadata],
     ) -> Tuple[torch.Tensor, torch.Tensor, AttentionMetadata, SamplingMetadata,
                Set[LoRARequest], LoRAMapping, torch.Tensor]:
         if self.is_driver_worker:
@@ -763,7 +763,7 @@ class ModelRunner:
     @torch.inference_mode()
     def execute_model(
         self,
-        seq_group_metadata_list: List[SequenceGroupMetadata],
+        seq_group_metadata_list: List[TaskMetadata],
         kv_caches: List[torch.Tensor],
     ) -> Optional[SamplerOutput]:
         (input_tokens, input_positions, attn_metadata, sampling_metadata,
@@ -837,7 +837,7 @@ class ModelRunner:
 
         # Profile memory usage with max_num_sequences sequences and the total
         # number of tokens equal to max_num_batched_tokens.
-        seqs: List[SequenceGroupMetadata] = []
+        seqs: List[TaskMetadata] = []
         # Additional GPU memory may be needed for vision encoding, which needs
         # to be accounted for when calculating the GPU blocks for
         # SInfer blocker manager.
@@ -854,7 +854,7 @@ class ModelRunner:
                        (group_id < max_num_batched_tokens % max_num_seqs))
             seq_data, fake_multi_modal_input = _prepare_fake_inputs(
                 seq_len, self.vision_language_config)
-            seq = SequenceGroupMetadata(
+            seq = TaskMetadata(
                 request_id=str(group_id),
                 is_prompt=True,
                 seq_data={group_id: seq_data},
@@ -1135,4 +1135,4 @@ def _prepare_fake_inputs(
     else:
         prompt_tokens = [0] * seq_len
         fake_image_input = None
-    return SequenceData(prompt_tokens), fake_image_input
+    return RequestData(prompt_tokens), fake_image_input

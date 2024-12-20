@@ -7,8 +7,8 @@ from sinfer.sys.output_processor.interfaces import (
 from sinfer.sys.output_processor.stop_checker import StopChecker
 from sinfer.logger import init_logger
 from sinfer.sampling_params import SamplingParams
-from sinfer.request import (Sequence, SequenceGroup, SequenceGroupOutput,
-                           SequenceOutput, SequenceStatus)
+from sinfer.request import (Request, Task, TaskOutput,
+                           RequestOutput, RequestStatus)
 from sinfer.transformers_utils.detokenizer import Detokenizer
 from sinfer.utils import Counter
 
@@ -43,8 +43,8 @@ class SingleStepOutputProcessor(SequenceGroupOutputProcessor):
         self.seq_counter = seq_counter
         self.stop_checker = stop_checker
 
-    def process_outputs(self, sequence_group: SequenceGroup,
-                        outputs: List[SequenceGroupOutput]) -> None:
+    def process_outputs(self, sequence_group: Task,
+                        outputs: List[TaskOutput]) -> None:
         """Append all new tokens to sequences in the sequence group. Fork any
         surviving beam candidates; free any unsurviving ones.
 
@@ -55,8 +55,8 @@ class SingleStepOutputProcessor(SequenceGroupOutputProcessor):
                 ), f"{type(self)} does not support multiple outputs per step"
         return self._process_sequence_group_outputs(sequence_group, outputs[0])
 
-    def process_prompt_logprob(self, seq_group: SequenceGroup,
-                               outputs: List[SequenceGroupOutput]) -> None:
+    def process_prompt_logprob(self, seq_group: Task,
+                               outputs: List[TaskOutput]) -> None:
         assert len(outputs) == 1, ("Single step should only has 1 output.")
         output = outputs[0]
         prompt_logprobs = output.prompt_logprobs
@@ -70,30 +70,30 @@ class SingleStepOutputProcessor(SequenceGroupOutputProcessor):
                 seq_group.prompt_logprobs = [None]
             seq_group.prompt_logprobs.extend(prompt_logprobs)
 
-    def _process_sequence_group_outputs(self, seq_group: SequenceGroup,
-                                        outputs: SequenceGroupOutput) -> None:
+    def _process_sequence_group_outputs(self, seq_group: Task,
+                                        outputs: TaskOutput) -> None:
         # Process samples
         samples = outputs.samples
-        parent_seqs = seq_group.get_seqs(status=SequenceStatus.RUNNING)
+        parent_seqs = seq_group.get_seqs(status=RequestStatus.RUNNING)
         existing_finished_seqs = seq_group.get_finished_seqs()
-        parent_child_dict: Dict[int, List[SequenceOutput]] = {
+        parent_child_dict: Dict[int, List[RequestOutput]] = {
             parent_seq.seq_id: []
             for parent_seq in parent_seqs
         }
         for sample in samples:
             parent_child_dict[sample.parent_seq_id].append(sample)
         # List of (child, parent)
-        child_seqs: List[Tuple[Sequence, Sequence]] = []
+        child_seqs: List[Tuple[Request, Request]] = []
 
         # Process the child samples for each parent sequence
         for parent in parent_seqs:
-            child_samples: List[SequenceOutput] = parent_child_dict[
+            child_samples: List[RequestOutput] = parent_child_dict[
                 parent.seq_id]
             if len(child_samples) == 0:
                 # This parent sequence has no children samples. Remove
                 # the parent sequence from the sequence group since it will
                 # not be used in the future iterations.
-                parent.status = SequenceStatus.FINISHED_ABORTED
+                parent.status = RequestStatus.FINISHED_ABORTED
                 seq_group.remove(parent.seq_id)
                 self.scheduler.free_seq(parent)
                 continue
@@ -243,8 +243,8 @@ class SingleStepOutputProcessor(SequenceGroupOutputProcessor):
         self,
         early_stopping: Union[bool, str],
         sampling_params: SamplingParams,
-        best_running_seq: Sequence,
-        current_worst_seq: Sequence,
+        best_running_seq: Request,
+        current_worst_seq: Request,
     ) -> bool:
         assert sampling_params.use_beam_search
         length_penalty = sampling_params.length_penalty
