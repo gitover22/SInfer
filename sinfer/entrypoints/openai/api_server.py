@@ -36,7 +36,6 @@ logger = init_logger(__name__)
 
 _running_tasks: Set[asyncio.Task[Any]] = set()  # 用于跟踪异步任务
 
-
 @asynccontextmanager
 async def lifespan(app: fastapi.FastAPI):
 
@@ -60,13 +59,6 @@ route = Mount("/metrics", make_asgi_app())
 # Workaround for 307 Redirect for /metrics
 route.path_regex = re.compile('^/metrics(?P<path>.*)$')
 app.routes.append(route)
-
-
-
-
-
-
-
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(_, exc):
