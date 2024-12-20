@@ -21,7 +21,7 @@ from sinfer.logger import init_logger
 from sinfer.lora.request import LoRARequest
 from sinfer.outputs import RequestOutput
 from sinfer.sampling_params import SamplingParams
-from sinfer.sequence import (ExecuteModelRequest, MultiModalData, SamplerOutput,
+from sinfer.request import (ExecuteModelRequest, MultiModalData, SamplerOutput,
                            Sequence, SequenceGroup, SequenceGroupMetadata,
                            SequenceStatus)
 from sinfer.transformers_utils.detokenizer import Detokenizer

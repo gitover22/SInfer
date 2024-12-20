@@ -7,7 +7,7 @@ import torch
 
 from sinfer.model_executor.layers.ops.sample import get_num_triton_sampler_splits
 from sinfer.sampling_params import SamplingParams, SamplingType
-from sinfer.sequence import SequenceData, SequenceGroupMetadata
+from sinfer.request import SequenceData, SequenceGroupMetadata
 from sinfer.utils import (async_tensor_h2d, is_pin_memory_available,expand_dim)
 
 _SAMPLING_EPS = 1e-5

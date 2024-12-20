@@ -2,7 +2,7 @@ from typing import Dict, List, Optional, Tuple, Union
 
 from transformers import PreTrainedTokenizer, PreTrainedTokenizerFast
 
-from sinfer.sequence import Logprob, SamplingParams, Sequence, SequenceGroup
+from sinfer.request import Logprob, SamplingParams, Sequence, SequenceGroup
 from sinfer.transformers_utils.tokenizer_group.base_tokenizer_group import (
     BaseTokenizerGroup)
 

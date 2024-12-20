@@ -3,7 +3,7 @@ from typing import Callable, Optional
 from transformers import PreTrainedTokenizer
 
 from sinfer.sampling_params import SamplingParams
-from sinfer.sequence import Sequence, SequenceStatus
+from sinfer.request import Sequence, SequenceStatus
 
 
 class StopChecker:

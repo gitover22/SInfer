@@ -15,7 +15,7 @@ from sinfer.entrypoints.openai.protocol import (ChatCompletionRequest,
                                               ModelPermission)
 from sinfer.logger import init_logger
 from sinfer.lora.request import LoRARequest
-from sinfer.sequence import Logprob
+from sinfer.request import Logprob
 from sinfer.transformers_utils.tokenizer import get_tokenizer
 
 logger = init_logger(__name__)

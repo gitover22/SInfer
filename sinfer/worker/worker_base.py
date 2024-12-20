@@ -7,7 +7,7 @@ from typing import Dict, List, Set, Tuple
 
 from sinfer.logger import init_logger
 from sinfer.lora.request import LoRARequest
-from sinfer.sequence import ExecuteModelRequest, SamplerOutput
+from sinfer.request import ExecuteModelRequest, SamplerOutput
 from sinfer.utils import (enable_trace_function_call_for_thread,
                         update_environment_variables)
 

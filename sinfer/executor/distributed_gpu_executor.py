@@ -5,7 +5,7 @@ from sinfer.executor.executor_base import ExecutorAsyncBase
 from sinfer.executor.gpu_executor import GPUExecutor
 from sinfer.logger import init_logger
 from sinfer.lora.request import LoRARequest
-from sinfer.sequence import SamplerOutput
+from sinfer.request import SamplerOutput
 
 logger = init_logger(__name__)
 

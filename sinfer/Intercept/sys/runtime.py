@@ -4,7 +4,7 @@ from sinfer.sys.runtime import LLMRuntime
 from sinfer.Intercept.mlu_definitions import USE_PAGED, BlockSizeInfo
 from sinfer.Intercept.intercept_utils import InterceptObject
 from sinfer.sampling_params import SamplingParams
-from sinfer.sequence import MultiModalData, Sequence, SequenceGroup
+from sinfer.request import MultiModalData, Sequence, SequenceGroup
 from sinfer.lora.request import LoRARequest
 from sinfer.logger import init_logger
 

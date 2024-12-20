@@ -10,7 +10,7 @@ from sinfer.executor.distributed_gpu_executor import (
     DistributedGPUExecutor, DistributedGPUExecutorAsync)
 from sinfer.executor.ray_utils import RayWorkerWrapper, ray
 from sinfer.logger import init_logger
-from sinfer.sequence import ExecuteModelRequest, SamplerOutput
+from sinfer.request import ExecuteModelRequest, SamplerOutput
 from sinfer.utils import (get_distributed_init_method, get_ip, get_open_port,
                         get_sinfer_instance_id, make_async)
 

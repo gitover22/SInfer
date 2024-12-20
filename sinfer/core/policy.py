@@ -1,7 +1,7 @@
 from collections import deque
 from typing import Deque
 
-from sinfer.sequence import SequenceGroup
+from sinfer.request import SequenceGroup
 
 
 class Policy:

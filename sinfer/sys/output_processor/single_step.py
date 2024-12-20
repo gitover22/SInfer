@@ -7,7 +7,7 @@ from sinfer.sys.output_processor.interfaces import (
 from sinfer.sys.output_processor.stop_checker import StopChecker
 from sinfer.logger import init_logger
 from sinfer.sampling_params import SamplingParams
-from sinfer.sequence import (Sequence, SequenceGroup, SequenceGroupOutput,
+from sinfer.request import (Sequence, SequenceGroup, SequenceGroupOutput,
                            SequenceOutput, SequenceStatus)
 from sinfer.transformers_utils.detokenizer import Detokenizer
 from sinfer.utils import Counter

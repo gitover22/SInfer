@@ -13,7 +13,7 @@ from sinfer.distributed import (broadcast_tensor_dict,
                               init_distributed_environment)
 from sinfer.logger import init_logger
 from sinfer.model_executor import set_random_seed
-from sinfer.sequence import ExecuteModelRequest, SamplerOutput
+from sinfer.request import ExecuteModelRequest, SamplerOutput
 from sinfer.utils import STR_DTYPE_TO_TORCH_DTYPE
 from sinfer.worker.cpu_model_runner import CPUModelRunner
 from sinfer.worker.worker_base import LoraNotSupportedWorkerBase

@@ -20,7 +20,7 @@ from sinfer.model_executor.layers.sampler import Sampler
 from sinfer.model_executor.layers.vocab_parallel_embedding import (
     DEFAULT_VOCAB_PADDING_SIZE, ParallelLMHead, VocabParallelEmbedding)
 from sinfer.model_executor.sampling_metadata import SamplingMetadata
-from sinfer.sequence import SamplerOutput
+from sinfer.request import SamplerOutput
 from sinfer.Intercept.model_executor.layers.feed_forward import FeedForward
 
 

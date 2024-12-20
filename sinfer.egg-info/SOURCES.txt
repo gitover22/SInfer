@@ -16,8 +16,8 @@ sinfer/envs.py
 sinfer/logger.py
 sinfer/outputs.py
 sinfer/py.typed
+sinfer/request.py
 sinfer/sampling_params.py
-sinfer/sequence.py
 sinfer/test_utils.py
 sinfer/utils.py
 sinfer.egg-info/PKG-INFO
@@ -278,10 +278,3 @@ sinfer/worker/cpu_worker.py
 sinfer/worker/model_runner.py
 sinfer/worker/worker.py
 sinfer/worker/worker_base.py
-tests/test_cache_block_hashing.py
-tests/test_config.py
-tests/test_logger.py
-tests/test_logits_processor.py
-tests/test_regression.py
-tests/test_sampling_params.py
-tests/test_sequence.py

@@ -14,7 +14,7 @@ from sinfer.core.interfaces import AllocStatus, SpaceManager
 from sinfer.core.policy import Policy, PolicyFactory
 from sinfer.logger import init_logger
 from sinfer.lora.request import LoRARequest
-from sinfer.sequence import (Sequence, SequenceData, SequenceGroup,
+from sinfer.request import (Sequence, SequenceData, SequenceGroup,
                            SequenceGroupMetadata, SequenceStatus)
 from sinfer.utils import merge_dicts
 

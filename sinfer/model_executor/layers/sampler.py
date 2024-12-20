@@ -10,7 +10,7 @@ from sinfer.model_executor.sampling_metadata import (SamplingMetadata,
                                                    SamplingTensors,
                                                    SequenceGroupToSample)
 from sinfer.sampling_params import SamplingType
-from sinfer.sequence import (Logprob, PromptLogprobs, SampleLogprobs,
+from sinfer.request import (Logprob, PromptLogprobs, SampleLogprobs,
                            SamplerOutput, SequenceGroupOutput, SequenceOutput)
 
 # (num_token_ids, num_parent_ids) per sequence group.

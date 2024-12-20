@@ -16,7 +16,7 @@ from sinfer.attention.backends.abstract import AttentionMetadata
 from sinfer.attention.backends.flashinfer import FlashInferBackend
 from sinfer.lora.layers import LoRAMapping
 from sinfer.lora.request import LoRARequest
-from sinfer.sequence import SequenceGroupMetadata, SamplerOutput
+from sinfer.request import SequenceGroupMetadata, SamplerOutput
 from sinfer.utils import get_kv_cache_torch_dtype
 
 import sinfer.envs as envs

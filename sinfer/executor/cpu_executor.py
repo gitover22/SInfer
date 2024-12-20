@@ -7,7 +7,7 @@ from sinfer.config import CacheConfig, ModelConfig, SchedulerConfig
 from sinfer.executor.executor_base import ExecutorAsyncBase, ExecutorBase
 from sinfer.logger import init_logger
 from sinfer.lora.request import LoRARequest
-from sinfer.sequence import ExecuteModelRequest, SamplerOutput
+from sinfer.request import ExecuteModelRequest, SamplerOutput
 from sinfer.utils import (get_distributed_init_method, get_ip, get_open_port,
                         make_async)
 

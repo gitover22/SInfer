@@ -17,7 +17,7 @@ from sinfer.model_executor.layers.vocab_parallel_embedding import ParallelLMHead
 from sinfer.model_executor.model_loader.weight_utils import default_weight_loader
 from sinfer.model_executor.models.llama import LlamaModel
 from sinfer.model_executor.sampling_metadata import SamplingMetadata
-from sinfer.sequence import SamplerOutput
+from sinfer.request import SamplerOutput
 
 _KEYS_TO_MODIFY_MAPPING = {
     "language_model.lm_head": "lm_head",

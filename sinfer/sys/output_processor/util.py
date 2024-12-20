@@ -1,6 +1,6 @@
 from typing import List
 
-from sinfer.sequence import SamplerOutput, SequenceGroupOutput
+from sinfer.request import SamplerOutput, SequenceGroupOutput
 
 
 def create_output_by_sequence_group(

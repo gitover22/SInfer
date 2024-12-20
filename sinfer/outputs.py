@@ -2,7 +2,7 @@ import time
 from typing import List, Optional, Union
 
 from sinfer.lora.request import LoRARequest
-from sinfer.sequence import (PromptLogprobs, RequestMetrics, SampleLogprobs,
+from sinfer.request import (PromptLogprobs, RequestMetrics, SampleLogprobs,
                            SequenceGroup, SequenceStatus)
 
 

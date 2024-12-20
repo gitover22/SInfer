@@ -21,7 +21,7 @@ from sinfer.model_executor.layers.vocab_parallel_embedding import (
     VocabParallelEmbedding)
 from sinfer.model_executor.model_loader.weight_utils import default_weight_loader
 from sinfer.model_executor.sampling_metadata import SamplingMetadata
-from sinfer.sequence import SamplerOutput
+from sinfer.request import SamplerOutput
 
 
 class GPT2Attention(nn.Module):

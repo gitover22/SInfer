@@ -49,7 +49,7 @@ from sinfer.model_executor.layers.vocab_parallel_embedding import (
 from sinfer.model_executor.model_loader.weight_utils import default_weight_loader
 from sinfer.model_executor.sampling_metadata import SamplingMetadata
 from sinfer.model_executor.utils import set_weight_attrs
-from sinfer.sequence import SamplerOutput
+from sinfer.request import SamplerOutput
 from sinfer.utils import print_warning_once
 
 
