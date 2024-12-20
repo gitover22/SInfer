@@ -344,11 +344,9 @@ class _BlockSpaceManager(SpaceManager):
         '''
         assert (num_lookahead_slots == 0
                 ), "lookahead allocation not supported in BlockSpaceManagerV1"
-
-        # Simple heuristic: If there is at least one free block
-        # for each sequence, we can append.
-        num_free_gpu_blocks = self.gpu_allocator.get_num_free_blocks() # 获取所有可用的物理块数量 
-        num_seqs = seq_group.num_seqs(status=SequenceStatus.RUNNING) # 获取序列组中所有处于running状态的序列数量
+        
+        num_free_gpu_blocks = self.gpu_allocator.get_num_free_blocks()
+        num_seqs = seq_group.num_seqs(status=SequenceStatus.RUNNING)
         return num_seqs <= num_free_gpu_blocks
 
     def _promote_last_block(
