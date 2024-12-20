@@ -12,7 +12,8 @@ from sinfer.sampling_params import SamplingParams
 from sinfer.task import MultiModalData
 from sinfer.usage.usage_lib import UsageContext
 from sinfer.utils import Counter
-
+from sinfer.logger import init_logger
+logger = init_logger(__name__)
 
 class LLM:
     """
@@ -39,7 +40,6 @@ class LLM:
         max_seq_len_to_capture: CUDA 图覆盖的最大序列长度。当序列的上下文长度超过该值时,将回退到即时模式
         disable_custom_all_reduce: 是否禁用自定义all reduce操作
     """
-
     def __init__(
         self,
         model: str,
@@ -61,6 +61,23 @@ class LLM:
         disable_custom_all_reduce: bool = False,
         **kwargs,
     ) -> None:
+        '''
+        支持用户定义最大捕获batch大小, 并初始化LLMDumpInfo
+        '''
+        from sinfer.Intercept.mlu_metric import LLMMetric
+        from sinfer.Intercept.dump_info import LLMDumpInfo
+        self.metric = LLMMetric()
+        self.dump_info = LLMDumpInfo()
+        if "max_batch_size_to_capture" in kwargs:
+            max_batch_size_to_capture = kwargs.pop("max_batch_size_to_capture")
+            if max_batch_size_to_capture:
+                from sinfer.Intercept.intercept_utils import set_batch_sizes_to_capture
+                set_batch_sizes_to_capture(max_batch_size_to_capture)
+        self.dump_info.init_param(tensor_parallel_size=tensor_parallel_size, dtype=dtype, 
+                kv_cache_dtype=kwargs.get('kv_cache_dtype', 'default_value'),
+                quantization=quantization,
+                model=model, trust_remote_code=kwargs.get('trust_remote_code', 'default_value'))
+        
         if "disable_log_stats" not in kwargs:
             kwargs["disable_log_stats"] = True
         runtime_args = RuntimeArgs(
@@ -86,6 +103,7 @@ class LLM:
         self.llm_runtime = LLMRuntime.from_runtime_args(
             runtime_args, usage_context=UsageContext.LLM_CLASS)
         self.request_counter = Counter()
+        self.dump_info.memory_usage()
 
     def get_tokenizer(
             self) -> Union[PreTrainedTokenizer, PreTrainedTokenizerFast]:
@@ -181,17 +199,68 @@ class LLM:
             pbar = tqdm(total=num_requests,
                         desc="Processed prompts",
                         dynamic_ncols=True)
+        from sinfer.Intercept.mlu_definitions import check_latency_debug
+        is_latency_debug = check_latency_debug()
+        # 记录开始时间 
+        if is_latency_debug:
+            self.dump_info.capture_cpu_info()
+            e2e_start_time = self.metric.get_mlu_cost_time()
         # 运行引擎
         outputs: List[RequestOutput] = []
         while self.llm_runtime.has_unfinished_requests():
+            if is_latency_debug :
+                self.dump_info.memory_usage() 
+                start_time = self.metric.get_mlu_cost_time() 
             step_outputs = self.llm_runtime.step()     # iteration level
+            if is_latency_debug:
+                end_time = self.metric.get_mlu_cost_time()
+                step_latency = end_time - start_time
+                if self.metric.is_prefill_stage():
+                    batch_size = len(step_outputs)
+                self.metric.update_step_latency(step_latency)
+                from sinfer.Intercept.mlu_definitions import check_latency_debug_with_device
+                if check_latency_debug_with_device():
+                    self.metric.update_step_latency_device(self.llm_runtime.get_latency())
+                self.dump_info.memory_usage()
             for output in step_outputs:
                 if output.finished:
                     outputs.append(output)
                     if use_tqdm:
                         pbar.update(1)
+        # 计算延迟
+        if is_latency_debug:
+            e2e_end_time = self.metric.get_mlu_cost_time()
+            e2e_latency = e2e_end_time - e2e_start_time
+            self.metric.add_metrics(batch_size,e2e_latency)
         if use_tqdm:
             pbar.close()
         # 用request ID 排序 (有些请求可能比之前的请求更早完成)
         outputs = sorted(outputs, key=lambda x: int(x.request_id))
         return outputs
+    def get_metrics(
+        self,
+        metrics_idx_start,
+        only_average,
+        input_len,
+        output_len,
+        tp_nums,
+        quantization,
+        dump_info=None
+    ) -> None:
+        '''
+        @brief:该函数用来打印SInfer调用generate接口过程中代码统计的各项性能指标数据
+        @params: 
+            metrics_idx_start: 考虑存在调用generate接口为warmup过程的情况，
+            因此设置该参数可忽略统计[0,metrics_idx_start)之间的数据,默认为0,即所有性能数据有效。
+            only_average: True 只打印N次调用generate接口的平均性能 False 打印每次调用generate接口的性能及其均值 若N次性能数据波动较大，需自行排查测试环境是否稳定。
+            其余参数:均为模型配置参数
+        '''
+        from sinfer.Intercept.mlu_definitions import check_latency_debug
+        if check_latency_debug():
+            self.metric.calc_metric(self.llm_runtime.model_config.model,
+                                    self.llm_runtime.model_config.dtype,
+                                    metrics_idx_start, only_average,
+                                    input_len, output_len, tp_nums,
+                                    quantization, dump_info)
+        else:
+            print("Warnning:please set SINFER_LATENCY_DEBUG=true!")

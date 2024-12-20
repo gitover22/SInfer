@@ -9,7 +9,8 @@ from sinfer.config import (CacheConfig, DecodingConfig, DeviceConfig,
                          TokenizerPoolConfig, VisionLanguageConfig)
 from sinfer.model_executor.layers.quantization import QUANTIZATION_METHODS
 from sinfer.utils import str_to_int_tuple
-
+from sinfer.logger import init_logger
+logger = init_logger(__name__)
 
 def nullable_str(val: str):
     if not val or val == "None":
@@ -85,6 +86,13 @@ class RuntimeArgs:
     ngram_prompt_lookup_min: Optional[int] = None
 
     def __post_init__(self):
+        import torch
+        # In MLU3XX device, when the tensor_parallel_size > 1, the enforce_eager is forced to set False
+        unsupport_device = "3" in torch.cuda.get_device_name(0)
+        if unsupport_device and self.tensor_parallel_size > 1 and self.enforce_eager == False:
+            self.enforce_eager = True
+            logger.warning("The current device only support enforce_eager = True, when the tensor_parallel_size > 1. "
+                        "The param enforce_eager is forced to set True")
         if self.tokenizer is None:
             self.tokenizer = self.model
 
@@ -500,11 +508,25 @@ class RuntimeArgs:
             "will also be used in `model_name` tag content of "
             "prometheus metrics, if multiple names provided, metrics"
             "tag will take the first one.")
+        parser.add_argument(
+            '--max-batch_size-to-capture',
+            type=int,
+            default=None,
+            help='The max batch size to capture MLUGraph.')
 
+        # 暂时不支持 block_size 
+        for action in parser._actions:
+            if action.dest == "block_size":
+                action.choices = None
+                action.default = -1  # 设为-1
         return parser
 
     @classmethod
     def from_cli_args(cls, args: argparse.Namespace) -> 'RuntimeArgs':
+        max_batch_size_to_capture = getattr(args, "max_batch_size_to_capture", None)
+        if max_batch_size_to_capture:
+            from sinfer.Intercept.intercept_utils import set_batch_sizes_to_capture
+            set_batch_sizes_to_capture(max_batch_size_to_capture)
         # Get the list of attributes of this dataclass.
         attrs = [attr.name for attr in dataclasses.fields(cls)]
         # Set the attributes from the parsed arguments.
@@ -512,6 +534,13 @@ class RuntimeArgs:
         return runtime_args
 
     def create_runtime_config(self, ) -> RuntimeConfig:
+        # MLU not support custom all reduce
+        from sinfer.Intercept.mlu_definitions import BlockSizeInfo, USE_PAGED
+        self.disable_custom_all_reduce = True
+        BlockSizeInfo.set_block_size(self.block_size)
+        if not USE_PAGED and self.enable_chunked_prefill:
+            raise ValueError("Don't support chunked_prefill in UnPaged mode.")
+
         device_config = DeviceConfig(self.device)
         model_config = ModelConfig(
             self.model, self.tokenizer, self.tokenizer_mode,
@@ -579,6 +608,7 @@ class RuntimeArgs:
         decoding_config = DecodingConfig(
             guided_decoding_backend=self.guided_decoding_backend)
 
+        cache_config.block_size = BlockSizeInfo.BLOCK_SIZE # 重新设置 block_size 以支持分页和非分页模式
         return RuntimeConfig(model_config=model_config,
                             cache_config=cache_config,
                             parallel_config=parallel_config,

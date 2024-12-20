@@ -21,23 +21,16 @@ class SinferMluIntercept:
         pass
 
     def apply_optimizations(self, paged=False):
-        logger.info("Apply MLU optimization!")
+        logger.info("MLU optimization opened!")
         import sinfer.Intercept.attention
-        import sinfer.Intercept.core
-        if check_scheduler_profile_enable():
-            import sinfer.Intercept.core.scheduler
-            import sinfer.Intercept.sys.async_runtime
-            import sinfer.Intercept.entrypoints.openai.serving_engine
         import sinfer.Intercept.distributed
-        import sinfer.Intercept.sys
-        import sinfer.Intercept.entrypoints
         import sinfer.Intercept.executor
         import sinfer.Intercept.model_executor
         import sinfer.Intercept.worker
         InterceptObject.apply_intercept()
 
     def undo_optimization(self):
-        logger.info("Undo MLU optimization!")
+        logger.info("MLU optimization closed!")
         InterceptObject.remove_intercept()
 
 sinfer_mlu_intercept = SinferMluIntercept()

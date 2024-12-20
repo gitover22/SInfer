@@ -344,11 +344,15 @@ class _BlockSpaceManager(SpaceManager):
         检查对于SG中的每一个seq, 是否能至少分配一个空闲物理块给它(考虑最坏情况)
         '''
         assert (num_lookahead_slots == 0
-                ), "lookahead allocation not supported in BlockSpaceManagerV1"
-        
-        num_free_gpu_blocks = self.gpu_allocator.get_num_free_blocks()
-        num_seqs = seq_group.num_seqs(status=RequestStatus.RUNNING)
-        return num_seqs <= num_free_gpu_blocks
+            ), "lookahead allocation not supported in BlockSpaceManagerV1"
+        # 优化分配策略: unpagged mode 可以返回true
+        from sinfer.Intercept.mlu_definitions import USE_PAGED
+        if not USE_PAGED:
+            return True
+        else:
+            num_free_gpu_blocks = self.gpu_allocator.get_num_free_blocks()
+            num_seqs = seq_group.num_seqs(status=RequestStatus.RUNNING)
+            return num_seqs <= num_free_gpu_blocks
 
     def _promote_last_block(
         self,

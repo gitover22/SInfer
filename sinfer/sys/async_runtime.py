@@ -719,3 +719,6 @@ class AsyncLLMRuntime:
         else:
             await self.engine.check_health_async()
         logger.debug("Health check took %fs", time.perf_counter() - t)
+    def save_scheduler_view(self):
+        if hasattr(self.engine.scheduler, "__del__"):
+            self.engine.scheduler.__del__()

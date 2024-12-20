@@ -127,7 +127,7 @@ class LLMRuntime:
             self.detokenizer = None
             self.tokenizer = None
 
-        self.seq_counter = Counter()
+        self.req_counter = Counter()
         self.generation_config_fields = _load_generation_config_dict(
             model_config)
 
@@ -200,7 +200,7 @@ class LLMRuntime:
                 self.scheduler_config,
                 self.detokenizer,
                 self.scheduler,
-                self.seq_counter,
+                self.req_counter,
                 self.get_tokenizer_for_seq,
                 stop_checker=StopChecker(
                     self.scheduler_config.max_model_len,
@@ -322,7 +322,7 @@ class LLMRuntime:
         将一个request添加给LLMRuntime
 
         Args:
-            request_id: 1条prompt算1个请求, 会附给1个请求id
+            request_id: 1条prompt算1个请求
             prompt: prompt( str )
             sampling_params: 采样参数(温度、topk等)
             prompt_token_ids: prompt(token_id版), 没有提供的话会调用tokenizer来做
@@ -350,7 +350,7 @@ class LLMRuntime:
 
         # 创建sequences.
         block_size = self.cache_config.block_size
-        seq_id = next(self.seq_counter)
+        req_id = next(self.req_counter)
         eos_token_id = None
         if self.tokenizer:
             eos_token_id = self.tokenizer.get_lora_tokenizer(
@@ -358,7 +358,7 @@ class LLMRuntime:
         else:
             logger.warning("Use None for EOS token id because tokenizer is "
                            "not initialized")
-        seq = Request(seq_id, prompt, prompt_token_ids, block_size,
+        seq = Request(req_id, prompt, prompt_token_ids, block_size,
                        eos_token_id, lora_request)
 
         # 对SamplingParams进行防御性拷贝，这些参数由采样器使用，但不会对LogitsProcessor对象进行深拷贝
@@ -368,6 +368,15 @@ class LLMRuntime:
             sampling_params.all_stop_token_ids.add(seq.eos_token_id)  # 将eos token ID添加到sampling_params中，以支持min_tokens的处理
         sampling_params.update_from_generation_config(
             self.generation_config_fields)
+
+        # 检查 input_len + output_len <= block_size(非分页模式下，缓存的块大小需要能够容纳输入和输出的token)
+        num_prompt_tokens = 0
+        out_len = sampling_params.max_tokens # 生成的最大token数量
+
+        from sinfer.Intercept.mlu_definitions import BlockSizeInfo, USE_PAGED
+        if (USE_PAGED == False and BlockSizeInfo.BLOCK_SIZE < out_len + seq.get_len()):
+            raise ValueError("BLOCK_SIZE(" + str(BlockSizeInfo.BLOCK_SIZE) +
+                ") can't smaller than input_len(" + str(seq.get_len()) + ") + output_len(" + str(out_len) + ").")
 
         # 创建序列组SG：每个prompt被包装成一个SequenceGroup实例
         seq_group = Task(request_id, [seq], sampling_params,
@@ -643,3 +652,7 @@ class LLMRuntime:
 
     def check_health(self) -> None:
         self.model_executor.check_health()
+
+    def intercept_get_latency(self):
+        latency = self.model_executor.get_latency()
+        return latency
