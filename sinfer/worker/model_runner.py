@@ -22,8 +22,8 @@ from sinfer.lora.worker_manager import LRUCacheWorkerLoRAManager
 from sinfer.model_executor import SamplingMetadata
 from sinfer.model_executor.model_loader import get_model
 from sinfer.sampling_params import SamplingParams
-from sinfer.request import (MultiModalData, SamplerOutput, RequestData,
-                           TaskMetadata)
+from sinfer.request import (SamplerOutput, RequestData)
+from sinfer.task import MultiModalData, TaskMetadata
 from sinfer.utils import (CudaMemoryProfiler, get_kv_cache_torch_dtype,
                         is_pin_memory_available, make_tensor_with_pad)
 

@@ -1,6 +1,7 @@
 from typing import List
 
-from sinfer.request import SamplerOutput, TaskOutput
+from sinfer.request import SamplerOutput
+from sinfer.task import TaskOutput
 
 
 def create_output_by_sequence_group(

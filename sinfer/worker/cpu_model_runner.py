@@ -10,7 +10,8 @@ from sinfer.distributed import broadcast_tensor_dict
 from sinfer.logger import init_logger
 from sinfer.model_executor import SamplingMetadata
 from sinfer.model_executor.model_loader import get_model
-from sinfer.request import SamplerOutput, TaskMetadata
+from sinfer.request import SamplerOutput
+from sinfer.task import TaskMetadata
 from sinfer.utils import make_tensor_with_pad
 
 logger = init_logger(__name__)

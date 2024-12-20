@@ -5,11 +5,9 @@ from typing import TYPE_CHECKING, Dict, List, Optional, Union
 
 from sinfer.block import LogicalTokenBlock
 from sinfer.lora.request import LoRARequest
-from sinfer.sampling_params import SamplingParams
 
 if TYPE_CHECKING:
     import torch
-
 
 @dataclass
 class Logprob:
@@ -25,19 +23,19 @@ class Logprob:
     decoded_token: Optional[str] = None
 
 
-# {token_id -> logprob} per each sequence group. None if the corresponding
-# sequence group doesn't require prompt logprob.
+# {token_id -> logprob} per each task. None if the corresponding
+# task doesn't require prompt logprob.
 PromptLogprobs = List[Optional[Dict[int, Logprob]]]
-# {token_id -> logprob} for each sequence group.
+# {token_id -> logprob} for each task.
 SampleLogprobs = List[Dict[int, Logprob]]
 
 
 class RequestStatus(enum.Enum):
-    """Status of a sequence."""
+    # 请求的状态
     WAITING = enum.auto()
     RUNNING = enum.auto()
     SWAPPED = enum.auto()
-    # 四种完成状态
+    # 完成状态
     FINISHED_STOPPED = enum.auto()  # 正常完成 eos
     FINISHED_LENGTH_CAPPED = enum.auto() # seq的长度达到最大长度限制，而结束推理
     FINISHED_ABORTED = enum.auto() # 不正常状态，而被终止的推理
@@ -61,9 +59,8 @@ class RequestStatus(enum.Enum):
         elif status == RequestStatus.FINISHED_ABORTED:
             finish_reason = "abort"
         elif status == RequestStatus.FINISHED_IGNORED:
-            # The ignored sequences are the sequences whose prompt lengths
-            # are longer than the model's length cap. Therefore, the stop
-            # reason should also be "length" as in OpenAI API.
+            # 请求的prompt长度大于模型的最大文本长度.
+            # 完成的原因应该是"length"(兼容OpenAI API)
             finish_reason = "length"
         else:
             finish_reason = None
@@ -77,35 +74,21 @@ class Request_Stage(enum.Enum):
 
 @dataclass
 class RequestMetrics:
-    """Metrics associated with a request.
-
-    Attributes:
-        arrival_time: The time when the request arrived.
-        first_scheduled_time: The time when the request was first scheduled.
-        first_token_time: The time when the first token was generated.
-        time_in_queue: The time the request spent in the queue.
-        finished_time: The time when the request was finished.
-    """
-    arrival_time: float
-    last_token_time: float
-    first_scheduled_time: Optional[float]
-    first_token_time: Optional[float]
-    time_in_queue: Optional[float]
-    finished_time: Optional[float] = None
+    arrival_time: float # 请求到达的时间
+    last_token_time: float 
+    first_scheduled_time: Optional[float] # 请求第一次被调度的时间
+    first_token_time: Optional[float] # 第一个令牌生成的时间
+    time_in_queue: Optional[float] # 请求在队列中等待的时间
+    finished_time: Optional[float] = None # 请求完成的时间
 
 
 class RequestData:
-    """Data associated with a sequence.
-
+    """
+        请求的数据,包括prompt和输出的token ids,以及累积的对数概率
     Args:
-        prompt_token_ids: The token IDs of the prompt.
-        output_token_ids: The token IDs of the output. Set to an empty list if
-            None.
-
-    Attributes:
-        prompt_token_ids: The token IDs of the prompt.
-        output_token_ids: The token IDs of the output.
-        cumulative_logprob: The cumulative log probability of the output.
+        prompt_token_ids: prompt对应的token ids
+        output_token_ids: 输出对应的token IDs.
+        cumulative_logprob: 输出的累积对数概率
     """
 
     def __init__(
@@ -119,8 +102,7 @@ class RequestData:
         self.prompt_token_ids = prompt_token_ids
         self.output_token_ids = output_token_ids
         self.cumulative_logprob = 0.0
-        # The number of tokens that are computed (that run against the model).
-        self._num_computed_tokens = 0
+        self._num_computed_tokens = 0 # 已经计算的预填充（prefill）令牌的数量
         self._stage: Request_Stage = Request_Stage.PREFILL
 
     def append_token_id(self, token_id: int, logprob: float) -> None:
@@ -140,15 +122,15 @@ class RequestData:
         return self.prompt_token_ids + self.output_token_ids
 
     def get_num_computed_tokens(self) -> int:
-        """Return the number of prefill tokens that are already computed."""
         return self._num_computed_tokens
 
+
     def update_num_computed_tokens(self, num_new_computed_tokens: int):
-        """Update number of tokens computed so far."""
+        '''更新已经计算的令牌数量'''
         self._num_computed_tokens += num_new_computed_tokens
         assert self._num_computed_tokens <= self.get_len(), (
             self._num_computed_tokens, self.get_len())
-        # If all tokens are computed, it means it is in decoding phase.
+        # 如果所有令牌都已经计算完毕，进入decode阶段
         if self.get_num_uncomputed_tokens() == 0:
             self._stage = Request_Stage.DECODE
 
@@ -161,10 +143,9 @@ class RequestData:
         self._stage = Request_Stage.PREFILL
 
     def get_num_uncomputed_tokens(self) -> int:
-        """Return the number of prefill tokens that are not computed."""
-        # we use `get_len()` which includes prompt_len + output_len instead
-        # of prompt_len here. This is because during recompute we need to
-        # prefill for both prompt and output.
+        """返回没被计算的prefill token数量"""
+        # 使用 get_len 方法而不是单独使用提示令牌的长度（prompt_len），
+        # 是因为在重新计算（recompute）过程中，需要同时预填充提示和输出令牌。这确保了在重新计算时，所有相关的令牌都被考虑在内
         return self.get_len() - self.get_num_computed_tokens()
 
     def get_last_token_id(self) -> int:
@@ -373,268 +354,6 @@ class Request:
                 f"num_blocks={len(self.logical_token_blocks)})")
 
 
-@dataclass
-class Task_State:
-    """Mutable state tied to a specific sequence group"""
-
-    # torch.Generator used in seeded sampling
-    generator: Optional = None  # type: ignore
-
-
-class MultiModalData:
-    """Multi modal request.
-    
-    Args:
-        type: The data type.
-        data: The actual data.
-        The required shape and semantic meaning of it depends on the vision
-        language config of the hosted model. 
-        See `VisionLanguageConfig` in `config.py`.
-    """
-
-    class Type(enum.Enum):
-        IMAGE = enum.auto()
-
-    def __init__(self, type: Type, data: "torch.Tensor"):
-        self.type = type
-        self.data = data
-
-
-class Task:
-    """A group of sequences that are generated from the same prompt.
-
-    Args:
-        request_id: 请求id, 一个SG就是一个请求, 对应一个id
-        seqs: The list of sequences.
-        sampling_params: The sampling parameters used to generate the outputs.
-        arrival_time: The arrival time of the request.
-        lora_request: LoRA request.
-        multi_modal_data: Multi modal data associated with the request.
-    """
-
-    def __init__(
-        self,
-        request_id: str,
-        seqs: List[Request],
-        sampling_params: SamplingParams,
-        arrival_time: float,
-        lora_request: Optional[LoRARequest] = None,
-        multi_modal_data: Optional[MultiModalData] = None,
-    ) -> None:
-        self.request_id = request_id
-        self.seqs_dict = {seq.seq_id: seq for seq in seqs}
-        self.sampling_params = sampling_params
-        self.metrics = RequestMetrics(arrival_time=arrival_time,
-                                      last_token_time=arrival_time,
-                                      first_scheduled_time=None,
-                                      first_token_time=None,
-                                      time_in_queue=None)
-        self.lora_request = lora_request
-        self.prompt_logprobs: Optional[PromptLogprobs] = None
-        self.state = Task_State()
-        self.multi_modal_data = multi_modal_data
-
-    @property
-    def prompt(self) -> str:
-        # All sequences in the group should have the same prompt.
-        # We use the prompt of an arbitrary sequence.
-        return next(iter(self.seqs_dict.values())).prompt
-
-    @property
-    def prompt_token_ids(self) -> List[int]:
-        # All sequences in the group should have the same prompt.
-        # We use the prompt of an arbitrary sequence.
-        return next(iter(self.seqs_dict.values())).data.prompt_token_ids
-
-    @property
-    def lora_int_id(self) -> int:
-        return self.lora_request.lora_int_id if self.lora_request else 0
-
-    def get_last_latency(self, now: float) -> Optional[float]:
-        """Sets the last token time for Request level timings."""
-        # If still in prefill phase, raise Error.
-        if self.is_prefill():
-            raise ValueError(
-                "seq_group.get_last_latency() should not be called "
-                "if the seq_group is in prefill phase.")
-
-        # Otherwise return token latency.
-        latency = now - self.metrics.last_token_time
-        self.metrics.last_token_time = now
-        return latency
-
-    def maybe_set_first_token_time(self, time: float) -> None:
-        """Sets the first token time for Request level timings."""
-        # Note: in a case where a sequence_group is swapped and
-        #   recomputed, the time between iterations is counted
-        #   in TPOT, rather than recalculating TTFT (since from the )
-        #   POV of the user, there is simply a long generation delay.
-        if (self.metrics.first_token_time is None
-                and self.get_seqs()[0].get_output_len() == 1):
-            self.metrics.first_token_time = time
-
-    def maybe_set_first_scheduled_time(self, time: float) -> None:
-        """Sets the first scheduled time and time in queue for Request
-        level timings."""
-        if self.metrics.first_scheduled_time is None:
-            self.metrics.first_scheduled_time = time
-            self.metrics.time_in_queue = time - self.metrics.arrival_time
-
-    def set_finished_time(self, time: Optional[float]) -> None:
-        """Sets the finished time for Request level timings."""
-        self.metrics.finished_time = time
-
-    def get_max_num_running_seqs(self) -> int:
-        """
-        该seq_group在剩余生命周期内并行运行的最大seq数量
-        剩余生命周期指从此刻一直到seq_group中所有的seq都做完推理
-        用于估计若当前对一个seq_group做推理, 它将消耗多少gpu资源
-        """
-        if self.sampling_params.use_beam_search:
-            # 若采用beam search，每1个推理阶段都是best_of（束宽）个seq在running
-            return self.sampling_params.best_of
-        else:
-            if self.sampling_params.best_of > self.num_seqs():
-                # 不适用束搜索时，best_of默认和n一致，即1个prompt产出n个outputs
-                # 如果出现best_of > self.num_seqs()的情况，说明该seq_group刚从waiting变成running，准备做推理
-                return self.sampling_params.best_of
-            # 其余情况，返回未完成推理的seq数量
-            return self.num_unfinished_seqs()
-
-    def get_seqs(
-        self,
-        status: Optional[RequestStatus] = None,
-    ) -> List[Request]:
-        return list(self.seqs_dict.values()) if status is None else [
-            seq for seq in self.seqs_dict.values() if seq.status == status
-        ]
-
-    def get_unfinished_seqs(self) -> List[Request]:
-        return [
-            seq for seq in self.seqs_dict.values() if not seq.is_finished()
-        ]
-
-    def get_finished_seqs(self) -> List[Request]:
-        return [seq for seq in self.seqs_dict.values() if seq.is_finished()]
-
-    def update_num_computed_tokens(self, num_new_computed_tokens: int):
-        """Update number of tokens computed so far."""
-        for seq in self.seqs_dict.values():
-            if not seq.is_finished():
-                seq.data.update_num_computed_tokens(num_new_computed_tokens)
-
-    def get_num_uncomputed_tokens(self) -> int:
-        num_uncomputed_tokens = 0
-        for seq in self.get_seqs():
-            if not seq.is_finished():
-                num_uncomputed_tokens += seq.data.get_num_uncomputed_tokens()
-        return num_uncomputed_tokens
-
-    def num_seqs(self, status: Optional[RequestStatus] = None) -> int:
-        # 获取序列组中的序列数量
-        if status is None:
-            return len(self.seqs_dict)
-
-        return len(self.get_seqs(status))
-
-    def num_unfinished_seqs(self) -> int:
-        return len(self.get_unfinished_seqs())
-
-    def num_finished_seqs(self) -> int:
-        return len(self.get_finished_seqs())
-
-    def find(self, seq_id: int) -> Request:
-        if seq_id not in self.seqs_dict:
-            raise ValueError(f"Sequence {seq_id} not found.")
-        return self.seqs_dict[seq_id]
-
-    def add(self, seq: Request) -> None:
-        if seq.seq_id in self.seqs_dict:
-            raise ValueError(f"Sequence {seq.seq_id} already exists.")
-        self.seqs_dict[seq.seq_id] = seq
-
-    def remove(self, seq_id: int) -> None:
-        if seq_id not in self.seqs_dict:
-            raise ValueError(f"Sequence {seq_id} not found.")
-        del self.seqs_dict[seq_id]
-
-    def is_finished(self) -> bool:
-        return all(seq.is_finished() for seq in self.get_seqs())
-
-    def is_prefill(self) -> bool:
-        # Every sequences should be in the same stage.
-        return self.get_seqs()[0].is_prefill()
-
-    def __repr__(self) -> str:
-        return (f"SequenceGroup(request_id={self.request_id}, "
-                f"sampling_params={self.sampling_params}, "
-                f"num_seqs={len(self.seqs_dict)})")
-
-
-class TaskMetadata:
-    """Metadata for a sequence group. Used to create `AttentionMetadata`.
-
-    Args:
-        request_id: The ID of the request.
-        is_prompt: Whether the request is at prompt stage.
-        seq_data: The sequence data. (Seq id -> sequence data)
-        sampling_params: The sampling parameters used to generate the outputs.
-        block_tables: The block tables. (Seq id -> list of physical block
-            numbers)
-        do_sample: True if sampling is required. Sampling is not required when
-            e.g., prefill is chunked, and the current iteration only computes
-            query tokens for prefill, we don't need sampling.
-        token_chunk_size: The number of tokens to be processed (per sequence).
-            None if chunking is not required.
-        lora_request: LoRA request.
-        computed_block_nums: The block numbers that are already computed,
-            used in prefix caching.
-        state: Internal state tied to this sequence group.
-        multi_modal_data: Multi modal data.
-    """
-
-    def __init__(
-        self,
-        request_id: str,
-        is_prompt: bool,
-        seq_data: Dict[int, RequestData],
-        sampling_params: SamplingParams,
-        block_tables: Dict[int, List[int]],
-        do_sample: bool = True,
-        token_chunk_size: Optional[int] = None,
-        lora_request: Optional[LoRARequest] = None,
-        computed_block_nums: Optional[List[int]] = None,
-        state: Optional[Task_State] = None,
-        multi_modal_data: Optional[MultiModalData] = None,
-    ) -> None:
-        self.request_id = request_id
-        self.is_prompt = is_prompt
-        self.seq_data = seq_data
-        self.sampling_params = sampling_params
-        self.block_tables = block_tables
-        self.lora_request = lora_request
-        self.computed_block_nums = computed_block_nums
-        self.multi_modal_data = multi_modal_data
-        self.state = Task_State() if state is None else state
-        self._token_chunk_size = token_chunk_size
-        self.do_sample = do_sample
-
-        if self._token_chunk_size is None:
-            if is_prompt:
-                self._token_chunk_size = list(seq_data.values())[0].get_len()
-            else:
-                self._token_chunk_size = 1
-
-    @property
-    def lora_int_id(self) -> int:
-        return self.lora_request.lora_int_id if self.lora_request else 0
-
-    @property
-    def token_chunk_size(self) -> Optional[int]:
-        """Return the number of tokens to be processed (chunk size)."""
-        return self._token_chunk_size
-
-
 class RequestOutput:
     """The model output associated with a sequence.
 
@@ -669,29 +388,6 @@ class RequestOutput:
         return equal and log_probs_equal
 
 
-class TaskOutput:
-    """The model output associated with a sequence group."""
-
-    def __init__(
-        self,
-        samples: List[RequestOutput],
-        prompt_logprobs: Optional[PromptLogprobs],
-    ) -> None:
-        self.samples = samples
-        # Prompt logprob for each prompt query token.
-        self.prompt_logprobs = prompt_logprobs
-
-    def __repr__(self) -> str:
-        return (f"SequenceGroupOutput(samples={self.samples}, "
-                f"prompt_logprobs={self.prompt_logprobs})")
-
-    def __eq__(self, other: object) -> bool:
-        if not isinstance(other, TaskOutput):
-            raise NotImplementedError()
-        return (self.samples == other.samples
-                and self.prompt_logprobs == other.prompt_logprobs)
-
-
 @dataclass
 class SamplerOutput:
     """For each sequence group, we generate a list of SequenceOutput object,
@@ -700,7 +396,7 @@ class SamplerOutput:
     This datastructure implements methods so it can be used like a list, but
     also has optional fields for device tensors.
     """
-
+    from sinfer.task import TaskOutput
     outputs: List[TaskOutput]
 
     # On-device tensor containing probabilities of each token.
@@ -741,6 +437,7 @@ class SamplerOutput:
 
 @dataclass
 class ExecuteModelRequest:
+    from sinfer.task import TaskMetadata
     """The model execution request."""
     # The sequence group metadata list.
     seq_group_metadata_list: List[TaskMetadata]

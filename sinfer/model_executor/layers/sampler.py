@@ -11,7 +11,8 @@ from sinfer.model_executor.sampling_metadata import (SamplingMetadata,
                                                    SequenceGroupToSample)
 from sinfer.sampling_params import SamplingType
 from sinfer.request import (Logprob, PromptLogprobs, SampleLogprobs,
-                           SamplerOutput, TaskOutput, RequestOutput)
+                           SamplerOutput, RequestOutput)
+from sinfer.task import TaskOutput
 
 # (num_token_ids, num_parent_ids) per sequence group.
 SampleResultType = List[Tuple[List[int], List[int]]]

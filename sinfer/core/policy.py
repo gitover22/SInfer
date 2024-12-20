@@ -1,7 +1,7 @@
 from collections import deque
 from typing import Deque
 
-from sinfer.request import Task
+from sinfer.task import Task
 
 
 class Policy:

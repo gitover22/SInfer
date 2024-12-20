@@ -5,7 +5,7 @@ import subprocess
 import torch
 
 from sinfer import LLM
-from sinfer.request import MultiModalData
+from sinfer.task import MultiModalData
 
 # The assets are located at `s3://air-example-data-2/sinfer_opensource_llava/`.
 

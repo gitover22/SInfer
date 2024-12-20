@@ -1,4 +1,5 @@
-from sinfer.request import Task, RequestStatus
+from sinfer.task import Task
+from sinfer.request import RequestStatus
 from sinfer.Intercept.mlu_definitions import USE_PAGED
 from sinfer.Intercept.intercept_utils import InterceptObject
 from sinfer.core.block_manager import _BlockSpaceManager

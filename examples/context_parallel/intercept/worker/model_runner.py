@@ -3,8 +3,9 @@ import torch
 from typing import List, Optional
 from sinfer.Intercept.intercept_utils import InterceptObject
 from sinfer.Intercept.mlu_definitions import check_latency_debug_with_device
+from sinfer.task import TaskMetadata
 from sinfer.worker.model_runner import (ModelRunner, _PAD_SLOT_ID)
-from sinfer.request import TaskMetadata, SamplerOutput
+from sinfer.request import SamplerOutput
 from ..zigzag_utils import get_context_model_parallel_world_size, zigzag_split
 import sinfer.envs as envs
 

@@ -15,7 +15,8 @@ from sinfer.logger import init_logger
 from sinfer.lora.request import LoRARequest
 from sinfer.outputs import RequestOutput
 from sinfer.sampling_params import SamplingParams
-from sinfer.request import ExecuteModelRequest, MultiModalData, SamplerOutput
+from sinfer.request import ExecuteModelRequest, SamplerOutput
+from sinfer.task import MultiModalData
 from sinfer.usage.usage_lib import UsageContext
 
 logger = init_logger(__name__)

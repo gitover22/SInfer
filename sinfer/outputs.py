@@ -1,9 +1,10 @@
 import time
 from typing import List, Optional, Union
 
+from sinfer.task import Task
 from sinfer.lora.request import LoRARequest
 from sinfer.request import (PromptLogprobs, RequestMetrics, SampleLogprobs,
-                           Task, RequestStatus)
+                           RequestStatus)
 
 
 class CompletionOutput:

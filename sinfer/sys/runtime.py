@@ -4,6 +4,7 @@ from typing import Iterable, List, Optional, Type, Union
 from transformers import GenerationConfig, PreTrainedTokenizer
 
 import sinfer
+from sinfer.task import MultiModalData, Task, TaskMetadata
 from sinfer.config import (CacheConfig, DecodingConfig, DeviceConfig, LoadConfig,
                          LoRAConfig, ModelConfig, ParallelConfig,
                          SchedulerConfig, VisionLanguageConfig)
@@ -21,9 +22,8 @@ from sinfer.logger import init_logger
 from sinfer.lora.request import LoRARequest
 from sinfer.outputs import RequestOutput
 from sinfer.sampling_params import SamplingParams
-from sinfer.request import (ExecuteModelRequest, MultiModalData, SamplerOutput,
-                           Request, Task, TaskMetadata,
-                           RequestStatus)
+from sinfer.request import (ExecuteModelRequest, SamplerOutput,
+                           Request, RequestStatus)
 from sinfer.transformers_utils.detokenizer import Detokenizer
 from sinfer.transformers_utils.tokenizer_group import (BaseTokenizerGroup,
                                                      get_tokenizer_group)

@@ -1,10 +1,11 @@
 import time
 from typing import Optional, List
+from sinfer.task import MultiModalData, Task
 from sinfer.sys.runtime import LLMRuntime
 from sinfer.Intercept.mlu_definitions import USE_PAGED, BlockSizeInfo
 from sinfer.Intercept.intercept_utils import InterceptObject
 from sinfer.sampling_params import SamplingParams
-from sinfer.request import MultiModalData, Request, Task
+from sinfer.request import Request
 from sinfer.lora.request import LoRARequest
 from sinfer.logger import init_logger
 

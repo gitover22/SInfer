@@ -8,6 +8,7 @@ from sinfer.Intercept.intercept_utils import InterceptObject, make_tensor_with_p
 from sinfer.Intercept.mlu_definitions import USE_PAGED, BlockSizeInfo, check_latency_debug_with_device, CUDA_GRAPH_DEBUG
 from sinfer.logger import init_logger
 from sinfer.distributed.device_communicators import pynccl_utils, custom_all_reduce
+from sinfer.task import TaskMetadata
 from sinfer.worker.model_runner import (ModelRunner, CUDAGraphRunner,
                                       PreparePromptMetadata, PrepareDecodeMetadata,
                                       _get_graph_batch_size, _BATCH_SIZES_TO_CAPTURE,
@@ -16,7 +17,7 @@ from sinfer.attention.backends.abstract import AttentionMetadata
 from sinfer.attention.backends.flashinfer import FlashInferBackend
 from sinfer.lora.layers import LoRAMapping
 from sinfer.lora.request import LoRARequest
-from sinfer.request import TaskMetadata, SamplerOutput
+from sinfer.request import SamplerOutput
 from sinfer.utils import get_kv_cache_torch_dtype
 
 import sinfer.envs as envs

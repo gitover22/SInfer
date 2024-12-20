@@ -9,7 +9,7 @@ from sinfer.sys.runtime import LLMRuntime
 from sinfer.lora.request import LoRARequest
 from sinfer.outputs import RequestOutput
 from sinfer.sampling_params import SamplingParams
-from sinfer.request import MultiModalData
+from sinfer.task import MultiModalData
 from sinfer.usage.usage_lib import UsageContext
 from sinfer.utils import Counter
 

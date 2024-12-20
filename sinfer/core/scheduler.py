@@ -9,13 +9,13 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 
+from sinfer.task import Task, TaskMetadata
 from sinfer.config import CacheConfig, LoRAConfig, SchedulerConfig
 from sinfer.core.interfaces import AllocStatus, SpaceManager
 from sinfer.core.policy import Policy, PolicyFactory
 from sinfer.logger import init_logger
 from sinfer.lora.request import LoRARequest
-from sinfer.request import (Request, RequestData, Task,
-                           TaskMetadata, RequestStatus)
+from sinfer.request import (Request, RequestData, RequestStatus)
 from sinfer.utils import merge_dicts
 
 logger = init_logger(__name__)

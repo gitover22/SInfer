@@ -1,5 +1,6 @@
 from typing import Dict, List, Tuple, Union
 
+from sinfer.task import Task, TaskOutput
 from sinfer.config import SchedulerConfig
 from sinfer.core.scheduler import Scheduler
 from sinfer.sys.output_processor.interfaces import (
@@ -7,8 +8,7 @@ from sinfer.sys.output_processor.interfaces import (
 from sinfer.sys.output_processor.stop_checker import StopChecker
 from sinfer.logger import init_logger
 from sinfer.sampling_params import SamplingParams
-from sinfer.request import (Request, Task, TaskOutput,
-                           RequestOutput, RequestStatus)
+from sinfer.request import (Request, RequestOutput, RequestStatus)
 from sinfer.transformers_utils.detokenizer import Detokenizer
 from sinfer.utils import Counter
 

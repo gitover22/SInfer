@@ -2,7 +2,10 @@ from typing import Dict, List, Optional, Tuple, Union
 
 from transformers import PreTrainedTokenizer, PreTrainedTokenizerFast
 
-from sinfer.request import Logprob, SamplingParams, Request, Task
+from sinfer.task import Task
+# from sinfer.request import Logprob, SamplingParams, Request
+from sinfer.request import Logprob, Request
+from sinfer.sampling_params import SamplingParams
 from sinfer.transformers_utils.tokenizer_group.base_tokenizer_group import (
     BaseTokenizerGroup)
 

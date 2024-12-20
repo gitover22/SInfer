@@ -2,7 +2,8 @@ import enum
 from abc import ABC, abstractmethod
 from typing import Dict, List
 from typing import Sequence as GenericSequence
-from sinfer.request import Request, Task
+from sinfer.task import Task
+from sinfer.request import Request
 
 class AllocStatus(enum.Enum):
     """BlockSpaceManager.can_allocate的结果
