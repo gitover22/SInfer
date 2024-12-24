@@ -36,10 +36,7 @@ def main(args):
         print("\n===========================================================================\n")
     total_time = e - s
     print("total time: "+str(total_time))
-
-
     tokens_per_second = sum / total_time
-
     print(f"Total tokens generated: {sum}")
     print(f"prompts per seconds: {len(prompts)/total_time:.2f}")
     print(f"Tokens per second: {tokens_per_second:.2f}")
