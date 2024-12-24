@@ -1,7 +1,5 @@
 """
-This example shows how to use Ray Data for running offline batch inference
-distributively on a multi-nodes cluster.
-
+这个例子展示了如何使用Ray进行离线批量推理(分布在一个多节点的集群上)
 Learn more about Ray Data in https://docs.ray.io/en/latest/data/data.html
 """
 
@@ -12,16 +10,13 @@ import ray
 
 from sinfer import LLM, SamplingParams
 
-# Create a sampling params object.
 sampling_params = SamplingParams(temperature=0.8, top_p=0.95)
 
 
 # Create a class to do batch inference.
 class LLMPredictor:
-
     def __init__(self):
-        # Create an LLM.
-        self.llm = LLM(model="meta-llama/Llama-2-7b-chat-hf")
+        self.llm = LLM(model="/home/zouguoqiang/SInfer/test/Meta-Llama-3-8B-Instruct")
 
     def __call__(self, batch: Dict[str, np.ndarray]) -> Dict[str, list]:
         # Generate texts from the prompts.

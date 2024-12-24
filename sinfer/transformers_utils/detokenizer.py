@@ -38,7 +38,7 @@ class Detokenizer:
         """
         prms = seq_group.sampling_params
         # We can pick any sequence for the prompt.
-        seq = next(iter(seq_group.seqs_dict.values()))
+        seq = next(iter(seq_group.reqs_dict.values()))
         # Only prompt, without the generated token.
         all_token_ids = seq.get_token_ids()
         prompt_token_ids = all_token_ids[:-1]

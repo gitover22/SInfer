@@ -66,7 +66,7 @@ def intercept_ModelRunner_prepare_prompt(
 
     for seq_group_metadata in seq_group_metadata_list:
         assert seq_group_metadata.is_prompt
-        seq_ids = list(seq_group_metadata.seq_data.keys())
+        seq_ids = list(seq_group_metadata.req_data.keys())
         assert len(seq_ids) == 1
         seq_id = seq_ids[0]
 
@@ -80,7 +80,7 @@ def intercept_ModelRunner_prepare_prompt(
                 "now.")
 
         token_chunk_size = seq_group_metadata.token_chunk_size
-        seq_data = seq_group_metadata.seq_data[seq_id]
+        seq_data = seq_group_metadata.req_data[seq_id]
         context_len = seq_data.get_num_computed_tokens()
         # We should use get_len here because in case of preemption
         # it contains output tokens.
@@ -292,14 +292,14 @@ def intercept_ModelRunner_prepare_decode(
         assert not seq_group_metadata.is_prompt
         assert seq_group_metadata.token_chunk_size == 1
 
-        seq_ids = list(seq_group_metadata.seq_data.keys())
+        seq_ids = list(seq_group_metadata.req_data.keys())
         lora_id = seq_group_metadata.lora_int_id
 
         if lora_id > 0:
             lora_requests.add(seq_group_metadata.lora_request)
 
         for seq_id in seq_ids:
-            seq_data = seq_group_metadata.seq_data[seq_id]
+            seq_data = seq_group_metadata.req_data[seq_id]
             generation_token = seq_data.get_last_token_id()
             input_tokens.append(generation_token)
 

@@ -277,15 +277,15 @@ class _BlockSpaceManager(SpaceManager):
         # seq_id -> BlockTable.维护每个seq下的物理块列表
         self.block_tables: Dict[int, BlockTable] = {}
 
-    def can_allocate(self, seq_group: Task) -> AllocStatus:
+    def can_allocate(self, task: Task) -> AllocStatus:
         '''
         是否可以给这个处于waiting队列的seq_group分配物理块做prefill, 返回结果有三种情况：
         - AllocStatus.NEVER 永不分配
         - AllocStatus.OK 可以分配
         - AllocStatus.LATER 延迟分配
         '''
-        seq = seq_group.get_seqs(status=RequestStatus.WAITING)[0] # waiting队列中都是prefill阶段的序列，且只有一个序列
-        num_required_blocks = len(seq.logical_token_blocks) # 这个序列的所有逻辑块数量
+        req = task.get_reqs(status=RequestStatus.WAITING)[0] # waiting队列中都是prefill阶段的序列，且只有一个序列
+        num_required_blocks = len(req.logical_token_blocks) # 这个序列的所有逻辑块数量
 
         if self.block_sliding_window is not None:
             num_required_blocks = min(num_required_blocks,
@@ -301,15 +301,15 @@ class _BlockSpaceManager(SpaceManager):
         else:
             return AllocStatus.LATER         # 否则，现在不能分配，但可以延迟分配
 
-    def allocate(self, seq_group: Task) -> None:
+    def allocate(self, task: Task) -> None:
         """
         为当前seq_group分配物理块做prefill
         """
-        seq = seq_group.get_seqs(status=RequestStatus.WAITING)[0] # waiting队列没做过prefill，只有一条序列
+        req = task.get_reqs(status=RequestStatus.WAITING)[0] # waiting队列没做过prefill，只有一条序列
 
         # 计算该seq的逻辑块数量
         # （prefill阶段，有多少个逻辑块，就应该分配多少个物理块）
-        num_prompt_blocks = len(seq.logical_token_blocks)
+        num_prompt_blocks = len(req.logical_token_blocks)
 
         block_table: BlockTable = []
 
@@ -320,25 +320,25 @@ class _BlockSpaceManager(SpaceManager):
                     and logical_idx >= self.block_sliding_window):
                 block = block_table[logical_idx % self.block_sliding_window]
                 # Set the reference counts of the token blocks.
-                block.ref_count = seq_group.num_seqs()
+                block.ref_count = task.num_reqs()
             # 如果做了prefix caching，即使用的是CachedBlockAllocator
             elif self.enable_caching:
                 block = self.gpu_allocator.allocate(
-                    seq.hash_of_block(logical_idx),
-                    seq.num_hashed_tokens_of_block(logical_idx))
+                    req.hash_of_block(logical_idx),
+                    req.num_hashed_tokens_of_block(logical_idx))
             # UncachedBlockAllocator对应的情况
             else:
                 block = self.gpu_allocator.allocate()
                 # Set the reference counts of the token blocks.
-                block.ref_count = seq_group.num_seqs()
+                block.ref_count = task.num_reqs()
             block_table.append(block)
 
         # prefill阶段，这个seq_group下所有的seq共享一个prompt，也即共享这个prompt代表的物理块
-        for seq in seq_group.get_seqs(status=RequestStatus.WAITING):
-            self.block_tables[seq.seq_id] = block_table.copy()
+        for req in task.get_reqs(status=RequestStatus.WAITING):
+            self.block_tables[req.req_id] = block_table.copy()
 
     def can_append_slots(self,
-                         seq_group: Task,
+                         task: Task,
                          num_lookahead_slots: int = 0) -> bool:
         '''能否为seq_group分配物理块做decode
         检查对于SG中的每一个seq, 是否能至少分配一个空闲物理块给它(考虑最坏情况)
@@ -351,18 +351,18 @@ class _BlockSpaceManager(SpaceManager):
             return True
         else:
             num_free_gpu_blocks = self.gpu_allocator.get_num_free_blocks()
-            num_seqs = seq_group.num_seqs(status=RequestStatus.RUNNING)
-            return num_seqs <= num_free_gpu_blocks
+            num_reqs = task.num_reqs(status=RequestStatus.RUNNING)
+            return num_reqs <= num_free_gpu_blocks
 
     def _promote_last_block(
         self,
-        seq: Request,
+        req: Request,
         last_block: PhysicalTokenBlock,
     ) -> PhysicalTokenBlock:
         assert self.enable_caching
 
         # 如果当前最后一个逻辑块已经是满的，那么就根据所有tokens计算一个new_hash值
-        new_hash = seq.hash_of_block(len(seq.logical_token_blocks) - 1)
+        new_hash = req.hash_of_block(len(req.logical_token_blocks) - 1)
 
         # 如果根据new_hash，这最后一个物理块在cached_tables(有人正在和你用一样的)
         # 或者在驱逐器中
@@ -377,25 +377,25 @@ class _BlockSpaceManager(SpaceManager):
 
     def _is_last_block_full(
         self,
-        seq: Request,
+        req: Request,
     ) -> bool:
-        token_ids_len = seq.data.get_len()
-        return token_ids_len > 0 and token_ids_len % seq.block_size == 0
+        token_ids_len = req.data.get_len()
+        return token_ids_len > 0 and token_ids_len % req.block_size == 0
 
     def _maybe_promote_last_block(
         self,
-        seq: Request,
+        req: Request,
         last_block: PhysicalTokenBlock,
     ) -> PhysicalTokenBlock:
         # 检查当前这最后一个逻辑块是否满了，如果是，则检查是否有可复用物理块
-        if self._is_last_block_full(seq):
-            return self._promote_last_block(seq, last_block)
+        if self._is_last_block_full(req):
+            return self._promote_last_block(req, last_block)
         else:
             return last_block
 
     def _allocate_last_physical_block(
         self,
-        seq: Request,
+        req: Request,
     ) -> PhysicalTokenBlock:
         '''
         在想添加新的物理块之前，调用这个函数，来判断是不是真得有必要添加一个物理块
@@ -404,13 +404,13 @@ class _BlockSpaceManager(SpaceManager):
             return self.gpu_allocator.allocate() # 如果不使用prefix caching，就直接分配物理块
         block_hash: Optional[int] = None
         # 如果该seq的最后一块逻辑块是满的
-        if (self._is_last_block_full(seq)):
+        if (self._is_last_block_full(req)):
             # 那么就截止到最后一块逻辑块（包括最后一块逻辑为止）计算所有token的block hash
             # (除了prefill阶段外，decode阶段只有在逻辑块满的时候才重新计算整串tokens的hash值，
             # 否则就用默认hash值)
-            block_hash = seq.hash_of_block(len(seq.logical_token_blocks) - 1)
-        num_hashed_tokens = seq.num_hashed_tokens_of_block(
-            len(seq.logical_token_blocks) - 1)
+            block_hash = req.hash_of_block(len(req.logical_token_blocks) - 1)
+        num_hashed_tokens = req.num_hashed_tokens_of_block(
+            len(req.logical_token_blocks) - 1)
 
         # 使用prefix caching下的allocate方法，根据物理块的hash值，检查当前
         # 是否有可复用的物理块，以此决定是新分配一个物理块，还是复用旧物理块。
@@ -424,12 +424,12 @@ class _BlockSpaceManager(SpaceManager):
 
     def append_slots(
         self,
-        seq: Request,
+        req: Request,
         num_lookahead_slots: int = 0,
     ) -> Dict[int, List[int]]:
         """Allocate a physical slot for a new token."""
-        logical_blocks = seq.logical_token_blocks
-        block_table = self.block_tables[seq.seq_id]
+        logical_blocks = req.logical_token_blocks
+        block_table = self.block_tables[req.req_id]
 
         # 如果物理块数量 < 逻辑块数量（说明此时需要分配新的物理块了）
         # 注：上1个推理阶段完毕后，seq的逻辑块更新了（把最新生成的这个token装进去了） 但物理块还没更新
@@ -444,7 +444,7 @@ class _BlockSpaceManager(SpaceManager):
                                                self.block_sliding_window])
             else:
                 # 分配一个新物理块
-                new_block = self._allocate_last_physical_block(seq)
+                new_block = self._allocate_last_physical_block(req)
                 block_table.append(new_block)
                 return {}
 
@@ -459,23 +459,23 @@ class _BlockSpaceManager(SpaceManager):
                 # - 填满时，我们对它计算new_hash值，并根据new_hash寻找是否有可复用的物理块，
                 #   若有，则释放当前物理块，取而代之以旧物理块
                 maybe_new_block = self._maybe_promote_last_block(
-                    seq, last_block)
+                    req, last_block)
                 block_table[-1] = maybe_new_block
             return {}
         else:
             # 如果最后一个物理块的引用数量为 > 1 (有别的逻辑块在引用它)
             # 触发copy-on-write机制，分配一个新的物理块
-            new_block = self._allocate_last_physical_block(seq)
+            new_block = self._allocate_last_physical_block(req)
 
             block_table[-1] = new_block
             self.gpu_allocator.free(last_block)
             return {last_block.block_number: [new_block.block_number]}
 
-    def fork(self, parent_seq: Request, child_seq: Request) -> None:
+    def fork(self, parent_req: Request, child_req: Request) -> None:
         # NOTE: fork does not allocate a new physical block.
         # Thus, it is always safe from OOM.
-        src_block_table = self.block_tables[parent_seq.seq_id]
-        self.block_tables[child_seq.seq_id] = src_block_table.copy()
+        src_block_table = self.block_tables[parent_req.req_id]
+        self.block_tables[child_req.req_id] = src_block_table.copy()
         # When using a sliding window, blocks will be eventually reused.
         # In this case the block tables will contain repeated blocks.
         # When forking, we must make sure that each block's `ref_count`
@@ -485,28 +485,28 @@ class _BlockSpaceManager(SpaceManager):
             block.ref_count += 1
 
     def _get_physical_blocks(
-            self, seq_group: Task) -> List[PhysicalTokenBlock]:
+            self, task: Task) -> List[PhysicalTokenBlock]:
         # NOTE: Here, we assume that the physical blocks are only shared by
         # the sequences in the same group.
         blocks: Set[PhysicalTokenBlock] = set()
-        for seq in seq_group.get_seqs():
-            if seq.is_finished():
+        for req in task.get_reqs():
+            if req.is_finished():
                 continue
-            blocks.update(self.block_tables[seq.seq_id])
+            blocks.update(self.block_tables[req.req_id])
         return list(blocks)
 
     def can_swap_in(self,
-                    seq_group: Task,
+                    task: Task,
                     num_lookahead_slots: int = 0) -> AllocStatus:
         assert (num_lookahead_slots == 0
                 ), "BlockSpaceManagerV1 does not support lookahead allocation"
-        blocks = self._get_physical_blocks(seq_group)
-        num_swapped_seqs = seq_group.num_seqs(status=RequestStatus.SWAPPED)
+        blocks = self._get_physical_blocks(task)
+        num_swapped_reqs = task.num_reqs(status=RequestStatus.SWAPPED)
         num_free_blocks = self.gpu_allocator.get_num_free_blocks()
         # NOTE: Conservatively, we assume that every sequence will allocate
         # at least one free block right after the swap-in.
         # NOTE: This should match the logic in can_append_slot().
-        num_required_blocks = len(blocks) + num_swapped_seqs
+        num_required_blocks = len(blocks) + num_swapped_reqs
         if self.gpu_allocator.get_num_total_blocks() < num_required_blocks:
             return AllocStatus.NEVER
         elif num_free_blocks - num_required_blocks >= self.watermark_blocks:
@@ -515,16 +515,16 @@ class _BlockSpaceManager(SpaceManager):
             return AllocStatus.LATER
 
     def swap_in(self,
-                seq_group: Task,
+                task: Task,
                 num_lookahead_slots: int = 0) -> Dict[int, int]:
         assert (num_lookahead_slots == 0
                 ), "BlockSpaceManagerV1 does not support lookahead allocation"
 
         # CPU block -> GPU block.
         mapping: Dict[PhysicalTokenBlock, PhysicalTokenBlock] = {}
-        for seq in seq_group.get_seqs(status=RequestStatus.SWAPPED):
+        for req in task.get_reqs(status=RequestStatus.SWAPPED):
             new_block_table: BlockTable = []
-            block_table = self.block_tables[seq.seq_id]
+            block_table = self.block_tables[req.req_id]
 
             for cpu_block in block_table:
                 if cpu_block in mapping:
@@ -537,7 +537,7 @@ class _BlockSpaceManager(SpaceManager):
                 new_block_table.append(gpu_block)
                 # Free the CPU block swapped in to GPU.
                 self.cpu_allocator.free(cpu_block)
-            self.block_tables[seq.seq_id] = new_block_table
+            self.block_tables[req.req_id] = new_block_table
 
         block_number_mapping = {
             cpu_block.block_number: gpu_block.block_number
@@ -545,16 +545,16 @@ class _BlockSpaceManager(SpaceManager):
         }
         return block_number_mapping
 
-    def can_swap_out(self, seq_group: Task) -> bool:
-        blocks = self._get_physical_blocks(seq_group)
+    def can_swap_out(self, task: Task) -> bool:
+        blocks = self._get_physical_blocks(task)
         return len(blocks) <= self.cpu_allocator.get_num_free_blocks()
 
-    def swap_out(self, seq_group: Task) -> Dict[int, int]:
+    def swap_out(self, task: Task) -> Dict[int, int]:
         # GPU block -> CPU block.
         mapping: Dict[PhysicalTokenBlock, PhysicalTokenBlock] = {}
-        for seq in seq_group.get_seqs(status=RequestStatus.RUNNING):
+        for req in task.get_reqs(status=RequestStatus.RUNNING):
             new_block_table: BlockTable = []
-            block_table = self.block_tables[seq.seq_id]
+            block_table = self.block_tables[req.req_id]
 
             for gpu_block in block_table:
                 if gpu_block in mapping:
@@ -567,7 +567,7 @@ class _BlockSpaceManager(SpaceManager):
                 new_block_table.append(cpu_block)
                 # Free the GPU block swapped out to CPU.
                 self.gpu_allocator.free(gpu_block)
-            self.block_tables[seq.seq_id] = new_block_table
+            self.block_tables[req.req_id] = new_block_table
 
         block_number_mapping = {
             gpu_block.block_number: cpu_block.block_number
@@ -576,7 +576,7 @@ class _BlockSpaceManager(SpaceManager):
         return block_number_mapping
 
     def _free_block_table(self, block_table: BlockTable) -> None:
-        # when using a sliding window, each seq will only use up
+        # when using a sliding window, each req will only use up
         # to `self.block_sliding_window` blocks. When freeing
         # the block table, we must make sure to not free blocks more
         # than once. If no sliding window is used, there is no block
@@ -590,21 +590,21 @@ class _BlockSpaceManager(SpaceManager):
             else:
                 self.cpu_allocator.free(block)
 
-    def free(self, seq: Request) -> None:
-        if seq.seq_id not in self.block_tables:
+    def free(self, req: Request) -> None:
+        if req.req_id not in self.block_tables:
             # Already freed or haven't been scheduled yet.
             return
-        block_table = self.block_tables[seq.seq_id]
+        block_table = self.block_tables[req.req_id]
         self._free_block_table(block_table)
-        del self.block_tables[seq.seq_id]
+        del self.block_tables[req.req_id]
 
     def reset(self) -> None:
         for block_table in self.block_tables.values():
             self._free_block_table(block_table)
         self.block_tables.clear()
 
-    def get_block_table(self, seq: Request) -> List[int]:
-        block_table = self.block_tables[seq.seq_id]
+    def get_block_table(self, req: Request) -> List[int]:
+        block_table = self.block_tables[req.req_id]
         return [block.block_number for block in block_table]
 
     def get_num_free_gpu_blocks(self) -> int:
@@ -615,21 +615,21 @@ class _BlockSpaceManager(SpaceManager):
 
     def access_all_blocks_in_seq(
         self,
-        seq: Request,
+        req: Request,
         access_time: float,
     ) -> None:
         if self.enable_caching:
             # Update the last accessed time of all the blocks accessed
             # in this step.
-            block_table = self.block_tables[seq.seq_id]
+            block_table = self.block_tables[req.req_id]
             for block in block_table:
                 block.last_accessed = access_time
 
-    def compute_full_blocks_in_seq(self, seq: Request):
-        if seq.seq_id not in self.block_tables:
+    def compute_full_blocks_in_req(self, req: Request):
+        if req.req_id not in self.block_tables:
             return
-        max_full_block = seq.get_len() // self.block_size - 1
-        block_table = self.block_tables[seq.seq_id]
+        max_full_block = req.get_len() // self.block_size - 1
+        block_table = self.block_tables[req.req_id]
         if max_full_block == -1:
             return
         for i in reversed(range(max_full_block)):
@@ -637,10 +637,10 @@ class _BlockSpaceManager(SpaceManager):
                 break
             block_table[i].computed = True
 
-    def get_all_computed_blocks(self, seq: Request) -> List[int]:
-        if seq.seq_id not in self.block_tables:
+    def get_all_computed_blocks(self, req: Request) -> List[int]:
+        if req.req_id not in self.block_tables:
             return []
-        block_table = self.block_tables[seq.seq_id]
+        block_table = self.block_tables[req.req_id]
         # NOTE We exclude the last block to avoid the case where the entire
         # prompt is cached. This would cause erroneous behavior in model
         # runner.
@@ -650,7 +650,7 @@ class _BlockSpaceManager(SpaceManager):
         ]
 
     def get_common_computed_block_ids(
-            self, seqs: List[Request]) -> GenericSequence[int]:
+            self, reqs: List[Request]) -> GenericSequence[int]:
         """Return the block ids that are common for a given sequence group.
 
         Used in prefill (can skip prefill of some blocks).
@@ -659,10 +659,10 @@ class _BlockSpaceManager(SpaceManager):
         if not self.enable_caching:
             return []
 
-        ids_list = [self.get_all_computed_blocks(seq) for seq in seqs]
+        ids_list = [self.get_all_computed_blocks(req) for req in reqs]
         return commonprefix([ids for ids in ids_list if ids != []])
 
-    def mark_blocks_as_computed(self, seq_group: Task):
+    def mark_blocks_as_computed(self, task: Task):
         if self.enable_caching:
-            for seq in seq_group.seqs_dict.values():
-                self.compute_full_blocks_in_seq(seq)
+            for req in task.reqs_dict.values():
+                self.compute_full_blocks_in_req(req)

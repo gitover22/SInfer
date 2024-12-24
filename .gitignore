@@ -2,6 +2,7 @@ test/Meta-Llama-3-8B-Instruct
 test/llama-3-chinese-8b-lora
 test/proxy_timeout
 test/test_python.py
+test/log
 sinfer/**/__pycache__/
 benchmarks/**/__pycache__/
 examples/**/__pycache__/

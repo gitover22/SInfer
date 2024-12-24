@@ -11,25 +11,20 @@ prefix = (
     "in middle school math teaching. Based on these information, fulfill "
     "the following paragraph: ")
 
-# Sample prompts.
 prompts = [
     "Hello, my name is",
     "The president of the United States is",
     "The capital of France is",
     "The future of AI is",
 ]
-# Create a sampling params object.
 sampling_params = SamplingParams(temperature=0.0)
 
-# Create an LLM.
-llm = LLM(model="facebook/opt-125m", enable_prefix_caching=True)
+llm = LLM(model="/home/zouguoqiang/SInfer/test/Meta-Llama-3-8B-Instruct", enable_prefix_caching=True,dtype="float16",tensor_parallel_size =1,gpu_memory_utilization=0.9)
 
 generating_prompts = [prefix + prompt for prompt in prompts]
 
-# Generate texts from the prompts. The output is a list of RequestOutput objects
-# that contain the prompt, generated text, and other information.
 outputs = llm.generate(generating_prompts, sampling_params)
-# Print the outputs.
+
 for output in outputs:
     prompt = output.prompt
     generated_text = output.outputs[0].text
@@ -37,13 +32,11 @@ for output in outputs:
 
 print("-" * 80)
 
-# The llm.generate call will batch all prompts and send the batch at once
-# if resources allow. The prefix will only be cached after the first batch
-# is processed, so we need to call generate once to calculate the prefix
-# and cache it.
+# llm.generate 调用会将所有的提示（prompts）进行批处理，并在资源允许的情况下一次性发送整个批次。
+# 前缀（prefix）只有在第一个批次处理完成后才会被缓存，因此我们需要先调用一次 generate 来计算前缀并将其缓存。
 outputs = llm.generate(generating_prompts[0], sampling_params)
 
-# Subsequent batches can leverage the cached prefix
+# 后续批次可以利用缓存的前缀
 outputs = llm.generate(generating_prompts, sampling_params)
 
 # Print the outputs. You should see the same outputs as before

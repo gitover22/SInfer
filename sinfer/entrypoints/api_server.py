@@ -100,7 +100,7 @@ if __name__ == "__main__":
     parser = AsyncRuntimeArgs.add_cli_args(parser)
     args = parser.parse_args()
     engine_args = AsyncRuntimeArgs.from_cli_args(args)
-    engine = AsyncLLMRuntime.from_engine_args(
+    engine = AsyncLLMRuntime.from_runtime_args(
         engine_args, usage_context=UsageContext.API_SERVER)
 
     app.root_path = args.root_path

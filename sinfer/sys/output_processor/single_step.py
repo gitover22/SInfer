@@ -74,27 +74,27 @@ class SingleStepOutputProcessor(SequenceGroupOutputProcessor):
                                         outputs: TaskOutput) -> None:
         # Process samples
         samples = outputs.samples
-        parent_seqs = seq_group.get_seqs(status=RequestStatus.RUNNING)
+        parent_seqs = seq_group.get_reqs(status=RequestStatus.RUNNING)
         existing_finished_seqs = seq_group.get_finished_seqs()
         parent_child_dict: Dict[int, List[RequestOutput]] = {
-            parent_seq.seq_id: []
+            parent_seq.req_id: []
             for parent_seq in parent_seqs
         }
         for sample in samples:
-            parent_child_dict[sample.parent_seq_id].append(sample)
+            parent_child_dict[sample.parent_req_id].append(sample)
         # List of (child, parent)
         child_seqs: List[Tuple[Request, Request]] = []
 
         # Process the child samples for each parent sequence
         for parent in parent_seqs:
             child_samples: List[RequestOutput] = parent_child_dict[
-                parent.seq_id]
+                parent.req_id]
             if len(child_samples) == 0:
                 # This parent sequence has no children samples. Remove
                 # the parent sequence from the sequence group since it will
                 # not be used in the future iterations.
                 parent.status = RequestStatus.FINISHED_ABORTED
-                seq_group.remove(parent.seq_id)
+                seq_group.remove(parent.req_id)
                 self.scheduler.free_seq(parent)
                 continue
             # Fork the parent sequence if there are multiple child samples.
@@ -175,7 +175,7 @@ class SingleStepOutputProcessor(SequenceGroupOutputProcessor):
             else:
                 # An existing finished sequence has a low score, so we will
                 # remove it from the sequence group.
-                seq_group.remove(seq.seq_id)
+                seq_group.remove(seq.req_id)
 
         # select the top beam_width sequences from the running
         # sequences for the next iteration to continue the beam

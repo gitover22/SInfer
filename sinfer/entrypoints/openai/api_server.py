@@ -42,9 +42,9 @@ async def lifespan(app: fastapi.FastAPI):
     async def _force_log(): # 每隔 10 秒记录一次推理引擎的统计信息
         while True:
             await asyncio.sleep(10)
-            await engine.do_log_stats()
+            await runtime.do_log_stats()
 
-    if not engine_args.disable_log_stats:
+    if not runtime_args.disable_log_stats:
         task = asyncio.create_task(_force_log())
         _running_tasks.add(task)
         task.add_done_callback(_running_tasks.remove)
@@ -155,15 +155,15 @@ if __name__ == "__main__":
         served_model_names = args.served_model_name
     else:
         served_model_names = [args.model]
-    engine_args = AsyncRuntimeArgs.from_cli_args(args)  # 创建异步AsyncEngineArgs实例
-    engine = AsyncLLMRuntime.from_engine_args(
-        engine_args, usage_context=UsageContext.OPENAI_API_SERVER) # 创建AsyncLLMEngine实例
-    openai_serving_chat = OpenAIServingChat(engine, served_model_names,
+    runtime_args = AsyncRuntimeArgs.from_cli_args(args)  # 创建异步AsyncEngineArgs实例
+    runtime = AsyncLLMRuntime.from_runtime_args(
+        runtime_args, usage_context=UsageContext.OPENAI_API_SERVER) # 创建AsyncLLMEngine实例
+    openai_serving_chat = OpenAIServingChat(runtime, served_model_names,
                                             args.response_role,
                                             args.lora_modules,
                                             args.chat_template)
     openai_serving_completion = OpenAIServingCompletion(
-        engine, served_model_names, args.lora_modules)
+        runtime, served_model_names, args.lora_modules)
 
     app.root_path = args.root_path
     uvicorn.run(app,
