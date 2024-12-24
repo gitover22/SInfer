@@ -319,7 +319,6 @@ class LLMRuntime:
     ) -> None:
         """
         将一个request添加给LLMRuntime
-
         Args:
             task_id: task的id
             prompt: prompt( str )

@@ -49,8 +49,8 @@ class AsyncStream:
     """A stream of RequestOutputs for a request that can be
     iterated over asynchronously."""
 
-    def __init__(self, request_id: str) -> None:
-        self.request_id = request_id
+    def __init__(self, task_id: str) -> None:
+        self.task_id = task_id
         self._queue: asyncio.Queue = asyncio.Queue()
         self._finished = False
 
@@ -79,9 +79,10 @@ class AsyncStream:
 
 class RequestPool:
     """
-    负责管理和追踪多个异步请求的状态和数据流
+    here is RequestPool,the Request in pool will process by runtime and be encapsulated as a Task.
+    the task_id here is only for passby parameters.
+    NOTE: request_id is task_id, req_id is Request id
     """
-
     def __init__(self) -> None:
         self._request_streams: Dict[str, AsyncStream] = {}
         self._finished_requests: asyncio.Queue[str] = asyncio.Queue()
@@ -97,12 +98,11 @@ class RequestPool:
 
     def propagate_exception(self,
                             exc: Exception,
-                            request_id: Optional[str] = None) -> None:
-        """Propagate an exception to request streams
-        (all if request_id is None)."""
-        if request_id is not None:
-            self._request_streams[request_id].put(exc)
-            self.abort_request(request_id)
+                            task_id: Optional[str] = None) -> None:
+        """Propagate an exception to request streams"""
+        if task_id is not None:
+            self._request_streams[task_id].put(exc)
+            self.abort_request(task_id)
         else:
             for rid, stream in self._request_streams.items():
                 stream.put(exc)
@@ -113,69 +113,69 @@ class RequestPool:
                                *,
                                verbose: bool = False) -> None:
         """Process a request output from the engine."""
-        request_id = request_output.request_id
+        task_id = request_output.request_id
 
-        self._request_streams[request_id].put(request_output)
+        self._request_streams[task_id].put(request_output)
         if request_output.finished:
             if verbose:
-                logger.info("Finished request %s.", request_id)
-            self.abort_request(request_id)
+                logger.info("Finished request %s.", task_id)
+            self.abort_request(task_id)
 
     def process_exception(self,
-                          request_id: str,
+                          task_id: str,
                           exception: Exception,
                           *,
                           verbose: bool = False) -> None:
-        """Propagate an exception from the engine."""
-        self._request_streams[request_id].put(exception)
+        """Propagate an exception from the runtime."""
+        self._request_streams[task_id].put(exception)
         if verbose:
-            logger.info("Finished request %s.", request_id)
-        self.abort_request(request_id)
+            logger.info("Finished request %s.", task_id)
+        self.abort_request(task_id)
 
-    def add_task(self, task_id: str,
-                    **engine_add_request_kwargs) -> AsyncStream:
+    def add_request(self, task_id: str,
+                    **runtime_add_request_kwargs) -> AsyncStream:
         if task_id in self._request_streams:
-            raise KeyError(f"task {task_id} already exists.")
+            raise KeyError(f"request {task_id} already exists.")
 
         stream = AsyncStream(task_id)
         self._new_requests.put_nowait((stream, {
             "task_id": task_id,
-            **engine_add_request_kwargs
+            **runtime_add_request_kwargs
         }))
 
         self.new_requests_event.set()
 
         return stream
 
-    def abort_request(self, request_id: str, *, verbose: bool = False) -> None:
+    def abort_request(self, task_id: str, *, verbose: bool = False) -> None:
         if verbose:
-            logger.info("Aborted request %s.", request_id)
+            logger.info("Aborted request %s.", task_id)
 
-        self._finished_requests.put_nowait(request_id)
+        self._finished_requests.put_nowait(task_id)
 
-        if request_id not in self._request_streams or self._request_streams[
-                request_id].finished:
-            # The request has already finished or been aborted.
+        if task_id not in self._request_streams or self._request_streams[
+                task_id].finished:
+            # 请求已经完成或被中止
             return
 
-        self._request_streams[request_id].finish()
+        self._request_streams[task_id].finish()
 
     def get_new_and_finished_requests(self) -> Tuple[List[Dict], Set[str]]:
         new_requests: List[Dict] = []
         finished_requests: Set[str] = set()
 
         while not self._finished_requests.empty():
-            request_id = self._finished_requests.get_nowait()
-            finished_requests.add(request_id)
-            self._request_streams.pop(request_id, None)
+            task_id = self._finished_requests.get_nowait()
+            finished_requests.add(task_id)
+            self._request_streams.pop(task_id, None)
 
         while not self._new_requests.empty():
             stream, new_request = self._new_requests.get_nowait()
-            if stream.request_id in finished_requests:
+            if stream.task_id in finished_requests:
                 # The request has already been aborted.
                 stream.finish()
                 continue
-            self._request_streams[stream.request_id] = stream
+            self._request_streams[stream.task_id] = stream
             new_requests.append(new_request)
 
         return new_requests, finished_requests
@@ -223,7 +223,7 @@ class _AsyncLLMRuntime(LLMRuntime):
 
     async def encode_request_async(
         self,
-        request_id: str,
+        task_id: str,
         prompt: Optional[str],
         prompt_token_ids: Optional[List[int]] = None,
         lora_request: Optional[LoRARequest] = None,
@@ -231,7 +231,7 @@ class _AsyncLLMRuntime(LLMRuntime):
         if prompt_token_ids is None:
             assert prompt is not None
             prompt_token_ids = await self.tokenizer.encode_async(
-                request_id=request_id,
+                request_id=task_id,
                 prompt=prompt,
                 lora_request=lora_request)
         return prompt_token_ids
@@ -252,7 +252,7 @@ class _AsyncLLMRuntime(LLMRuntime):
         if arrival_time is None:
             arrival_time = time.time()
         prompt_token_ids = await self.encode_request_async(
-            request_id=task_id,
+            task_id=task_id,
             prompt=prompt,
             prompt_token_ids=prompt_token_ids,
             lora_request=lora_request)
@@ -443,7 +443,7 @@ class AsyncLLMRuntime:
             except ValueError as e:
                 # TODO: use a SInfer specific error for failed validation
                 self._request_pool.process_exception(
-                    new_request["request_id"],
+                    new_request["task_id"],
                     e,
                     verbose=self.log_requests,
                 )
@@ -530,18 +530,18 @@ class AsyncLLMRuntime:
         if self.engine_use_ray:
             prompt_token_ids = await (
                 self.runtime.encode_request_async.remote(  # type: ignore
-                    request_id=task_id,
+                    task_id=task_id,
                     prompt=prompt,
                     prompt_token_ids=prompt_token_ids,
                     lora_request=lora_request))
         else:
             prompt_token_ids = await self.runtime.encode_request_async(
-                request_id=task_id,
+                task_id=task_id,
                 prompt=prompt,
                 prompt_token_ids=prompt_token_ids,
                 lora_request=lora_request)
 
-        stream = self._request_pool.add_task(
+        stream = self._request_pool.add_request(
             task_id,
             prompt=prompt,
             sampling_params=sampling_params,
@@ -557,7 +557,7 @@ class AsyncLLMRuntime:
         self,
         prompt: Optional[str],
         sampling_params: SamplingParams,
-        request_id: str,
+        task_id: str,
         prompt_token_ids: Optional[List[int]] = None,
         lora_request: Optional[LoRARequest] = None,
         multi_modal_data: Optional[MultiModalData] = None
@@ -630,7 +630,7 @@ class AsyncLLMRuntime:
 
         try:
             stream = await self.add_task(
-                request_id,
+                task_id,
                 prompt,
                 sampling_params,
                 prompt_token_ids=prompt_token_ids,
@@ -643,17 +643,17 @@ class AsyncLLMRuntime:
                 yield request_output
         except (Exception, asyncio.CancelledError) as e:
             # If there is an exception or coroutine is cancelled, abort the request.
-            self._abort(request_id)
+            self._abort(task_id)
             raise e
 
-    async def abort(self, request_id: str) -> None:
+    async def abort(self, task_id: str) -> None:
         """Abort a request.
 
         Abort a submitted request. If the request is finished or not found,
         this method will be a no-op.
 
         Args:
-            request_id: The unique id of the request.
+            task_id: The unique id of the request.
         """
         if not self.is_running:
             raise AsyncRuntimeDeadError(
@@ -662,15 +662,15 @@ class AsyncLLMRuntime:
                 "error that caused the background loop to stop "
                 "(AsyncEngineDeadError).")
 
-        return self._abort(request_id)
+        return self._abort(task_id)
 
-    def _abort(self, request_id: str) -> None:
+    def _abort(self, task_id: str) -> None:
         """终止一个已提交的request. 
         If the request is finished or not found,
         this method will be a no-op.
 
         """
-        self._request_pool.abort_request(request_id,
+        self._request_pool.abort_request(task_id,
                                             verbose=self.log_requests)
 
     async def get_model_config(self) -> ModelConfig:

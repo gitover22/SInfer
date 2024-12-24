@@ -80,7 +80,7 @@ def run_prompt(user_id):
     end_time = get_LocalTime()
     log_message = (
         f"user id: {user_id} | tid: {native_id} | start: {start_time} | "
-        f"end: {end_time} | live time: {runtime} ms"
+        f"end: {end_time} | e2e: {runtime} ms"
     )
     logger.info(log_message)  # 记录线程结束日志
     print(log_message)

@@ -268,4 +268,8 @@ sinfer/worker/cpu_worker.py
 sinfer/worker/model_runner.py
 sinfer/worker/worker.py
 sinfer/worker/worker_base.py
+test/test_api_server_client.py
+test/test_chat_completion_client.py
+test/test_completion_client.py
 test/test_python.py
+test/test_runtime.py

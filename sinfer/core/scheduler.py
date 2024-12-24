@@ -728,7 +728,8 @@ class Scheduler:
             remaining_waiting, prefills = self._schedule_prefills(
                 self.waiting, budget, curr_loras, enable_chunking=False)
 
-        fcfs_policy = PolicyFactory.get_policy(policy_name="fcfs")
+        # fcfs_policy = PolicyFactory.get_policy(policy_name="fcfs")
+        fcfs_policy = PolicyFactory.get_policy(policy_name="tas")
         # 如果已经调度了预填充请求，则不要再调度解码请求
         # 如果 _schedule_prefills 未启用分块模式（chunking），
         # 那么self.running 中仅包含解码请求，而不包含分块的预填充请求

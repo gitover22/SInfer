@@ -1,40 +1,52 @@
 from sinfer import LLM, SamplingParams
 import time
-prompts = [
-    "Hello, my name is",
-    "The president of the United States is",
-    "The capital of France is",
-    "The future of AI is",
-]
-
+import csv
+def read_prompts_from_csv(path, num):
+    prompts = []
+    with open(path, mode='r', encoding='utf-8') as file:
+        reader = csv.DictReader(file)
+        for i, row in enumerate(reader):
+            if i >= num:
+                break
+            prompts.append(row['prompt'])
+    return prompts
 sampling_params = SamplingParams(
     temperature=0.8, 
     top_p=0.95,
-    max_tokens=500
+    max_tokens=512
 )
 print(sampling_params) 
 
-# 实例化LLM对象
-llm = LLM(model="./Meta-Llama-3-8B-Instruct",trust_remote_code=True,dtype="float16",tensor_parallel_size =1,gpu_memory_utilization=0.9)
+def main(args):
+    # 实例化LLM对象
+    prompts = read_prompts_from_csv("prompts.csv",args.num)
+    llm = LLM(model="./Meta-Llama-3-8B-Instruct",trust_remote_code=True,dtype="float16",tensor_parallel_size =4,gpu_memory_utilization=0.9)
 
-s = time.time()
-outputs = llm.generate(prompts, sampling_params)
-e = time.time()
-sum:int =0
-# 输出
-for output in outputs:
-    prompt = output.prompt
-    generated_text = output.outputs[0].text
-    print(f"Prompt: {prompt!r}, Generated text: {generated_text!r}")
-    print("\n===========================================================================\n")
-    sum += len(output.outputs[0].token_ids)
-    print("\n===========================================================================\n")
-total_time = e - s
-print("total time: "+str(total_time))
+    s = time.time()
+    outputs = llm.generate(prompts, sampling_params)
+    e = time.time()
+    sum:int =0
+    # 输出
+    for output in outputs:
+        prompt = output.prompt
+        generated_text = output.outputs[0].text
+        print(f"Prompt: {prompt!r}, Generated text: {generated_text!r}")
+        print("\n===========================================================================\n")
+        sum += len(output.outputs[0].token_ids)
+        print("\n===========================================================================\n")
+    total_time = e - s
+    print("total time: "+str(total_time))
 
 
-tokens_per_second = sum / total_time
+    tokens_per_second = sum / total_time
 
-print(f"Total tokens generated: {sum}")
-print(f"prompts per seconds: {len(prompts)/total_time:.2f}")
-print(f"Tokens per second: {tokens_per_second:.2f}")
+    print(f"Total tokens generated: {sum}")
+    print(f"prompts per seconds: {len(prompts)/total_time:.2f}")
+    print(f"Tokens per second: {tokens_per_second:.2f}")
+if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser(
+        description='Demo on using the LLMRuntime class directly')
+    parser.add_argument("--num", type=int, default=8)
+    args = parser.parse_args()
+    main(args)
