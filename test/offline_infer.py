@@ -1,9 +1,5 @@
-'''
-一个简单的离线推理示例,其中评测结果仅作为参考
-'''
 from sinfer import LLM, SamplingParams
 import time
-# Sample prompts.
 prompts = [
     "Hello, my name is",
     "The president of the United States is",
@@ -16,7 +12,7 @@ sampling_params = SamplingParams(
     top_p=0.95,
     max_tokens=500
 )
-print(sampling_params) # __repr__
+print(sampling_params) 
 
 # 实例化LLM对象
 llm = LLM(model="./Meta-Llama-3-8B-Instruct",trust_remote_code=True,dtype="float16",tensor_parallel_size =1,gpu_memory_utilization=0.9)

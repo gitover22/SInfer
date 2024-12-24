@@ -8,7 +8,7 @@ from sinfer.task import MultiModalData, Task, TaskMetadata
 from sinfer.config import (CacheConfig, DecodingConfig, DeviceConfig, LoadConfig,
                          LoRAConfig, ModelConfig, ParallelConfig,
                          SchedulerConfig, VisionLanguageConfig)
-from sinfer.core.scheduler import (ScheduledSequenceGroup, Scheduler,
+from sinfer.core.scheduler import (ScheduledTask, Scheduler,
                                  SchedulerOutputs)
 from sinfer.sys.arg_utils import RuntimeArgs
 from sinfer.sys.metrics import StatLogger, Stats
@@ -77,7 +77,7 @@ class LLMRuntime:
         usage_context: UsageContext = UsageContext.ENGINE_CONTEXT,
     ) -> None:
         logger.info(
-            "Initializing an LLM engine (v%s) with config: model=%r, tokenizer=%r,"
+            "Initializing an LLM runtime (v%s) with config: model=%r, tokenizer=%r,"
             "skip_tokenizer_init=%s, tokenizer_mode=%s, revision=%s, "
             "tokenizer_revision=%s, trust_remote_code=%s, dtype=%s, "
             "max_seq_len=%d, download_dir=%r, load_format=%s, "
@@ -127,7 +127,7 @@ class LLMRuntime:
             self.detokenizer = None
             self.tokenizer = None
 
-        self.req_counter = Counter()
+        self.req_counter = Counter() # Request对应的id计数器
         self.generation_config_fields = _load_generation_config_dict(
             model_config)
 
@@ -231,7 +231,6 @@ class LLMRuntime:
         runtime_args: RuntimeArgs,
         usage_context: UsageContext = UsageContext.ENGINE_CONTEXT,
     ) -> "LLMRuntime":
-        # 创建engine的配置
         runtime_config = runtime_args.create_runtime_config()
 
         # 明确executor_class指向的执行器
@@ -308,9 +307,9 @@ class LLMRuntime:
                                                      lora_request=lora_request)
         return prompt_token_ids
 
-    def add_request(
+    def add_task(
         self,
-        request_id: str,
+        task_id: str,
         prompt: Optional[str],
         sampling_params: SamplingParams,
         prompt_token_ids: Optional[List[int]] = None,
@@ -322,7 +321,7 @@ class LLMRuntime:
         将一个request添加给LLMRuntime
 
         Args:
-            request_id: 1条prompt算1个请求
+            task_id: task的id
             prompt: prompt( str )
             sampling_params: 采样参数(温度、topk等)
             prompt_token_ids: prompt(token_id版), 没有提供的话会调用tokenizer来做
@@ -343,14 +342,14 @@ class LLMRuntime:
         if arrival_time is None:
             arrival_time = time.time()
         prompt_token_ids = self.encode_request(
-            request_id=request_id,
+            request_id=task_id,
             prompt=prompt,
             prompt_token_ids=prompt_token_ids,
             lora_request=lora_request)
 
-        # 创建sequences.
+        # 将用户prompt包装为Request
         block_size = self.cache_config.block_size
-        req_id = next(self.req_counter)
+        req_id = next(self.req_counter) # 获取Request对应的id
         eos_token_id = None
         if self.tokenizer:
             eos_token_id = self.tokenizer.get_lora_tokenizer(
@@ -358,14 +357,14 @@ class LLMRuntime:
         else:
             logger.warning("Use None for EOS token id because tokenizer is "
                            "not initialized")
-        seq = Request(req_id, prompt, prompt_token_ids, block_size,
+        req = Request(req_id, prompt, prompt_token_ids, block_size,
                        eos_token_id, lora_request)
 
         # 对SamplingParams进行防御性拷贝，这些参数由采样器使用，但不会对LogitsProcessor对象进行深拷贝
         sampling_params = sampling_params.clone()
         
-        if seq.eos_token_id is not None:
-            sampling_params.all_stop_token_ids.add(seq.eos_token_id)  # 将eos token ID添加到sampling_params中，以支持min_tokens的处理
+        if req.eos_token_id is not None:
+            sampling_params.all_stop_token_ids.add(req.eos_token_id)  # 将eos token ID添加到sampling_params中，以支持min_tokens的处理
         sampling_params.update_from_generation_config(
             self.generation_config_fields)
 
@@ -374,23 +373,23 @@ class LLMRuntime:
         out_len = sampling_params.max_tokens # 生成的最大token数量
 
         from sinfer.Intercept.mlu_definitions import BlockSizeInfo, USE_PAGED
-        if (USE_PAGED == False and BlockSizeInfo.BLOCK_SIZE < out_len + seq.get_len()):
+        if (USE_PAGED == False and BlockSizeInfo.BLOCK_SIZE < out_len + req.get_len()):
             raise ValueError("BLOCK_SIZE(" + str(BlockSizeInfo.BLOCK_SIZE) +
-                ") can't smaller than input_len(" + str(seq.get_len()) + ") + output_len(" + str(out_len) + ").")
+                ") can't smaller than input_len(" + str(req.get_len()) + ") + output_len(" + str(out_len) + ").")
 
-        # 创建序列组SG：每个prompt被包装成一个SequenceGroup实例
-        seq_group = Task(request_id, [seq], sampling_params,
+        # 使用req包装为Task,每个prompt被包装成一个Task实例
+        task = Task(task_id, [req], sampling_params,
                                   arrival_time, lora_request, multi_modal_data)
 
         # 向调度器添加序列组, 添加进scheduler的self.waiting队列中
-        self.scheduler.add_seq_group(seq_group)
+        self.scheduler.add_task(task)
 
-    def abort_request(self, request_id: Union[str, Iterable[str]]) -> None:
+    def abort_task(self, task_id: Union[str, Iterable[str]]) -> None:
         """中止给定 ID 的请求
         Args:
-            request_id: The ID(s) of the request to abort.
+            task_id: The ID(s) of the task to abort.
         """
-        self.scheduler.abort_seq_group(request_id)
+        self.scheduler.abort_task(task_id)
 
     def get_model_config(self) -> ModelConfig:
         """Gets the model configuration."""
@@ -402,16 +401,16 @@ class LLMRuntime:
 
     def get_num_unfinished_requests(self) -> int:
         """Gets the number of unfinished requests."""
-        return self.scheduler.get_num_unfinished_seq_groups()
+        return self.scheduler.get_num_unfinished_tasks()
 
     def has_unfinished_requests(self) -> bool:
         """Returns True if there are unfinished requests."""
-        return self.scheduler.has_unfinished_seqs()
+        return self.scheduler.has_unfinished_tasks()
 
     def _process_model_outputs(
         self,
         output: List[SamplerOutput],
-        scheduled_seq_groups: List[ScheduledSequenceGroup],
+        scheduled_seq_groups: List[ScheduledTask],
         ignored_seq_groups: List[Task],
         seq_group_metadata_list: List[TaskMetadata],
     ) -> List[RequestOutput]:
@@ -431,7 +430,7 @@ class LLMRuntime:
         for scheduled_seq_group, outputs, seq_group_meta in zip(
                 scheduled_seq_groups, output_by_sequence_group,
                 seq_group_metadata_list):
-            seq_group = scheduled_seq_group.seq_group
+            seq_group = scheduled_seq_group.task
             seq_group.update_num_computed_tokens(
                 scheduled_seq_group.token_chunk_size)
 
@@ -440,17 +439,17 @@ class LLMRuntime:
                 self.output_processor.process_outputs(seq_group, outputs)
 
         # Free the finished sequence groups.
-        self.scheduler.free_finished_seq_groups()
+        self.scheduler.free_finished_tasks()
 
         # Create the outputs.
         request_outputs: List[RequestOutput] = []
         for scheduled_seq_group in scheduled_seq_groups:
-            seq_group = scheduled_seq_group.seq_group
+            seq_group = scheduled_seq_group.task
             seq_group.maybe_set_first_token_time(now)
-            request_output = RequestOutput.from_seq_group(seq_group)
+            request_output = RequestOutput.from_task(seq_group)
             request_outputs.append(request_output)
         for seq_group in ignored_seq_groups:
-            request_output = RequestOutput.from_seq_group(seq_group)
+            request_output = RequestOutput.from_task(seq_group)
             request_outputs.append(request_output)
         return request_outputs
 
@@ -476,8 +475,8 @@ class LLMRuntime:
 
         request_outputs = self._process_model_outputs(
                             output, 
-                            scheduler_outputs.scheduled_seq_groups,
-                            scheduler_outputs.ignored_seq_groups, 
+                            scheduler_outputs.scheduled_tasks,
+                            scheduler_outputs.ignored_tasks, 
                             seq_group_metadata_list)
 
         # Log stats.
@@ -550,10 +549,10 @@ class LLMRuntime:
             # scheduler_outputs.num_prefill_groups, this means that
             # chunked prefills have been detected.
 
-            for idx, scheduled_seq_group in enumerate(
-                    scheduler_outputs.scheduled_seq_groups):
-                group_was_prefill = idx < scheduler_outputs.num_prefill_groups
-                seq_group = scheduled_seq_group.seq_group
+            for idx, scheduled_task in enumerate(
+                    scheduler_outputs.scheduled_tasks):
+                group_was_prefill = idx < scheduler_outputs.num_prefill_tasks
+                task = scheduled_task.task
 
                 # NOTE: a seq_group that completed all of its prefill tokens
                 # in the last iteration will have seq_group.is_prefill() = False
@@ -561,20 +560,20 @@ class LLMRuntime:
                 if group_was_prefill:
                     # Number of prompt tokens.
                     num_prompt_tokens_iter += (
-                        scheduled_seq_group.token_chunk_size)
+                        scheduled_task.token_chunk_size)
 
                     # If the seq_group just finished the prefill state
                     # get TTFT.
-                    if not seq_group.is_prefill():
-                        latency = seq_group.get_last_latency(now)
+                    if not task.is_prefill():
+                        latency = task.get_last_latency(now)
                         time_to_first_tokens_iter.append(latency)
 
                         # One generation token per finished prefill.
                         num_generation_tokens_from_prefill_groups += (
-                            seq_group.num_seqs())
+                            task.num_reqs())
                 else:
                     # TPOTs.
-                    latency = seq_group.get_last_latency(now)
+                    latency = task.get_last_latency(now)
                     time_per_output_tokens_iter.append(latency)
 
                 # Because of chunked prefill, we can have a single sequence
@@ -582,23 +581,23 @@ class LLMRuntime:
                 # the same metadata more than once per request, we standardize
                 # on logging request level information for finished requests,
                 # which can only happen once.
-                if seq_group.is_finished():
+                if task.is_finished():
                     # Latency timings
                     time_e2e_requests.append(now -
-                                             seq_group.metrics.arrival_time)
+                                             task.metrics.arrival_time)
 
                     # Metadata
                     num_prompt_tokens_requests.append(
-                        len(seq_group.prompt_token_ids))
+                        len(task.prompt_token_ids))
                     num_generation_tokens_requests.extend([
                         seq.get_output_len()
-                        for seq in seq_group.get_finished_seqs()
+                        for seq in task.get_finished_seqs()
                     ])
-                    best_of_requests.append(seq_group.sampling_params.best_of)
-                    n_requests.append(seq_group.sampling_params.n)
+                    best_of_requests.append(task.sampling_params.best_of)
+                    n_requests.append(task.sampling_params.n)
                     finished_reason_requests.extend([
                         RequestStatus.get_finished_reason(seq.status)
-                        for seq in seq_group.get_finished_seqs()
+                        for seq in task.get_finished_seqs()
                     ])
 
             # Number of generation tokens.

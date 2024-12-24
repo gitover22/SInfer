@@ -90,9 +90,9 @@ class SchedulingBudget:
 
 
 @dataclass
-class ScheduledSequenceGroup:
+class ScheduledTask:
     # 被调度的序列组
-    seq_group: Task
+    task: Task
     # 下一次迭代要处理的总分块大小(token数量)
     # 解码时为1,对于预填充,与提示token数量相同,但如果预填充是分块的,则可能会小于提示token数量
     token_chunk_size: int
@@ -100,9 +100,9 @@ class ScheduledSequenceGroup:
 
 @dataclass
 class SchedulerOutputs:
-    scheduled_seq_groups: Iterable[ScheduledSequenceGroup]  # 被调度的序列组
-    num_prefill_groups: int  # prefill阶段的序列组 
-    num_batched_tokens: int  # 所有scheduled_seq_groups的token总数
+    scheduled_tasks: Iterable[ScheduledTask]  # 被调度的序列组
+    num_prefill_tasks: int  # prefill阶段的tasks数量
+    num_batched_tokens: int  # 所有scheduled tasks的token总数
     # 换入的块. Dict of CPU -> GPU block number.
     blocks_to_swap_in: Dict[int, int]
     # 换出的块. Dict of GPU -> CPU block number.
@@ -110,7 +110,7 @@ class SchedulerOutputs:
     # Blocks to copy. Source to a list of dest blocks.
     blocks_to_copy: Dict[int, List[int]]
     # Sequence groups that are going to be ignored.
-    ignored_seq_groups: List[Task]
+    ignored_tasks: List[Task]
     # The number of slots for lookahead decoding.
     num_lookahead_slots: int
     # The number of requests in the running queue
@@ -125,20 +125,20 @@ class SchedulerOutputs:
             self._sort_by_lora_ids()
 
     def is_empty(self) -> bool:
-        return (not self.scheduled_seq_groups and not self.blocks_to_swap_in
+        return (not self.scheduled_tasks and not self.blocks_to_swap_in
                 and not self.blocks_to_swap_out and not self.blocks_to_copy)
 
     def _sort_by_lora_ids(self):
-        self.scheduled_seq_groups = sorted(
-            self.scheduled_seq_groups,
-            key=lambda g: (g.seq_group.lora_int_id, g.seq_group.request_id))
+        self.scheduled_tasks = sorted(
+            self.scheduled_tasks,
+            key=lambda g: (g.task.lora_int_id, g.task.task_id))
 
     @property
     def lora_requests(self) -> Set[LoRARequest]:
         return {
-            g.seq_group.lora_request
-            for g in self.scheduled_seq_groups
-            if g.seq_group.lora_request is not None
+            g.task.lora_request
+            for g in self.scheduled_tasks
+            if g.task.lora_request is not None
         }
 
 
@@ -148,8 +148,8 @@ class SchedulerRunningOutputs:
     可能包含预填充（被分块的预填充数据）或解码数据。如果内存不足，它可以被抢占（用于重新计算）或被交换出去
     """
 
-    decode_seq_groups: List[Task]    # decode阶段的序列组
-    prefill_seq_groups: List[Task]   # prefill阶段的序列组（意味着开启了 chunked prefill）
+    decode_tasks: List[Task]    # decode阶段的序列组
+    prefill_tasks: List[Task]   # prefill阶段的序列组（意味着开启了 chunked prefill）
     preempted: List[Task]            # 被抢占的序列组(重计算)
     swapped_out: List[Task]          # swap out的序列组(换出)
 
@@ -161,8 +161,8 @@ class SchedulerRunningOutputs:
     @classmethod
     def create_empty(cls) -> "SchedulerRunningOutputs":
         return SchedulerRunningOutputs(
-            decode_seq_groups=[],
-            prefill_seq_groups=[],
+            decode_tasks=[],
+            prefill_tasks=[],
             preempted=[],
             swapped_out=[],
             blocks_to_swap_out={},
@@ -173,32 +173,31 @@ class SchedulerRunningOutputs:
 
 @dataclass
 class SchedulerSwappedInOutputs:
-    """从 swap 队列调度的序列组
+    """从 swap 队列调度的task
 
     可能包含prefill (chunked prefill) 和 decodes阶段的序列组.
     """
-    # Selected sequences that are going to be swapped in and is in a
-    # decoding phase.
-    decode_seq_groups: List[Task]
-    # Selected sequences that are going to be swapped in and in a prefill
+    # Selected tasks that are going to be swapped in and is in decoding phase.
+    decode_tasks: List[Task]
+    # Selected tasks that are going to be swapped in and in a prefill
     # phase. （意味着chunked prefill开启）
-    prefill_seq_groups: List[Task]
+    prefill_tasks: List[Task]
     blocks_to_swap_in: Dict[int, int]
     blocks_to_copy: Dict[int, List[int]]
     # The number of slots for lookahead decoding.
     num_lookahead_slots: int
-    # Infeasible sequence groups.
-    infeasible_seq_groups: List[Task]
+    # Infeasible tasks.
+    infeasible_tasks: List[Task]
 
     @classmethod
     def create_empty(cls) -> "SchedulerSwappedInOutputs":
         return SchedulerSwappedInOutputs(
-            decode_seq_groups=[],
-            prefill_seq_groups=[],
+            decode_tasks=[],
+            prefill_tasks=[],
             blocks_to_swap_in={},
             blocks_to_copy={},
             num_lookahead_slots=0,
-            infeasible_seq_groups=[],
+            infeasible_tasks=[],
         )
 
 
@@ -207,22 +206,21 @@ class SchedulerPrefillOutputs:
     """从waiting队列调度的序列组
     可能包含新的预填充请求或被抢占的请求(抢占策略为重计算),这些请求需要从头重新计算
     """
-    # Selected sequences for prefill.
-    seq_groups: List[Task]
-    # Ignored sequence groups.
-    ignored_seq_groups: List[Task]
+    # Selected tasks for prefill.
+    tasks: List[Task]
+    # Ignored tasks
+    ignored_tasks: List[Task]
     num_lookahead_slots: int
     # 创建一个对象
     @classmethod
     def create_empty(cls) -> "SchedulerPrefillOutputs":
         return SchedulerPrefillOutputs(
-            seq_groups=[],
-            ignored_seq_groups=[],
+            tasks=[],
+            ignored_tasks=[],
             num_lookahead_slots=0,
         )
 
 class Scheduler:
-
     def __init__(
         self,
         scheduler_config: SchedulerConfig,
@@ -251,15 +249,15 @@ class Scheduler:
             sliding_window=self.cache_config.sliding_window,
             enable_caching=self.cache_config.enable_prefix_caching)
 
-        # WAITING state.包含new prefill和重计算的序列组
-        self.waiting: Deque[Task] = deque()  # waiting队列中的seq_group只有一个seq，即是原始的prompt
+        # WAITING state.包含new prefill和重计算的task
+        self.waiting: Deque[Task] = deque()  # waiting队列中的task只包含一个req，即是原始的prompt
         # RUNNING state. 包含decode requests或chunked prefill.
         self.running: Deque[Task] = deque()  
         # SWAPPED state. 包含被换出的decode requests或者chunked prefill.
         self.swapped: Deque[Task] = deque()
 
         self.prev_time = 0.0   # 每执行1次推理阶段前，调度器都要做一次调度，这个变量存放的就是上次调度发起的时间点
-        self.prev_prompt = False  # 上一次调度时，调度器有从waiting队列中取出seq_group做推理，即为True，否则为False
+        self.prev_prompt = False  # 上一次调度时，调度器有从waiting队列中取出task做推理，即为True，否则为False
         self.last_prompt_latency = 0.0 # 当前调度时刻（now） - 最后一次有从waiting队列中取数做推理的那个调度时刻
 
         # 以下字段仅用于测试。它被用来注入人工抢占
@@ -289,59 +287,59 @@ class Scheduler:
         self.block_utils = 0
         self.preempt_ratio = 0
 
-        self.finished_seq_groups = []
+        self.finished_tasks = []
 
     @property
     def lora_enabled(self) -> bool:
         return bool(self.lora_config)
 
     @property
-    def num_decoding_tokens_per_seq(self) -> int:
+    def num_decoding_tokens_per_req(self) -> int:
         """The number of new tokens."""
         return 1
 
-    def add_seq_group(self, seq_group: Task) -> None:
+    def add_task(self, task: Task) -> None:
         # 往waiting队列添加序列组
-        self.waiting.append(seq_group)
+        self.waiting.append(task)
 
-    def abort_seq_group(self, request_id: Union[str, Iterable[str]]) -> None:
+    def abort_task(self, task_id: Union[str, Iterable[str]]) -> None:
         """
         中止给定 ID 的序列组
         检查给定 ID 的序列组是否存在于任何状态队列中。
         如果存在，从状态队列中移除该序列组。如果序列组中的任何序列尚未完成，则将该序列的状态设置为 FINISHED_ABORTED 并释放它
 
         参数：
-            request_id: 要中止的序列组的 ID
+            task_id: 要中止的序列组的 ID
         """
-        if isinstance(request_id, str):
-            request_id = (request_id, )
-        request_ids = set(request_id)
+        if isinstance(task_id, str):
+            task_id = (task_id, )
+        task_ids = set(task_id)
         for state_queue in [self.waiting, self.running, self.swapped]:
-            aborted_groups: List[Task] = []
-            for seq_group in state_queue:
-                if not request_ids:
+            aborted_tasks: List[Task] = []
+            for task in state_queue:
+                if not task_ids:
                     # Using 'break' here may add two extra iterations,
                     # but is acceptable to reduce complexity.
                     break
-                if seq_group.request_id in request_ids:
+                if task.task_id in task_ids:
                     # Appending aborted group into pending list.
-                    aborted_groups.append(seq_group)
-                    request_ids.remove(seq_group.request_id)
-            for aborted_group in aborted_groups:
+                    aborted_tasks.append(task)
+                    task_ids.remove(task.task_id)
+            for aborted_task in aborted_tasks:
                 # Remove the sequence group from the state queue.
-                state_queue.remove(aborted_group)
-                for seq in aborted_group.get_seqs():
+                state_queue.remove(aborted_task)
+                for seq in aborted_task.get_reqs():
                     if seq.is_finished():
                         continue
                     seq.status = RequestStatus.FINISHED_ABORTED
                     self.free_seq(seq)
 
-    def has_unfinished_seqs(self) -> bool:
+    def has_unfinished_tasks(self) -> bool:
         '''是否还有没完成的序列'''
         return len(self.waiting) != 0 or len(self.running) != 0 or len(
             self.swapped) != 0
 
-    def get_num_unfinished_seq_groups(self) -> int:
+    def get_num_unfinished_tasks(self) -> int:
         '''获取未完成的序列组'''
         return len(self.waiting) + len(self.running) + len(self.swapped)
 
@@ -379,33 +377,33 @@ class Scheduler:
         blocks_to_swap_out: Dict[int, int] = {}
         blocks_to_copy: Dict[int, List[int]] = {}
 
-        decode_seq_groups: List[ScheduledSequenceGroup] = []
-        prefill_seq_groups: List[ScheduledSequenceGroup] = []
+        decode_seq_groups: List[ScheduledTask] = []
+        prefill_seq_groups: List[ScheduledTask] = []
         preempted: List[Task] = []
         swapped_out: List[Task] = []
 
         now = time.time()
         running_queue = policy.sort_by_priority(now, running_queue)
         while running_queue:
-            seq_group = running_queue[0]
+            task = running_queue[0]
             num_running_tokens = self._get_num_new_tokens(
-                seq_group, RequestStatus.RUNNING, enable_chunking, budget)
+                task, RequestStatus.RUNNING, enable_chunking, budget)
 
             if num_running_tokens == 0:
                 break
 
             running_queue.popleft()
-            while not self._can_append_slots(seq_group):
-                budget.subtract_num_batched_tokens(seq_group.request_id,
+            while not self._can_append_slots(task):
+                budget.subtract_num_batched_tokens(task.task_id,
                                                    num_running_tokens)
-                num_running_seqs = seq_group.get_max_num_running_seqs()
-                budget.subtract_num_seqs(seq_group.request_id,
+                num_running_seqs = task.get_max_num_running_seqs()
+                budget.subtract_num_seqs(task.task_id,
                                          num_running_seqs)
-                if curr_loras is not None and seq_group.lora_int_id > 0:
-                    curr_loras.remove(seq_group.lora_int_id)
+                if curr_loras is not None and task.lora_int_id > 0:
+                    curr_loras.remove(task.lora_int_id)
 
                 if running_queue:
-                    # Preempt the lowest-priority sequence groups.
+                    # Preempt the lowest-priority tasks
                     victim_seq_group = running_queue.pop()
                     preempted_mode = self._preempt(victim_seq_group,
                                                    blocks_to_swap_out)
@@ -414,44 +412,44 @@ class Scheduler:
                     else:
                         swapped_out.append(victim_seq_group)
                 else:
-                    # No other sequence groups can be preempted. Preempt the current sequence group.
-                    preempted_mode = self._preempt(seq_group,
+                    # No other tasks can be preempted. Preempt the current task.
+                    preempted_mode = self._preempt(task,
                                                    blocks_to_swap_out)
                     if preempted_mode == PreemptionStrategy.RECOMPUTE:
-                        preempted.append(seq_group)
+                        preempted.append(task)
                     else:
-                        swapped_out.append(seq_group)
+                        swapped_out.append(task)
                     break
             else:
-                self._append_slots(seq_group, blocks_to_copy)
-                is_prefill = seq_group.is_prefill()
+                self._append_slots(task, blocks_to_copy)
+                is_prefill = task.is_prefill()
                 if is_prefill:
                     prefill_seq_groups.append(
-                        ScheduledSequenceGroup(
-                            seq_group=seq_group,
+                        ScheduledTask(
+                            task=task,
                             token_chunk_size=num_running_tokens))
                 else:
                     decode_seq_groups.append(
-                        ScheduledSequenceGroup(seq_group=seq_group,
+                        ScheduledTask(task=task,
                                                token_chunk_size=1))
-                budget.add_num_batched_tokens(seq_group.request_id,
+                budget.add_num_batched_tokens(task.task_id,
                                               num_running_tokens)
                 # 注意，get_max_num_running_seqs开销较大。在默认的调度策略中，当 enable_chunking为 False 时，
                 # num_seqs会在运行此方法之前更新，因此我们在这里不需要再次更新它。
                 if enable_chunking:
-                    num_running_seqs = seq_group.get_max_num_running_seqs()
-                    budget.add_num_seqs(seq_group.request_id, num_running_seqs)
-                if curr_loras is not None and seq_group.lora_int_id > 0:
-                    curr_loras.add(seq_group.lora_int_id)
+                    num_running_seqs = task.get_max_num_running_seqs()
+                    budget.add_num_seqs(task.task_id, num_running_seqs)
+                if curr_loras is not None and task.lora_int_id > 0:
+                    curr_loras.add(task.lora_int_id)
         # add for scheduler profiling
         # run_reqs = len(init_queue)
         # sched_reqs = run_reqs - len(running_queue)
-        sched_to_preempt = [s.request_id for s in preempted]
+        sched_to_preempt = [s.task_id for s in preempted]
         # sched_to_swap_out = [s.request_id for s in swapped_out]
         self.running_to_waiting_seqs += len(sched_to_preempt)
         return running_queue, SchedulerRunningOutputs(
-            decode_seq_groups=decode_seq_groups,
-            prefill_seq_groups=prefill_seq_groups,
+            decode_tasks=decode_seq_groups,
+            prefill_tasks=prefill_seq_groups,
             preempted=preempted,
             swapped_out=swapped_out,
             blocks_to_swap_out=blocks_to_swap_out,
@@ -494,48 +492,48 @@ class Scheduler:
         blocks_to_swap_in: Dict[int, int] = {}
         blocks_to_copy: Dict[int, List[int]] = {}
 
-        decode_seq_groups: List[ScheduledSequenceGroup] = []
-        prefill_seq_groups: List[ScheduledSequenceGroup] = []
+        decode_seq_groups: List[ScheduledTask] = []
+        prefill_seq_groups: List[ScheduledTask] = []
 
         now = time.time()
         swapped_queue = policy.sort_by_priority(now, swapped_queue)
-        infeasible_seq_groups: List[Task] = []
+        infeasible_tasks: List[Task] = []
 
         leftover_swapped: Deque[Task] = deque()
         while swapped_queue:
-            seq_group = swapped_queue[0]
+            task = swapped_queue[0]
 
-            # If the sequence group cannot be swapped in, stop.
-            alloc_status = self.block_manager.can_swap_in(seq_group)
+            # If the task cannot be swapped in, stop.
+            alloc_status = self.block_manager.can_swap_in(task)
             if alloc_status == AllocStatus.LATER:
                 break
             elif alloc_status == AllocStatus.NEVER:
                 logger.warning(
-                    "Failing the request %s because there's not enough kv "
-                    "cache blocks to run the entire sequence.",
-                    seq_group.request_id)
-                for seq in seq_group.get_seqs():
-                    seq.status = RequestStatus.FINISHED_IGNORED
-                infeasible_seq_groups.append(seq_group)
+                    "Failing the task %s because there's not enough kv "
+                    "cache blocks to run the entire request.",
+                    task.task_id)
+                for req in task.get_reqs():
+                    req.status = RequestStatus.FINISHED_IGNORED
+                infeasible_tasks.append(task)
                 swapped_queue.popleft()
                 continue
 
             lora_int_id = 0
             if self.lora_enabled:
-                lora_int_id = seq_group.lora_int_id
+                lora_int_id = task.lora_int_id
                 assert curr_loras is not None
                 assert self.lora_config is not None
                 if (lora_int_id > 0 and (lora_int_id not in curr_loras)
                         and len(curr_loras) >= self.lora_config.max_loras):
-                    # We don't have a space for another LoRA, so we ignore this request for now.
-                    leftover_swapped.appendleft(seq_group)
+                    # We don't have a space for another LoRA, so we ignore
+                    leftover_swapped.appendleft(task)
                     swapped_queue.popleft()
                     continue
 
             # The total number of sequences in the RUNNING state should not
             # exceed the maximum number of sequences.
-            num_new_seqs = seq_group.get_max_num_running_seqs()
-            num_new_tokens = self._get_num_new_tokens(seq_group,
+            num_new_seqs = task.get_max_num_running_seqs()
+            num_new_tokens = self._get_num_new_tokens(task,
                                                       RequestStatus.SWAPPED,
                                                       enable_chunking, budget)
 
@@ -547,32 +545,32 @@ class Scheduler:
             if lora_int_id > 0 and curr_loras is not None:
                 curr_loras.add(lora_int_id)
             swapped_queue.popleft()
-            self._swap_in(seq_group, blocks_to_swap_in)
-            self._append_slots(seq_group, blocks_to_copy)
-            is_prefill = seq_group.is_prefill()
+            self._swap_in(task, blocks_to_swap_in)
+            self._append_slots(task, blocks_to_copy)
+            is_prefill = task.is_prefill()
             if is_prefill:
                 prefill_seq_groups.append(
-                    ScheduledSequenceGroup(seq_group,
+                    ScheduledTask(task,
                                            token_chunk_size=num_new_tokens))
             else:
                 decode_seq_groups.append(
-                    ScheduledSequenceGroup(seq_group, token_chunk_size=1))
-            budget.add_num_batched_tokens(seq_group.request_id, num_new_tokens)
-            budget.add_num_seqs(seq_group.request_id, num_new_seqs)
+                    ScheduledTask(task, token_chunk_size=1))
+            budget.add_num_batched_tokens(task.task_id, num_new_tokens)
+            budget.add_num_seqs(task.task_id, num_new_seqs)
 
         swapped_queue.extendleft(leftover_swapped)
         # add for scheduler profiling
         # swap_reqs = len(swapped_queue)
         # sched_reqs = swap_reqs - len(swapped_queue)
-        # sched_to_swap_in = [s.seq_group.request_id for s in decode_seq_groups]
+        # sched_to_swap_in = [s.task.task_id for s in decode_seq_groups]
         return swapped_queue, SchedulerSwappedInOutputs(
-            decode_seq_groups=decode_seq_groups,
-            prefill_seq_groups=prefill_seq_groups,
+            decode_tasks=decode_seq_groups,
+            prefill_tasks=prefill_seq_groups,
             blocks_to_swap_in=blocks_to_swap_in,
             blocks_to_copy=blocks_to_copy,
             num_lookahead_slots=self._get_num_lookahead_slots(
                 is_prefill=False),
-            infeasible_seq_groups=infeasible_seq_groups,
+            infeasible_tasks=infeasible_tasks,
         )
 
     def _schedule_prefills(
@@ -605,21 +603,20 @@ class Scheduler:
             SchedulerSwappedInOutputs.
         """
         init_queue = waiting_queue
-        ignored_seq_groups: List[Task] = []
-        seq_groups: List[Task] = []
+        ignored_tasks: List[Task] = []
+        tasks: List[Task] = []
         # 不对等待队列进行排序，因为假设它已经是有序的
         # 复制该队列以确保输入队列不会被修改
         waiting_queue = deque([s for s in waiting_queue])
 
-        leftover_waiting_sequences: Deque[Task] = deque()
+        leftover_waiting_tasks: Deque[Task] = deque()
         while self._passed_delay(time.time()) and waiting_queue:
-            seq_group = waiting_queue[0]
+            task = waiting_queue[0]
 
-            waiting_seqs = seq_group.get_seqs(status=RequestStatus.WAITING)
+            waiting_seqs = task.get_reqs(status=RequestStatus.WAITING)
             assert len(waiting_seqs) == 1, (
-                "Waiting sequence group should have only one prompt "
-                "sequence.")
-            num_new_tokens = self._get_num_new_tokens(seq_group,
+                "Waiting task should have only one prompt request.")
+            num_new_tokens = self._get_num_new_tokens(task,
                                                       RequestStatus.WAITING,
                                                       enable_chunking, budget)
             if not enable_chunking:
@@ -633,12 +630,12 @@ class Scheduler:
                     self.prompt_limit)
                 for seq in waiting_seqs:
                     seq.status = RequestStatus.FINISHED_IGNORED
-                ignored_seq_groups.append(seq_group)
+                ignored_tasks.append(task)
                 waiting_queue.popleft()
                 continue
 
             # 判断能不能给这个SG分配
-            can_allocate = self.block_manager.can_allocate(seq_group)
+            can_allocate = self.block_manager.can_allocate(task)
             if can_allocate == AllocStatus.LATER:
                 break
             elif can_allocate == AllocStatus.NEVER:
@@ -648,25 +645,25 @@ class Scheduler:
                     num_new_tokens)
                 for seq in waiting_seqs:
                     seq.status = RequestStatus.FINISHED_IGNORED
-                ignored_seq_groups.append(seq_group)
+                ignored_tasks.append(task)
                 waiting_queue.popleft()
                 continue
 
             lora_int_id = 0
             if self.lora_enabled:
-                lora_int_id = seq_group.lora_int_id
+                lora_int_id = task.lora_int_id
                 assert curr_loras is not None
                 assert self.lora_config is not None
                 if (self.lora_enabled and lora_int_id > 0
                         and lora_int_id not in curr_loras
                         and len(curr_loras) >= self.lora_config.max_loras):
                     # We don't have a space for another LoRA, so
-                    # we ignore this request for now.
-                    leftover_waiting_sequences.appendleft(seq_group)
+                    # we ignore this task for now.
+                    leftover_waiting_tasks.appendleft(task)
                     waiting_queue.popleft()
                     continue
 
-            num_new_seqs = seq_group.get_max_num_running_seqs()
+            num_new_seqs = task.get_max_num_running_seqs()
             if (num_new_tokens == 0
                     or not budget.can_schedule(num_new_tokens=num_new_tokens,
                                                num_new_seqs=num_new_seqs)):
@@ -676,27 +673,27 @@ class Scheduler:
             if curr_loras is not None and lora_int_id > 0:
                 curr_loras.add(lora_int_id)
             waiting_queue.popleft()
-            self._allocate_and_set_running(seq_group) # 实际分配
-            seq_groups.append(
-                ScheduledSequenceGroup(seq_group=seq_group,
+            self._allocate_and_set_running(task) # 实际分配
+            tasks.append(
+                ScheduledTask(task=task,
                                        token_chunk_size=num_new_tokens))
-            budget.add_num_batched_tokens(seq_group.request_id, num_new_tokens)
-            budget.add_num_seqs(seq_group.request_id, num_new_seqs)
+            budget.add_num_batched_tokens(task.task_id, num_new_tokens)
+            budget.add_num_seqs(task.task_id, num_new_seqs)
 
         # 将无法被调度的请求重新加入队列中
-        waiting_queue.extendleft(leftover_waiting_sequences)
-        if len(seq_groups) > 0:
+        waiting_queue.extendleft(leftover_waiting_tasks)
+        if len(tasks) > 0:
             self.prev_prompt = True
 
         # add for scheduler profiling
         # wait_reqs = len(init_queue)
         # sched_reqs = wait_reqs - len(waiting_queue)
-        # sched_to_run = [s.seq_group.request_id for s in prefills.seq_groups]
-        # sched_to_ingore = [s.seq_group.request_id for s in prefills.ignored_seq_groups]
+        # sched_to_run = [s.task.task_id for s in prefills.seq_groups]
+        # sched_to_ingore = [s.task.task_id for s in prefills.ignored_seq_groups]
 
         return waiting_queue, SchedulerPrefillOutputs(
-            seq_groups=seq_groups,
-            ignored_seq_groups=ignored_seq_groups,
+            tasks=tasks,
+            ignored_tasks=ignored_tasks,
             num_lookahead_slots=self._get_num_lookahead_slots(is_prefill=True))
 
     def _schedule_default(self) -> SchedulerOutputs:
@@ -712,12 +709,12 @@ class Scheduler:
         )
         # 确保在调度prefill请求之前包含当前运行中的序列数，  
         # 以避免预填充的调度超出 `max_num_seqs` 的限制。
-        for seq_group in self.running:
-            budget.add_num_seqs(seq_group.request_id,
-                                seq_group.get_max_num_running_seqs())
+        for task in self.running:
+            budget.add_num_seqs(task.task_id,
+                                task.get_max_num_running_seqs())
         curr_loras = set(
-            seq_group.lora_int_id
-            for seq_group in self.running) if self.lora_enabled else None     # 如果启用了LoRA
+            task.lora_int_id
+            for task in self.running) if self.lora_enabled else None     # 如果启用了LoRA
 
         remaining_waiting, prefills = (self.waiting,
                                        SchedulerPrefillOutputs.create_empty())
@@ -735,7 +732,7 @@ class Scheduler:
         # 如果已经调度了预填充请求，则不要再调度解码请求
         # 如果 _schedule_prefills 未启用分块模式（chunking），
         # 那么self.running 中仅包含解码请求，而不包含分块的预填充请求
-        if len(prefills.seq_groups) == 0: # 没有调度prefill
+        if len(prefills.tasks) == 0: # 没有调度prefill
             remaining_running, running_scheduled = self._schedule_running(
                 self.running,
                 budget,
@@ -759,33 +756,33 @@ class Scheduler:
         self.waiting.extendleft(running_scheduled.preempted) # 重计算的SG加入到waiting队列最左侧
         # 
         self.running = remaining_running
-        self.running.extend([s.seq_group for s in prefills.seq_groups])
+        self.running.extend([s.task for s in prefills.tasks])
         self.running.extend(
-            [s.seq_group for s in running_scheduled.decode_seq_groups])
+            [s.task for s in running_scheduled.decode_tasks])
         self.running.extend(
-            [s.seq_group for s in swapped_in.decode_seq_groups])
+            [s.task for s in swapped_in.decode_tasks])
         # 
         self.swapped = remaining_swapped
         self.swapped.extend(running_scheduled.swapped_out) # 换出的SG加入到swapped队列
 
         # 没开启chunked prefill时，running队列和swapped队列都不应该包含prefill阶段的SG
-        assert len(running_scheduled.prefill_seq_groups) == 0
-        assert len(swapped_in.prefill_seq_groups) == 0
+        assert len(running_scheduled.prefill_tasks) == 0
+        assert len(swapped_in.prefill_tasks) == 0
         # add for scheduler profiling
         self.sched_step += 1
         # 包装一下调度结果并返回
         return SchedulerOutputs(
-            scheduled_seq_groups=(prefills.seq_groups +
-                                  running_scheduled.decode_seq_groups +
-                                  swapped_in.decode_seq_groups),
-            num_prefill_groups=len(prefills.seq_groups),
+            scheduled_tasks=(prefills.tasks +
+                                  running_scheduled.decode_tasks +
+                                  swapped_in.decode_tasks),
+            num_prefill_tasks=len(prefills.tasks),
             num_batched_tokens=budget.num_batched_tokens,
             blocks_to_swap_in=swapped_in.blocks_to_swap_in,
             blocks_to_swap_out=running_scheduled.blocks_to_swap_out,
             blocks_to_copy=merge_dicts(running_scheduled.blocks_to_copy,
                                        swapped_in.blocks_to_copy),
-            ignored_seq_groups=prefills.ignored_seq_groups +
-            swapped_in.infeasible_seq_groups,
+            ignored_tasks=prefills.ignored_tasks +
+            swapped_in.infeasible_tasks,
             num_lookahead_slots=running_scheduled.num_lookahead_slots,
             running_queue_size=len(self.running),
         )
@@ -844,33 +841,33 @@ class Scheduler:
         self.waiting.extendleft(running_scheduled.preempted)
         # Update new running requests.
         self.running = remaining_running
-        self.running.extend([s.seq_group for s in prefills.seq_groups])
+        self.running.extend([s.task for s in prefills.tasks])
         self.running.extend(
-            [s.seq_group for s in running_scheduled.decode_seq_groups])
+            [s.task for s in running_scheduled.decode_tasks])
         self.running.extend(
-            [s.seq_group for s in running_scheduled.prefill_seq_groups])
+            [s.task for s in running_scheduled.prefill_tasks])
         self.running.extend(
-            [s.seq_group for s in swapped_in.decode_seq_groups])
+            [s.task for s in swapped_in.decode_tasks])
         self.running.extend(
-            [s.seq_group for s in swapped_in.prefill_seq_groups])
+            [s.task for s in swapped_in.prefill_tasks])
         # Update swapped requests.
         self.swapped = remaining_swapped
         self.swapped.extend(running_scheduled.swapped_out)
         return SchedulerOutputs(
-            scheduled_seq_groups=(prefills.seq_groups +
-                                  running_scheduled.prefill_seq_groups +
-                                  swapped_in.prefill_seq_groups +
-                                  running_scheduled.decode_seq_groups +
-                                  swapped_in.decode_seq_groups),
-            num_prefill_groups=(len(prefills.seq_groups) +
-                                len(swapped_in.prefill_seq_groups) +
-                                len(running_scheduled.prefill_seq_groups)),
+            scheduled_tasks=(prefills.tasks +
+                                  running_scheduled.prefill_tasks +
+                                  swapped_in.prefill_tasks +
+                                  running_scheduled.decode_tasks +
+                                  swapped_in.decode_tasks),
+            num_prefill_tasks=(len(prefills.tasks) +
+                                len(swapped_in.prefill_tasks) +
+                                len(running_scheduled.prefill_tasks)),
             num_batched_tokens=budget.num_batched_tokens,
             blocks_to_swap_in=swapped_in.blocks_to_swap_in,
             blocks_to_swap_out=running_scheduled.blocks_to_swap_out,
             blocks_to_copy=merge_dicts(running_scheduled.blocks_to_copy,
                                        swapped_in.blocks_to_copy),
-            ignored_seq_groups=prefills.ignored_seq_groups,
+            ignored_tasks=prefills.ignored_tasks,
             num_lookahead_slots=running_scheduled.num_lookahead_slots,
             running_queue_size=len(self.running),
         )
@@ -881,7 +878,7 @@ class Scheduler:
         else:
             return self._schedule_default() # 默认不开启分块预填充
 
-    def _can_append_slots(self, seq_group: Task) -> bool:
+    def _can_append_slots(self, task: Task) -> bool:
         """
         确定KV缓存中是否有足够的空间以继续生成序列组
         """
@@ -896,7 +893,7 @@ class Scheduler:
         is_prefill = False
 
         return self.block_manager.can_append_slots(
-            seq_group=seq_group,
+            task=task,
             num_lookahead_slots=self._get_num_lookahead_slots(is_prefill),
         )
 
@@ -909,30 +906,30 @@ class Scheduler:
 
         seq_group_metadata_list: List[TaskMetadata] = []
         # 依次遍历每一个序列组
-        for i, scheduled_seq_group in enumerate(
-                scheduler_outputs.scheduled_seq_groups):
-            seq_group = scheduled_seq_group.seq_group
-            token_chunk_size = scheduled_seq_group.token_chunk_size
-            seq_group.maybe_set_first_scheduled_time(now)
+        for i, scheduled_task in enumerate(
+                scheduler_outputs.scheduled_tasks):
+            task = scheduled_task.task
+            token_chunk_size = scheduled_task.token_chunk_size
+            task.maybe_set_first_scheduled_time(now)
 
             # seq_id -> SequenceData
-            seq_data: Dict[int, RequestData] = {}
+            req_data: Dict[int, RequestData] = {}
             # seq_id -> physical block numbers
             block_tables: Dict[int, List[int]] = {}
             # 依次遍历SG中的所有seq
-            for seq in seq_group.get_seqs(status=RequestStatus.RUNNING):
-                seq_id = seq.seq_id
-                seq_data[seq_id] = seq.data
-                block_tables[seq_id] = self.block_manager.get_block_table(seq)
-                self.block_manager.access_all_blocks_in_seq(seq, now)
+            for req in task.get_reqs(status=RequestStatus.RUNNING):
+                req_id = req.req_id
+                req_data[req_id] = req.data
+                block_tables[req_id] = self.block_manager.get_block_table(req)
+                self.block_manager.access_all_blocks_in_seq(req, now)
 
             common_computed_block_nums = (
                 self.block_manager.get_common_computed_block_ids(
-                    seq_group.get_seqs(status=RequestStatus.RUNNING)))
+                    task.get_reqs(status=RequestStatus.RUNNING)))
 
             do_sample = True
-            if seq_group.is_prefill():
-                seqs = seq_group.get_seqs()
+            if task.is_prefill():
+                seqs = task.get_reqs()
                 assert len(seqs) == 1  # Prefill 阶段只有一个seq
                 # chunked prefill不需要进行采样。  
                 if (token_chunk_size + seqs[0].data.get_num_computed_tokens() <
@@ -941,58 +938,58 @@ class Scheduler:
 
             # It assumes the scheduled_seq_groups is ordered by
             # prefill < decoding.
-            is_prompt = seq_group.is_prefill()
+            is_prompt = task.is_prefill()
             seq_group_metadata = TaskMetadata(
-                request_id=seq_group.request_id,
+                task_id=task.task_id,
                 is_prompt=is_prompt,
-                seq_data=seq_data,
-                sampling_params=seq_group.sampling_params,
+                req_data=req_data,
+                sampling_params=task.sampling_params,
                 block_tables=block_tables,
                 do_sample=do_sample,
                 token_chunk_size=token_chunk_size,
-                lora_request=seq_group.lora_request,
+                lora_request=task.lora_request,
                 computed_block_nums=common_computed_block_nums,
-                state=seq_group.state,
+                state=task.state,
                 # `multi_modal_data` will only be present for the 1st comm
                 # between engine and worker.
                 # the subsequent comms can still use delta, but
                 # `multi_modal_data` will be None.
-                multi_modal_data=seq_group.multi_modal_data
-                if scheduler_outputs.num_prefill_groups > 0 else None,
+                multi_modal_data=task.multi_modal_data
+                if scheduler_outputs.num_prefill_tasks > 0 else None,
             )
             seq_group_metadata_list.append(seq_group_metadata)
 
         # 假设批次中的所有块都会在下次调度调用之前完成计算
         # 这是因为模型执行中的失败会导致 SInfer 实例崩溃，而不会进行重试
-        for scheduled_seq_group in scheduler_outputs.scheduled_seq_groups:
+        for scheduled_task in scheduler_outputs.scheduled_tasks:
             self.block_manager.mark_blocks_as_computed(
-                scheduled_seq_group.seq_group)
+                scheduled_task.task)
 
         return seq_group_metadata_list, scheduler_outputs
 
-    def fork_seq(self, parent_seq: Request, child_seq: Request) -> None:
-        self.block_manager.fork(parent_seq, child_seq)
+    def fork_seq(self, parent_req: Request, child_req: Request) -> None:
+        self.block_manager.fork(parent_req, child_req)
 
-    def free_seq(self, seq: Request) -> None:
+    def free_seq(self, req: Request) -> None:
         """释放一个序列"""
-        self.block_manager.free(seq)
+        self.block_manager.free(req)
 
-    def free_finished_seq_groups(self) -> None:
+    def free_finished_tasks(self) -> None:
         # 释放已经完成的序列组
-        # self.running = deque(seq_group for seq_group in self.running
-        #                      if not seq_group.is_finished())
+        # self.running = deque(task for task in self.running
+        #                      if not task.is_finished())
         # add for scheduler profiling
-        finished_seq_groups_ = [seq_group for seq_group in self.running
-                                        if seq_group.is_finished()]
+        finished_tasks_ = [task for task in self.running
+                                        if task.is_finished()]
 
-        self.running = deque(seq_group for seq_group in self.running
-                                if not seq_group.is_finished())
+        self.running = deque(task for task in self.running
+                                if not task.is_finished())
 
         self.running_seqs = len(self.running)
         self.waiting_seqs = len(self.waiting)
         self.swapped_seqs = len(self.swapped)
-        self.finished_seqs += len(finished_seq_groups_)
-        self.finished_seq_groups += finished_seq_groups_
+        self.finished_seqs += len(finished_tasks_)
+        self.finished_tasks += finished_tasks_
 
         total_seqs_ = self.running_seqs + self.waiting_seqs + self.swapped_seqs + self.finished_seqs
         if total_seqs_ > self.total_seqs:
@@ -1005,27 +1002,26 @@ class Scheduler:
 
         df_ = pd.DataFrame(
             [[self.waiting_seqs, self.running_seqs, self.swapped_seqs,
-            len(finished_seq_groups_), self.batch_utils, self.block_utils, self.preempt_ratio]],
+            len(finished_tasks_), self.batch_utils, self.block_utils, self.preempt_ratio]],
             columns=['waiting', 'running', 'swapped',
                     'finished','batch_utils', 'block_utils', 'preempt_ratio'],
             index=[str(self.sched_step)])
         self.df = pd.concat([self.df, df_])
 
-    def _allocate_and_set_running(self, seq_group: Task) -> None:
-        self.block_manager.allocate(seq_group)
-        for seq in seq_group.get_seqs(status=RequestStatus.WAITING):
-            seq.status = RequestStatus.RUNNING
+    def _allocate_and_set_running(self, task: Task) -> None:
+        self.block_manager.allocate(task)
+        for req in task.get_reqs(status=RequestStatus.WAITING):
+            req.status = RequestStatus.RUNNING
 
     def _append_slots(
         self,
-        seq_group: Task,
+        task: Task,
         blocks_to_copy: Dict[int, List[int]],
     ) -> None:
-        """Appends new slots to the sequences in the given sequence group.
+        """Appends new slots to the Reqs in the given task.
 
         Args:
-            seq_group (SequenceGroup): The sequence group containing the
-                sequences to append slots to.
+            task: containing the Requests to append slots to.
             blocks_to_copy (Dict[int, List[int]]): A dictionary mapping source
                 block indices to lists of destination block indices. This
                 dictionary is updated with the new source and destination block
@@ -1033,8 +1029,8 @@ class Scheduler:
         """
         num_lookahead_slots = self._get_num_lookahead_slots(is_prefill=False)
         # 遍历这个seq_group中状态为running的所有seq
-        for seq in seq_group.get_seqs(status=RequestStatus.RUNNING):
-            cows = self.block_manager.append_slots(seq, num_lookahead_slots)
+        for req in task.get_reqs(status=RequestStatus.RUNNING):
+            cows = self.block_manager.append_slots(req, num_lookahead_slots)
 
             for src, dests in cows.items():
                 if src not in blocks_to_copy:
@@ -1043,7 +1039,7 @@ class Scheduler:
 
     def _preempt(
         self,
-        seq_group: Task,
+        task: Task,
         blocks_to_swap_out: Dict[int, int],
         preemption_strategy: Optional[PreemptionStrategy] = None,
     ) -> PreemptionStrategy:
@@ -1052,56 +1048,56 @@ class Scheduler:
         # 缺陷：被交换的序列优先于等待的序列，所以包含多个序列的序列组隐式地优先于仅包含单个序列的序列组。
         # 为包含多个序列的序列组支持重计算。这需要更复杂的CUDA内核支持
         if preemption_strategy is None:
-            if seq_group.get_max_num_running_seqs() == 1:
+            if task.get_max_num_running_seqs() == 1:
                 preemption_strategy = PreemptionStrategy.RECOMPUTE
             else:
                 preemption_strategy = PreemptionStrategy.SWAP
         if preemption_strategy == PreemptionStrategy.RECOMPUTE:
-            self._preempt_by_recompute(seq_group)
+            self._preempt_by_recompute(task)
         elif preemption_strategy == PreemptionStrategy.SWAP:
-            self._preempt_by_swap(seq_group, blocks_to_swap_out)
+            self._preempt_by_swap(task, blocks_to_swap_out)
         else:
             raise AssertionError("Invalid preemption mode.")
         return preemption_strategy
 
     def _preempt_by_recompute(
         self,
-        seq_group: Task,
+        task: Task,
     ) -> None:
-        seqs = seq_group.get_seqs(status=RequestStatus.RUNNING)  # 获取这个seq_group下正在running的所有seqs
-        assert len(seqs) == 1 # 重计算时SG中的seq数量为1才正确
-        for seq in seqs:
-            seq.status = RequestStatus.WAITING 
+        reqs = task.get_reqs(status=RequestStatus.RUNNING)  # 获取这个seq_group下正在running的所有seqs
+        assert len(reqs) == 1 # 重计算时SG中的seq数量为1才正确
+        for req in reqs:
+            req.status = RequestStatus.WAITING 
             # 释放这条seq对应的物理块
             # 即将对应物理块的引用-1，如果此时引用数量为0，说明对应物理块完全自由了，需要再将其放入自由物理块列表中
-            self.free_seq(seq)
-            seq.reset_state_for_recompute()
+            self.free_seq(req)
+            req.reset_state_for_recompute()
 
     def _preempt_by_swap(
         self,
-        seq_group: Task,
+        task: Task,
         blocks_to_swap_out: Dict[int, int],
     ) -> None:
         # 释放该seq_group下所有seq的物理块，并为其分配对应的cpu物理块，
         # 将seq的状态从running改成swapped
-        self._swap_out(seq_group, blocks_to_swap_out)
+        self._swap_out(task, blocks_to_swap_out)
 
     def _swap_in(
         self,
-        seq_group: Task,
+        task: Task,
         blocks_to_swap_in: Dict[int, int],
     ) -> None:
-        mapping = self.block_manager.swap_in(seq_group)
+        mapping = self.block_manager.swap_in(task)
         blocks_to_swap_in.update(mapping)
-        for seq in seq_group.get_seqs(status=RequestStatus.SWAPPED):
-            seq.status = RequestStatus.RUNNING
+        for req in task.get_reqs(status=RequestStatus.SWAPPED):
+            req.status = RequestStatus.RUNNING
 
     def _swap_out(
         self,
-        seq_group: Task,   # 需要被swap到cpu上的seq_group
+        task: Task,   # 需要被swap到cpu上的seq_group
         blocks_to_swap_out: Dict[int, int],
     ) -> None:
-        if not self.block_manager.can_swap_out(seq_group):
+        if not self.block_manager.can_swap_out(task):
             # 检查是否可以将当前seq_group对应的物理块swap到cpu上
             # 可以的条件：当前seq_group占用的gpu物理块数量 <= cpu上可用的物理块数量
             raise RuntimeError(
@@ -1109,10 +1105,10 @@ class Scheduler:
                 "the swap space to avoid this error.")
         # 释放该seq_group下所有seq的gpu物理块，并为其创建对应的cpu块
         # mapping：{gpu物理块id：cpu物理块id}
-        mapping = self.block_manager.swap_out(seq_group)
+        mapping = self.block_manager.swap_out(task)
         blocks_to_swap_out.update(mapping)
-        for seq in seq_group.get_seqs(status=RequestStatus.RUNNING):
-            seq.status = RequestStatus.SWAPPED # 修改该seq_group下所有seq的状态：从running改成swapped
+        for req in task.get_reqs(status=RequestStatus.RUNNING):
+            req.status = RequestStatus.SWAPPED # 修改该seq_group下所有seq的状态：从running改成swapped
 
     def _passed_delay(self, now: float) -> bool:
         """
@@ -1153,7 +1149,7 @@ class Scheduler:
 
         return self.scheduler_config.num_lookahead_slots
 
-    def _get_num_new_tokens(self, seq_group: Task,
+    def _get_num_new_tokens(self, task: Task,
                             status: RequestStatus, enable_chunking: bool,
                             budget: SchedulingBudget) -> int:
         """
@@ -1163,35 +1159,36 @@ class Scheduler:
             如果由于token预算限制无法计算新token, 则返回0。
         """
         num_new_tokens = 0
-        seqs = seq_group.get_seqs(status=status)
-        for seq in seqs:
-            num_new_tokens += seq.get_num_new_tokens()
+        reqs = task.get_reqs(status=status)
+        for req in reqs:
+            num_new_tokens += req.get_num_new_tokens()
         assert num_new_tokens > 0
         # 如果正在运行的请求无法容纳，则进行分块
         # 如果序列数大于1，则表示正在解码阶段执行束搜索。在这种情况下，不进行分块。
-        if enable_chunking and len(seqs) == 1:
+        if enable_chunking and len(reqs) == 1:
             num_new_tokens = min(num_new_tokens,
                                  budget.remaining_token_budget())
         return num_new_tokens
-    def summary_finished_seq_groups(self,seq_groups: List[Task]):
+    
+    def summary_finished_tasks(self,tasks: List[Task]):
         df = pd.DataFrame(
         data={
             'ttft/s': [], 'time_in_queue/s': [], 'context_latency/s': [], 'decoder_latency/s': []
         },
         dtype=np.float32
         )
-        for seq_group in seq_groups:
-            ttft = seq_group.metrics.first_token_time - seq_group.metrics.arrival_time
-            time_in_queue = seq_group.metrics.time_in_queue
-            context_latency = seq_group.metrics.first_token_time - seq_group.metrics.first_scheduled_time
-            decoder_latency = seq_group.metrics.finished_time - seq_group.metrics.first_token_time
-            decoder_token_num = seq_group.get_seqs()[0].get_output_len() - 1
+        for task in tasks:
+            ttft = task.metrics.first_token_time - task.metrics.arrival_time
+            time_in_queue = task.metrics.time_in_queue
+            context_latency = task.metrics.first_token_time - task.metrics.first_scheduled_time
+            decoder_latency = task.metrics.finished_time - task.metrics.first_token_time
+            decoder_token_num = task.get_reqs()[0].get_output_len() - 1
             per_token_latency = decoder_latency if decoder_token_num == 0 \
                                                 else decoder_latency / decoder_token_num
             df_ = pd.DataFrame(
                 [[ttft, time_in_queue, context_latency, decoder_latency, per_token_latency, decoder_token_num]],
                 columns=['ttft/s', 'time_in_queue/s', 'context_latency/s', 'decoder_latency/s', 'per_token_latency/s', 'decoder_tokens'],
-                index=[str(seq_group.request_id)]
+                index=[str(task.task_id)]
             )
             df = pd.concat([df, df_])
         sum_, max_, mean_, min_, p99_ = df.sum(), df.max(), df.mean(), df.min(), df.quantile(0.99)
@@ -1211,7 +1208,7 @@ class Scheduler:
         figure.savefig("sinfer_utilization_view.jpg", dpi=300)
         plt.close(figure)
 
-        time_df = self.summary_finished_seq_groups(self.finished_seq_groups)
+        time_df = self.summary_finished_tasks(self.finished_tasks)
 
         max_, mean_, min_ = self.df.max(), self.df.mean(), self.df.min()
         self.df.loc["Max"] = max_

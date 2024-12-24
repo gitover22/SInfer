@@ -174,7 +174,7 @@ class Request:
     """存储一个请求的数据状态等
 
     Args:
-        seq_id: 请求id.
+        req_id: 请求id.
         prompt: The prompt of the sequence.
         prompt_token_ids: The token IDs of the prompt.
         block_size: The block size of the sequence. Should be the same as the
@@ -184,14 +184,14 @@ class Request:
 
     def __init__(
         self,
-        seq_id: int,
+        req_id: int,
         prompt: str,
         prompt_token_ids: List[int],
         block_size: int,
         eos_token_id: Optional[int] = None,
         lora_request: Optional[LoRARequest] = None,
     ) -> None:
-        self.seq_id = seq_id
+        self.req_id = req_id
         self.prompt = prompt
         self.block_size = block_size
         self.eos_token_id = eos_token_id
@@ -329,10 +329,10 @@ class Request:
     def is_finished(self) -> bool:
         return RequestStatus.is_finished(self.status)
 
-    def fork(self, new_seq_id: int) -> "Request":
-        new_seq = copy.deepcopy(self)
-        new_seq.seq_id = new_seq_id
-        return new_seq
+    def fork(self, new_req_id: int) -> "Request":
+        new_req = copy.deepcopy(self)
+        new_req.req_id = new_req_id
+        return new_req
 
     def get_num_new_tokens(self) -> int:
         """Get the number of new tokens to be computed.
@@ -349,7 +349,7 @@ class Request:
         return self.data.stage == Request_Stage.PREFILL
 
     def __repr__(self) -> str:
-        return (f"Sequence(seq_id={self.seq_id}, "
+        return (f"Request(req_id={self.req_id}, "
                 f"status={self.status.name}, "
                 f"num_blocks={len(self.logical_token_blocks)})")
 
@@ -366,23 +366,23 @@ class RequestOutput:
 
     def __init__(
         self,
-        parent_seq_id: int,
+        parent_req_id: int,
         output_token: int,
         logprobs: Dict[int, Logprob],
     ) -> None:
-        self.parent_seq_id = parent_seq_id
+        self.parent_req_id = parent_req_id
         self.output_token = output_token
         self.logprobs = logprobs
 
     def __repr__(self) -> str:
-        return (f"SequenceOutput(parent_seq_id={self.parent_seq_id}, "
+        return (f"RequestOutput(parent_req_id={self.parent_req_id}, "
                 f"output_token={self.output_token}, "
                 f"logprobs={self.logprobs})")
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, RequestOutput):
             raise NotImplementedError()
-        equal = (self.parent_seq_id == other.parent_seq_id
+        equal = (self.parent_req_id == other.parent_req_id
                  and self.output_token == other.output_token)
         log_probs_equal = other.logprobs == self.logprobs
         return equal and log_probs_equal

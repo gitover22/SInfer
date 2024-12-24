@@ -102,7 +102,7 @@ class LLM:
         )
         self.llm_runtime = LLMRuntime.from_runtime_args(
             runtime_args, usage_context=UsageContext.LLM_CLASS)
-        self.request_counter = Counter()
+        self.task_counter = Counter()
         self.dump_info.memory_usage()
 
     def get_tokenizer(
@@ -161,11 +161,11 @@ class LLM:
         if multi_modal_data:
             multi_modal_data.data = multi_modal_data.data.to(torch.float16)
 
-        # 给推理引擎添加requests
+        # 给推理引擎添加Task
         for i in range(num_requests):
             prompt = prompts[i] if prompts is not None else None
             token_ids = None if prompt_token_ids is None else prompt_token_ids[i]
-            self._add_request(
+            self._add_task(
                 prompt,
                 sampling_params[i] if isinstance(sampling_params, list) else sampling_params,
                 token_ids,
@@ -177,7 +177,7 @@ class LLM:
             )
         return self._launch_runtime(use_tqdm)
 
-    def _add_request(
+    def _add_task(
         self,
         prompt: Optional[str],
         sampling_params: SamplingParams,
@@ -185,8 +185,8 @@ class LLM:
         lora_request: Optional[LoRARequest] = None,
         multi_modal_data: Optional[MultiModalData] = None,
     ) -> None:
-        request_id = str(next(self.request_counter)) # request id 从 0 开始计数
-        self.llm_runtime.add_request(request_id,
+        task_id = str(next(self.task_counter)) # task id 从 0 开始计数
+        self.llm_runtime.add_task(task_id,
                                     prompt,
                                     sampling_params,
                                     prompt_token_ids,

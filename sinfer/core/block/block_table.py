@@ -5,11 +5,11 @@ from sinfer.utils import Device, cdiv, chunk_list
 
 
 class BlockTable:
-    """A class to manage blocks for a specific sequence.
+    """A class to manage blocks for a specific req.
 
-    The BlockTable maps a sequence of tokens to a list of blocks, where each
+    The BlockTable maps a req of tokens to a list of blocks, where each
     block represents a contiguous memory allocation for a portion of the 
-    sequence. The blocks are managed by a DeviceAwareBlockAllocator, which is
+    req. The blocks are managed by a DeviceAwareBlockAllocator, which is
     responsible for allocating and freeing memory for the blocks.
 
     Args:

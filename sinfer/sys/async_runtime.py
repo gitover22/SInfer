@@ -23,7 +23,7 @@ logger = init_logger(__name__)
 ENGINE_ITERATION_TIMEOUT_S = envs.SINFER_ENGINE_ITERATION_TIMEOUT_S
 
 
-class AsyncEngineDeadError(RuntimeError):
+class AsyncRuntimeDeadError(RuntimeError):
     pass
 
 
@@ -36,12 +36,12 @@ def _raise_exception_on_finish(
     exception = None
     try:
         task.result()
-        raise AsyncEngineDeadError(msg)
+        raise AsyncRuntimeDeadError(msg)
     except Exception as e:
         exception = e
         logger.error("Engine background task failed", exc_info=e)
         error_callback(exception)
-        raise AsyncEngineDeadError(
+        raise AsyncRuntimeDeadError(
             msg + " See stack trace above for the actual cause.") from e
 
 
@@ -132,16 +132,14 @@ class RequestPool:
             logger.info("Finished request %s.", request_id)
         self.abort_request(request_id)
 
-    def add_request(self, request_id: str,
+    def add_task(self, task_id: str,
                     **engine_add_request_kwargs) -> AsyncStream:
-        """Add a request to be sent to the engine on the next background
-        loop iteration."""
-        if request_id in self._request_streams:
-            raise KeyError(f"Request {request_id} already exists.")
+        if task_id in self._request_streams:
+            raise KeyError(f"task {task_id} already exists.")
 
-        stream = AsyncStream(request_id)
+        stream = AsyncStream(task_id)
         self._new_requests.put_nowait((stream, {
-            "request_id": request_id,
+            "task_id": task_id,
             **engine_add_request_kwargs
         }))
 
@@ -150,7 +148,6 @@ class RequestPool:
         return stream
 
     def abort_request(self, request_id: str, *, verbose: bool = False) -> None:
-        """Abort a request during next background loop iteration."""
         if verbose:
             logger.info("Aborted request %s.", request_id)
 
@@ -164,8 +161,6 @@ class RequestPool:
         self._request_streams[request_id].finish()
 
     def get_new_and_finished_requests(self) -> Tuple[List[Dict], Set[str]]:
-        """Get the new requests and finished requests to be
-        sent to the engine."""
         new_requests: List[Dict] = []
         finished_requests: Set[str] = set()
 
@@ -201,12 +196,12 @@ class _AsyncLLMRuntime(LLMRuntime):
         """异步执行一次解码迭代并返回新生成的结果。
         该函数执行引擎的一次解码迭代。首先，它会调度下一次迭代中需要执行的序列以及需要交换（载入/移出/复制）的 token 块。然后，执行模型推理，并使用模型的输出更新调度器。最后，它对序列进行解码并返回新生成的结果
         """
-        seq_group_metadata_list, scheduler_outputs = self.scheduler.schedule()
+        task_metadata_list, scheduler_outputs = self.scheduler.schedule()
 
         if not scheduler_outputs.is_empty():
             # Execute the model.
             execute_model_req = ExecuteModelRequest(
-                seq_group_metadata_list=seq_group_metadata_list,
+                seq_group_metadata_list=task_metadata_list,
                 blocks_to_swap_in=scheduler_outputs.blocks_to_swap_in,
                 blocks_to_swap_out=scheduler_outputs.blocks_to_swap_out,
                 blocks_to_copy=scheduler_outputs.blocks_to_copy,
@@ -219,8 +214,8 @@ class _AsyncLLMRuntime(LLMRuntime):
             output = []
 
         request_outputs = self._process_model_outputs(
-            output, scheduler_outputs.scheduled_seq_groups,
-            scheduler_outputs.ignored_seq_groups, seq_group_metadata_list)
+            output, scheduler_outputs.scheduled_tasks,
+            scheduler_outputs.ignored_tasks, task_metadata_list)
 
         self.do_log_stats(scheduler_outputs, output)
 
@@ -228,7 +223,7 @@ class _AsyncLLMRuntime(LLMRuntime):
 
     async def encode_request_async(
         self,
-        request_id: str,  # pylint: disable=unused-argument
+        request_id: str,
         prompt: Optional[str],
         prompt_token_ids: Optional[List[int]] = None,
         lora_request: Optional[LoRARequest] = None,
@@ -241,9 +236,9 @@ class _AsyncLLMRuntime(LLMRuntime):
                 lora_request=lora_request)
         return prompt_token_ids
 
-    async def add_request_async(
+    async def add_task_async(
         self,
-        request_id: str,
+        task_id: str,
         prompt: Optional[str],
         sampling_params: SamplingParams,
         prompt_token_ids: Optional[List[int]] = None,
@@ -257,12 +252,12 @@ class _AsyncLLMRuntime(LLMRuntime):
         if arrival_time is None:
             arrival_time = time.time()
         prompt_token_ids = await self.encode_request_async(
-            request_id=request_id,
+            request_id=task_id,
             prompt=prompt,
             prompt_token_ids=prompt_token_ids,
             lora_request=lora_request)
 
-        return self.add_request(request_id,
+        return self.add_task(task_id,
                                 prompt=prompt,
                                 prompt_token_ids=prompt_token_ids,
                                 sampling_params=sampling_params,
@@ -275,12 +270,12 @@ class _AsyncLLMRuntime(LLMRuntime):
 
 
 class AsyncLLMRuntime:
-    """对LLMEngine的异步包装
+    """对Runtime的异步包装
 
-    这个类用于封装 LLMEngine 类，使其支持异步操作。  
+    这个类用于封装 LLMRuntime 类，使其支持异步操作。  
     它使用 asyncio 创建一个后台循环，用于持续处理传入的请求。  
-    当等待队列中有请求时，通过调用 generate 方法唤醒 LLMEngine 
-    generate 方法会将 LLMEngine 的输出逐步传递给调用者。
+    当等待队列中有请求时，通过调用 generate 方法唤醒 LLMRuntime 
+    generate 方法会将 LLMRuntime 的输出逐步传递给调用者。
 
     Args:
         worker_use_ray: Whether to use Ray for model workers. Required for
@@ -306,63 +301,62 @@ class AsyncLLMRuntime:
                  *args,
                  log_requests: bool = True,
                  max_log_len: Optional[int] = None,
-                 start_engine_loop: bool = True,
+                 start_runtime_loop: bool = True,
                  **kwargs) -> None:
         self.worker_use_ray = worker_use_ray
         self.engine_use_ray = engine_use_ray
         self.log_requests = log_requests
         self.max_log_len = max_log_len
-        self.engine = self._init_engine(*args, **kwargs)
+        self.runtime = self._init_runtime(*args, **kwargs)
 
         self.background_loop: Optional[asyncio.Future] = None
 
         # 需要保持对未加保护的（unshielded）任务的引用
         # 以防止它被垃圾回收
         self._background_loop_unshielded: Optional[asyncio.Task[Any]] = None
-        self.start_engine_loop = start_engine_loop
+        self.start_runtime_loop = start_runtime_loop
         self._errored_with: Optional[BaseException] = None
 
         # Lazy initialized fields
         self._request_pool: RequestPool
 
     @classmethod
-    def from_engine_args(
+    def from_runtime_args(
         cls,
-        engine_args: AsyncRuntimeArgs,
-        start_engine_loop: bool = True,
+        runtime_args: AsyncRuntimeArgs,
+        start_runtime_loop: bool = True,
         usage_context: UsageContext = UsageContext.ENGINE_CONTEXT,
     ) -> "AsyncLLMRuntime":
-        """创建一个异步的LLMEngine"""
-        # Create the engine configs.
-        engine_config = engine_args.create_runtime_config() # 创建一个EngineConfig实例
+        """创建一个异步的runtime"""
+        runtime_config = runtime_args.create_runtime_config() # 创建一个RuntimeConfig实例
 
-        if engine_config.device_config.device_type == "cpu":
-            assert not engine_config.parallel_config.worker_use_ray, (
+        if runtime_config.device_config.device_type == "cpu":
+            assert not runtime_config.parallel_config.worker_use_ray, (
                 "Ray is not supported with the CPU backend.")
             from sinfer.executor.cpu_executor import CPUExecutorAsync
             executor_class = CPUExecutorAsync
-        elif engine_config.parallel_config.worker_use_ray:
-            initialize_ray_cluster(engine_config.parallel_config)
+        elif runtime_config.parallel_config.worker_use_ray:
+            initialize_ray_cluster(runtime_config.parallel_config)
             from sinfer.executor.ray_gpu_executor import RayGPUExecutorAsync
             executor_class = RayGPUExecutorAsync
         else:
-            assert engine_config.parallel_config.world_size == 1, (
+            assert runtime_config.parallel_config.world_size == 1, (
                 "Ray is required if parallel_config.world_size > 1.")
             from sinfer.executor.gpu_executor import GPUExecutorAsync
             executor_class = GPUExecutorAsync    # tensor-parallel-size = 1 时
-        # 创建异步LLM engine
-        engine = cls(
-            engine_config.parallel_config.worker_use_ray,
-            engine_args.engine_use_ray,
-            **engine_config.to_dict(),
+        # 创建异步LLM runtime
+        runtime = cls(
+            runtime_config.parallel_config.worker_use_ray,
+            runtime_args.engine_use_ray,
+            **runtime_config.to_dict(),
             executor_class=executor_class,
-            log_requests=not engine_args.disable_log_requests,
-            log_stats=not engine_args.disable_log_stats,
-            max_log_len=engine_args.max_log_len,
-            start_engine_loop=start_engine_loop,
+            log_requests=not runtime_args.disable_log_requests,
+            log_stats=not runtime_args.disable_log_stats,
+            max_log_len=runtime_args.max_log_len,
+            start_runtime_loop=start_runtime_loop,
             usage_context=usage_context,
         )
-        return engine
+        return runtime
 
     @property
     def is_running(self) -> bool:
@@ -389,14 +383,15 @@ class AsyncLLMRuntime:
 
     async def get_tokenizer(self) -> "PreTrainedTokenizer":
         if self.engine_use_ray:
-            return await self.engine.get_tokenizer.remote()  # type: ignore
+            return await self.runtime.get_tokenizer.remote()  # type: ignore
         else:
-            return self.engine.get_tokenizer()
+            return self.runtime.get_tokenizer()
 
     def start_background_loop(self) -> None:
         """Start the background loop."""
         if self.errored:
-            raise AsyncEngineDeadError(
+            logger.info(self._errored_with)
+            raise AsyncRuntimeDeadError(
                 "Background loop has errored already.") from self._errored_with
         if self.is_running:
             raise RuntimeError("Background loop is already running.")
@@ -404,18 +399,18 @@ class AsyncLLMRuntime:
         self._request_pool = RequestPool()
 
         self._background_loop_unshielded = asyncio.get_event_loop(
-        ).create_task(self.run_engine_loop())
+        ).create_task(self.runtime_loop())
         self._background_loop_unshielded.add_done_callback(
             partial(_raise_exception_on_finish,
                     error_callback=self._error_callback))
         self.background_loop = asyncio.shield(self._background_loop_unshielded)
 
-    def _init_engine(self, *args,
+    def _init_runtime(self, *args,
                      **kwargs) -> Union[_AsyncLLMRuntime, "ray.ObjectRef"]:
         if not self.engine_use_ray:
-            engine_class = self._runtime_class
+            runtime_class = self._runtime_class
         elif self.worker_use_ray:
-            engine_class = ray.remote(num_cpus=0)(self._runtime_class).remote
+            runtime_class = ray.remote(num_cpus=0)(self._runtime_class).remote
         else:
             # This is a bit hacky. Be careful when changing the
             # order of the arguments.
@@ -425,13 +420,12 @@ class AsyncLLMRuntime:
                 num_gpus = cache_config.gpu_memory_utilization
             else:
                 num_gpus = 1
-            engine_class = ray.remote(num_gpus=num_gpus)(
+            runtime_class = ray.remote(num_gpus=num_gpus)(
                 self._runtime_class).remote
-        return engine_class(*args, **kwargs)
+        return runtime_class(*args, **kwargs)
 
-    async def engine_step(self) -> bool:
+    async def runtime_step(self) -> bool:
         """触发引擎处理tracker中的请求
-
         如果有正在处理的请求，则返回 True"""
 
         new_requests, finished_requests = (
@@ -442,10 +436,10 @@ class AsyncLLMRuntime:
             # TODO: Maybe add add_request_batch to reduce Ray overhead
             try:
                 if self.engine_use_ray:
-                    await self.engine.add_request.remote(  # type: ignore
+                    await self.runtime.add_task.remote(  # type: ignore
                         **new_request)
                 else:
-                    await self.engine.add_request_async(**new_request)
+                    await self.runtime.add_task_async(**new_request)
             except ValueError as e:
                 # TODO: use a SInfer specific error for failed validation
                 self._request_pool.process_exception(
@@ -455,12 +449,12 @@ class AsyncLLMRuntime:
                 )
 
         if finished_requests:
-            await self._engine_abort(finished_requests)
+            await self._runtime_abort(finished_requests)
 
         if self.engine_use_ray:
-            request_outputs = await self.engine.step.remote()  # type: ignore
+            request_outputs = await self.runtime.step.remote()  # type: ignore
         else:
-            request_outputs = await self.engine.step_async()
+            request_outputs = await self.runtime.step_async()
 
         # Put the outputs into the corresponding streams.
         for request_output in request_outputs:
@@ -469,13 +463,13 @@ class AsyncLLMRuntime:
 
         return len(request_outputs) > 0
 
-    async def _engine_abort(self, request_ids: Iterable[str]):
+    async def _runtime_abort(self, request_ids: Iterable[str]):
         if self.engine_use_ray:
-            await self.engine.abort_request.remote(request_ids)  # type: ignore
+            await self.runtime.abort_task.remote(request_ids)  # type: ignore
         else:
-            self.engine.abort_request(request_ids)
+            self.runtime.abort_task(request_ids)
 
-    async def run_engine_loop(self):
+    async def runtime_loop(self):
         has_requests_in_progress = False
         while True:
             if not has_requests_in_progress:
@@ -487,7 +481,7 @@ class AsyncLLMRuntime:
             # (eg. NCCL timeouts).
             try:
                 has_requests_in_progress = await asyncio.wait_for(
-                    self.engine_step(), ENGINE_ITERATION_TIMEOUT_S)
+                    self.runtime_step(), ENGINE_ITERATION_TIMEOUT_S)
             except asyncio.TimeoutError as exc:
                 logger.error(
                     "Engine iteration timed out. This should never happen!")
@@ -495,9 +489,9 @@ class AsyncLLMRuntime:
                 raise
             await asyncio.sleep(0)
 
-    async def add_request(
+    async def add_task(
         self,
-        request_id: str,
+        task_id: str,
         prompt: Optional[str],
         sampling_params: SamplingParams,
         prompt_token_ids: Optional[List[int]] = None,
@@ -517,14 +511,14 @@ class AsyncLLMRuntime:
             logger.info(
                 "Received request %s: prompt: %r, "
                 "sampling_params: %s, prompt_token_ids: %s, "
-                "lora_request: %s.", request_id, shortened_prompt,
+                "lora_request: %s.", task_id, shortened_prompt,
                 sampling_params, shortened_token_ids, lora_request)
 
         if not self.is_running:
-            if self.start_engine_loop:
+            if self.start_runtime_loop:
                 self.start_background_loop()
             else:
-                raise AsyncEngineDeadError(
+                raise AsyncRuntimeDeadError(
                     "Background loop is not running. If it was running, "
                     "inspect the output to find the stacktrace of the "
                     "error that caused the background loop to stop "
@@ -535,20 +529,20 @@ class AsyncLLMRuntime:
 
         if self.engine_use_ray:
             prompt_token_ids = await (
-                self.engine.encode_request_async.remote(  # type: ignore
-                    request_id=request_id,
+                self.runtime.encode_request_async.remote(  # type: ignore
+                    request_id=task_id,
                     prompt=prompt,
                     prompt_token_ids=prompt_token_ids,
                     lora_request=lora_request))
         else:
-            prompt_token_ids = await self.engine.encode_request_async(
-                request_id=request_id,
+            prompt_token_ids = await self.runtime.encode_request_async(
+                request_id=task_id,
                 prompt=prompt,
                 prompt_token_ids=prompt_token_ids,
                 lora_request=lora_request)
 
-        stream = self._request_pool.add_request(
-            request_id,
+        stream = self._request_pool.add_task(
+            task_id,
             prompt=prompt,
             sampling_params=sampling_params,
             prompt_token_ids=prompt_token_ids,
@@ -635,7 +629,7 @@ class AsyncLLMRuntime:
         arrival_time = time.time()
 
         try:
-            stream = await self.add_request(
+            stream = await self.add_task(
                 request_id,
                 prompt,
                 sampling_params,
@@ -662,7 +656,7 @@ class AsyncLLMRuntime:
             request_id: The unique id of the request.
         """
         if not self.is_running:
-            raise AsyncEngineDeadError(
+            raise AsyncRuntimeDeadError(
                 "Background loop is not running. If it was running, "
                 "inspect the output to find the stacktrace of the "
                 "error that caused the background loop to stop "
@@ -682,43 +676,44 @@ class AsyncLLMRuntime:
     async def get_model_config(self) -> ModelConfig:
         """Get the model configuration of the SInfer engine."""
         if self.engine_use_ray:
-            return await self.engine.get_model_config.remote()  # type: ignore
+            return await self.runtime.get_model_config.remote()  # type: ignore
         else:
-            return self.engine.get_model_config()
+            return self.runtime.get_model_config()
 
     async def get_decoding_config(self) -> DecodingConfig:
         """Get the decoding configuration of the SInfer engine."""
         if self.engine_use_ray:
-            return await self.engine.get_decoding_config.remote(  # type: ignore
+            return await self.runtime.get_decoding_config.remote(  # type: ignore
             )
         else:
-            return self.engine.get_decoding_config()
+            return self.runtime.get_decoding_config()
 
     async def do_log_stats(
             self,
             scheduler_outputs: Optional[SchedulerOutputs] = None,
             model_output: Optional[List[SamplerOutput]] = None) -> None:
         if self.engine_use_ray:
-            await self.engine.do_log_stats.remote(  # type: ignore
+            await self.runtime.do_log_stats.remote(  # type: ignore
                 scheduler_outputs, model_output)
         else:
-            self.engine.do_log_stats()
+            self.runtime.do_log_stats()
 
     async def check_health(self) -> None:
-        """Raises an error if engine is unhealthy."""
+        """Raises an error if runtime is unhealthy."""
         t = time.perf_counter()
         logger.debug("Starting health check...")
         if self.is_stopped:
-            raise AsyncEngineDeadError("Background loop is stopped.")
+            raise AsyncRuntimeDeadError("Background loop is stopped.")
 
         if self.engine_use_ray:
             try:
-                await self.engine.check_health.remote()  # type: ignore
+                await self.runtime.check_health.remote()  # type: ignore
             except ray.exceptions.RayActorError as e:
                 raise RuntimeError("Engine is dead.") from e
         else:
-            await self.engine.check_health_async()
+            await self.runtime.check_health_async()
         logger.debug("Health check took %fs", time.perf_counter() - t)
+
     def save_scheduler_view(self):
-        if hasattr(self.engine.scheduler, "__del__"):
-            self.engine.scheduler.__del__()
+        if hasattr(self.runtime.scheduler, "__del__"):
+            self.runtime.scheduler.__del__()

@@ -69,12 +69,12 @@ class MultiStepOutputProcessor(SequenceGroupOutputProcessor):
         including freeing finished sequences. It also handles cases where there
         are tokens emitted after the EOS token.
         """
-        seqs = sequence_group.get_seqs(status=RequestStatus.RUNNING)
+        reqs = sequence_group.get_reqs(status=RequestStatus.RUNNING)
 
-        assert seqs, "expected running sequences"
-        assert len(seqs) == 1, (
+        assert reqs, "expected running sequences"
+        assert len(reqs) == 1, (
             "Beam search not supported in multi-step decoding.")
-        seq = seqs[0]
+        seq = reqs[0]
 
         # Since there's only one sequence per sequence group, we can take the
         # first sample.

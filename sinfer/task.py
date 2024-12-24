@@ -31,18 +31,18 @@ class MultiModalData:
 
 @dataclass
 class Task_State:
-    """Mutable state tied to a specific sequence group"""
+    """Mutable state tied to a specific task"""
 
     # torch.Generator used in seeded sampling
     generator: Optional = None  # type: ignore
 
 
 class Task:
-    """A group of sequences that are generated from the same prompt.
+    """A group of reqs that are generated from the same prompt.
 
     Args:
-        request_id: 请求id, 一个SG就是一个请求, 对应一个id
-        seqs: The list of sequences.
+        task_id: 一个Task对应一个id
+        reqs: The list of requests
         sampling_params: The sampling parameters used to generate the outputs.
         arrival_time: The arrival time of the request.
         lora_request: LoRA request.
@@ -51,15 +51,15 @@ class Task:
 
     def __init__(
         self,
-        request_id: str,
-        seqs: List[Request],
+        task_id: str,
+        reqs: List[Request],
         sampling_params: SamplingParams,
         arrival_time: float,
         lora_request: Optional[LoRARequest] = None,
         multi_modal_data: Optional[MultiModalData] = None,
     ) -> None:
-        self.request_id = request_id
-        self.seqs_dict = {seq.seq_id: seq for seq in seqs}
+        self.task_id = task_id
+        self.reqs_dict = {req.req_id: req for req in reqs}
         self.sampling_params = sampling_params
         self.metrics = RequestMetrics(arrival_time=arrival_time,
                                       last_token_time=arrival_time,
@@ -75,13 +75,13 @@ class Task:
     def prompt(self) -> str:
         # All sequences in the group should have the same prompt.
         # We use the prompt of an arbitrary sequence.
-        return next(iter(self.seqs_dict.values())).prompt
+        return next(iter(self.reqs_dict.values())).prompt
 
     @property
     def prompt_token_ids(self) -> List[int]:
         # All sequences in the group should have the same prompt.
         # We use the prompt of an arbitrary sequence.
-        return next(iter(self.seqs_dict.values())).data.prompt_token_ids
+        return next(iter(self.reqs_dict.values())).data.prompt_token_ids
 
     @property
     def lora_int_id(self) -> int:
@@ -107,7 +107,7 @@ class Task:
         #   in TPOT, rather than recalculating TTFT (since from the )
         #   POV of the user, there is simply a long generation delay.
         if (self.metrics.first_token_time is None
-                and self.get_seqs()[0].get_output_len() == 1):
+                and self.get_reqs()[0].get_output_len() == 1):
             self.metrics.first_token_time = time
 
     def maybe_set_first_scheduled_time(self, time: float) -> None:
@@ -131,48 +131,48 @@ class Task:
             # 若采用beam search，每1个推理阶段都是best_of（束宽）个seq在running
             return self.sampling_params.best_of
         else:
-            if self.sampling_params.best_of > self.num_seqs():
+            if self.sampling_params.best_of > self.num_reqs():
                 # 不适用束搜索时，best_of默认和n一致，即1个prompt产出n个outputs
                 # 如果出现best_of > self.num_seqs()的情况，说明该seq_group刚从waiting变成running，准备做推理
                 return self.sampling_params.best_of
             # 其余情况，返回未完成推理的seq数量
             return self.num_unfinished_seqs()
 
-    def get_seqs(
+    def get_reqs(
         self,
         status: Optional[RequestStatus] = None,
     ) -> List[Request]:
-        return list(self.seqs_dict.values()) if status is None else [
-            seq for seq in self.seqs_dict.values() if seq.status == status
+        return list(self.reqs_dict.values()) if status is None else [
+            req for req in self.reqs_dict.values() if req.status == status
         ]
 
     def get_unfinished_seqs(self) -> List[Request]:
         return [
-            seq for seq in self.seqs_dict.values() if not seq.is_finished()
+            req for req in self.reqs_dict.values() if not req.is_finished()
         ]
 
     def get_finished_seqs(self) -> List[Request]:
-        return [seq for seq in self.seqs_dict.values() if seq.is_finished()]
+        return [req for req in self.reqs_dict.values() if req.is_finished()]
 
     def update_num_computed_tokens(self, num_new_computed_tokens: int):
         """Update number of tokens computed so far."""
-        for seq in self.seqs_dict.values():
-            if not seq.is_finished():
-                seq.data.update_num_computed_tokens(num_new_computed_tokens)
+        for req in self.reqs_dict.values():
+            if not req.is_finished():
+                req.data.update_num_computed_tokens(num_new_computed_tokens)
 
     def get_num_uncomputed_tokens(self) -> int:
         num_uncomputed_tokens = 0
-        for seq in self.get_seqs():
-            if not seq.is_finished():
-                num_uncomputed_tokens += seq.data.get_num_uncomputed_tokens()
+        for req in self.get_reqs():
+            if not req.is_finished():
+                num_uncomputed_tokens += req.data.get_num_uncomputed_tokens()
         return num_uncomputed_tokens
 
-    def num_seqs(self, status: Optional[RequestStatus] = None) -> int:
-        # 获取序列组中的序列数量
+    def num_reqs(self, status: Optional[RequestStatus] = None) -> int:
+        # 获取任务中的Request数量
         if status is None:
-            return len(self.seqs_dict)
+            return len(self.reqs_dict)
 
-        return len(self.get_seqs(status))
+        return len(self.get_reqs(status))
 
     def num_unfinished_seqs(self) -> int:
         return len(self.get_unfinished_seqs())
@@ -181,31 +181,31 @@ class Task:
         return len(self.get_finished_seqs())
 
     def find(self, seq_id: int) -> Request:
-        if seq_id not in self.seqs_dict:
+        if seq_id not in self.reqs_dict:
             raise ValueError(f"Sequence {seq_id} not found.")
-        return self.seqs_dict[seq_id]
+        return self.reqs_dict[seq_id]
 
-    def add(self, seq: Request) -> None:
-        if seq.seq_id in self.seqs_dict:
-            raise ValueError(f"Sequence {seq.seq_id} already exists.")
-        self.seqs_dict[seq.seq_id] = seq
+    def add(self, req: Request) -> None:
+        if req.req_id in self.reqs_dict:
+            raise ValueError(f"Sequence {req.req_id} already exists.")
+        self.reqs_dict[req.req_id] = req
 
     def remove(self, seq_id: int) -> None:
-        if seq_id not in self.seqs_dict:
+        if seq_id not in self.reqs_dict:
             raise ValueError(f"Sequence {seq_id} not found.")
-        del self.seqs_dict[seq_id]
+        del self.reqs_dict[seq_id]
 
     def is_finished(self) -> bool:
-        return all(seq.is_finished() for seq in self.get_seqs())
+        return all(req.is_finished() for req in self.get_reqs())
 
     def is_prefill(self) -> bool:
         # Every sequences should be in the same stage.
-        return self.get_seqs()[0].is_prefill()
+        return self.get_reqs()[0].is_prefill()
 
     def __repr__(self) -> str:
-        return (f"SequenceGroup(request_id={self.request_id}, "
+        return (f"SequenceGroup(request_id={self.task_id}, "
                 f"sampling_params={self.sampling_params}, "
-                f"num_seqs={len(self.seqs_dict)})")
+                f"num_seqs={len(self.reqs_dict)})")
 
 
 class TaskMetadata:
@@ -214,9 +214,9 @@ class TaskMetadata:
     Args:
         request_id: The ID of the request.
         is_prompt: Whether the request is at prompt stage.
-        seq_data: The sequence data. (Seq id -> sequence data)
+        req_data: The sequence data. (req id -> sequence data)
         sampling_params: The sampling parameters used to generate the outputs.
-        block_tables: The block tables. (Seq id -> list of physical block
+        block_tables: The block tables. (req id -> list of physical block
             numbers)
         do_sample: True if sampling is required. Sampling is not required when
             e.g., prefill is chunked, and the current iteration only computes
@@ -232,9 +232,9 @@ class TaskMetadata:
 
     def __init__(
         self,
-        request_id: str,
+        task_id: str,
         is_prompt: bool,
-        seq_data: Dict[int, RequestData],
+        req_data: Dict[int, RequestData],
         sampling_params: SamplingParams,
         block_tables: Dict[int, List[int]],
         do_sample: bool = True,
@@ -244,9 +244,9 @@ class TaskMetadata:
         state: Optional[Task_State] = None,
         multi_modal_data: Optional[MultiModalData] = None,
     ) -> None:
-        self.request_id = request_id
+        self.task_id = task_id
         self.is_prompt = is_prompt
-        self.seq_data = seq_data
+        self.req_data = req_data
         self.sampling_params = sampling_params
         self.block_tables = block_tables
         self.lora_request = lora_request
@@ -258,7 +258,7 @@ class TaskMetadata:
 
         if self._token_chunk_size is None:
             if is_prompt:
-                self._token_chunk_size = list(seq_data.values())[0].get_len()
+                self._token_chunk_size = list(req_data.values())[0].get_len()
             else:
                 self._token_chunk_size = 1
 

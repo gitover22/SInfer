@@ -4,8 +4,7 @@ openai_api_key = "token-abc123"
 openai_api_base = "http://localhost:8000/v1"
 
 client = OpenAI(
-    # defaults to os.environ.get("OPENAI_API_KEY")
-    api_key=openai_api_key,
+    api_key=openai_api_key, # default by envs
     base_url=openai_api_base,
 )
 

@@ -74,41 +74,41 @@ class CPUModelRunner:
 
     def _prepare_prompt(
         self,
-        seq_group_metadata_list: List[TaskMetadata],
+        task_metadata_list: List[TaskMetadata],
     ) -> Tuple[torch.Tensor, torch.Tensor, AttentionMetadata, List[int],
                Optional[torch.Tensor]]:
-        assert len(seq_group_metadata_list) > 0
+        assert len(task_metadata_list) > 0
         input_tokens: List[int] = []
         input_positions: List[int] = []
         slot_mapping: List[int] = []
         seq_lens: List[int] = []
         multi_modal_input_list: List[torch.Tensor] = []
 
-        for seq_group_metadata in seq_group_metadata_list:
-            assert seq_group_metadata.is_prompt
-            seq_ids = list(seq_group_metadata.seq_data.keys())
-            assert len(seq_ids) == 1
-            seq_id = seq_ids[0]
+        for task_metadata in task_metadata_list:
+            assert task_metadata.is_prompt
+            req_ids = list(task_metadata.req_data.keys())
+            assert len(req_ids) == 1
+            seq_id = req_ids[0]
 
-            seq_data = seq_group_metadata.seq_data[seq_id]
-            prompt_tokens = seq_data.get_token_ids()
-            computed_len = seq_data.get_num_computed_tokens()
+            req_data = task_metadata.req_data[seq_id]
+            prompt_tokens = req_data.get_token_ids()
+            computed_len = req_data.get_num_computed_tokens()
             seq_len = len(prompt_tokens)
 
             seq_lens.append(seq_len)  # Prompt token num
             input_tokens.extend(prompt_tokens)  # Token ids
 
             # Token position ids
-            # NOTE(woosuk): Here we assume that the first token in the prompt
+            # Here we assume that the first token in the prompt
             # is always the first token in the sequence.
             input_positions.extend(list(range(computed_len, seq_len)))
 
-            if seq_group_metadata.multi_modal_data:
+            if task_metadata.multi_modal_data:
                 multi_modal_input_list.append(
-                    seq_group_metadata.multi_modal_data.data)
+                    task_metadata.multi_modal_data.data)
 
             # Compute the slot mapping.
-            block_table = seq_group_metadata.block_tables[seq_id]
+            block_table = task_metadata.block_tables[seq_id]
             # Mask the [0, start_idx) tokens of the prompt with _PAD_SLOT_ID,
             # where start_idx is max(0, seq_len - sliding_window).
             # For example, if the prompt len is 10, sliding window is 8, and
@@ -182,10 +182,10 @@ class CPUModelRunner:
             assert not seq_group_metadata.is_prompt
             assert seq_group_metadata.token_chunk_size == 1
 
-            seq_ids = list(seq_group_metadata.seq_data.keys())
+            seq_ids = list(seq_group_metadata.req_data.keys())
 
             for seq_id in seq_ids:
-                seq_data = seq_group_metadata.seq_data[seq_id]
+                seq_data = seq_group_metadata.req_data[seq_id]
                 generation_token = seq_data.get_last_token_id()
                 input_tokens.append(generation_token)
 

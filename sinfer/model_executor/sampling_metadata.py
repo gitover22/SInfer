@@ -194,7 +194,7 @@ def _prepare_seq_groups(
     num_prompts = 0
 
     for i, seq_group_metadata in enumerate(seq_group_metadata_list):
-        seq_ids = list(seq_group_metadata.seq_data.keys())
+        seq_ids = list(seq_group_metadata.req_data.keys())
         sampling_params = seq_group_metadata.sampling_params
         is_prompt = seq_group_metadata.is_prompt
         generator: Optional[torch.Generator] = None
@@ -276,7 +276,7 @@ def _prepare_seq_groups(
             SequenceGroupToSample(
                 seq_ids=seq_ids,
                 sampling_params=sampling_params,
-                seq_data=seq_group_metadata.seq_data,
+                seq_data=seq_group_metadata.req_data,
                 seq_len=seq_len,
                 query_len=query_len,
                 generator=generator,

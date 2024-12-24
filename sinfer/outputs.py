@@ -93,16 +93,16 @@ class RequestOutput:
         self.lora_request = lora_request
 
     @classmethod
-    def from_seq_group(cls, seq_group: Task) -> "RequestOutput":
-        seqs = seq_group.get_seqs()
+    def from_task(cls, task: Task) -> "RequestOutput":
+        seqs = task.get_reqs()
         if len(seqs) == 1:
             top_n_seqs = seqs
         else:
             # Get the top-n sequences.
-            n = seq_group.sampling_params.n
-            if seq_group.sampling_params.use_beam_search:
+            n = task.sampling_params.n
+            if task.sampling_params.use_beam_search:
                 sorting_key = lambda seq: seq.get_beam_search_score(
-                    seq_group.sampling_params.length_penalty)
+                    task.sampling_params.length_penalty)
             else:
                 sorting_key = lambda seq: seq.get_cumulative_logprob()
             sorted_seqs = sorted(seqs, key=sorting_key, reverse=True)
@@ -112,8 +112,8 @@ class RequestOutput:
         # NOTE: We need omit logprobs here explicitly because the sequence
         # always has the logprobs of the sampled tokens even if the
         # logprobs are not requested.
-        include_logprobs = seq_group.sampling_params.logprobs is not None
-        text_buffer_length = seq_group.sampling_params.output_text_buffer_length
+        include_logprobs = task.sampling_params.logprobs is not None
+        text_buffer_length = task.sampling_params.output_text_buffer_length
         outputs = [
             CompletionOutput(seqs.index(seq),
                              seq.get_output_text_to_return(text_buffer_length),
@@ -125,20 +125,20 @@ class RequestOutput:
         ]
 
         # Every sequence in the sequence group should have the same prompt.
-        prompt = seq_group.prompt
-        prompt_token_ids = seq_group.prompt_token_ids
-        prompt_logprobs = seq_group.prompt_logprobs
-        finished = seq_group.is_finished()
+        prompt = task.prompt
+        prompt_token_ids = task.prompt_token_ids
+        prompt_logprobs = task.prompt_logprobs
+        finished = task.is_finished()
         finished_time = time.time() if finished else None
-        seq_group.set_finished_time(finished_time)
-        return cls(seq_group.request_id,
+        task.set_finished_time(finished_time)
+        return cls(task.task_id,
                    prompt,
                    prompt_token_ids,
                    prompt_logprobs,
                    outputs,
                    finished,
-                   seq_group.metrics,
-                   lora_request=seq_group.lora_request)
+                   task.metrics,
+                   lora_request=task.lora_request)
 
     def __repr__(self) -> str:
         return (f"RequestOutput(request_id={self.request_id}, "

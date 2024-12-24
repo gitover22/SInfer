@@ -209,7 +209,7 @@ class ModelRunner:
 
     def _prepare_prompt(
         self,
-        seq_group_metadata_list: List[TaskMetadata],
+        task_metadata_list: List[TaskMetadata],
     ) -> PreparePromptMetadata:
         input_tokens: List[int] = []
         input_positions: List[int] = []
@@ -218,22 +218,22 @@ class ModelRunner:
         lora_prompt_mapping: List[int] = []
         lora_requests: Set[LoRARequest] = set()
 
-        seq_lens: List[int] = []
+        req_lens: List[int] = []
         context_lens: List[int] = []
         query_lens: List[int] = []
         prefix_block_tables: List[List[int]] = []
         multi_modal_input_list: List[torch.Tensor] = []
 
-        if len(seq_group_metadata_list) == 0:
+        if len(task_metadata_list) == 0:
             return PreparePromptMetadata.empty()
 
-        for seq_group_metadata in seq_group_metadata_list:
-            assert seq_group_metadata.is_prompt
-            seq_ids = list(seq_group_metadata.seq_data.keys())
-            assert len(seq_ids) == 1
-            seq_id = seq_ids[0]
+        for task_metadata in task_metadata_list:
+            assert task_metadata.is_prompt
+            req_ids = list(task_metadata.req_data.keys())
+            assert len(req_ids) == 1
+            seq_id = req_ids[0]
 
-            computed_block_nums = seq_group_metadata.computed_block_nums
+            computed_block_nums = task_metadata.computed_block_nums
             if (self.scheduler_config is not None
                     and self.scheduler_config.chunked_prefill_enabled
                     and not (computed_block_nums is None
@@ -242,14 +242,14 @@ class ModelRunner:
                     "chunked prefill cannot be used with prefix caching "
                     "now.")
 
-            token_chunk_size = seq_group_metadata.token_chunk_size
-            seq_data = seq_group_metadata.seq_data[seq_id]
-            context_len = seq_data.get_num_computed_tokens()
+            token_chunk_size = task_metadata.token_chunk_size
+            req_data = task_metadata.req_data[seq_id]
+            context_len = req_data.get_num_computed_tokens()
             # We should use get_len here because in case of preemption
             # it contains output tokens.
-            seq_len = min(seq_data.get_len(), context_len + token_chunk_size)
-            prompt_tokens = seq_data.get_token_ids()[context_len:seq_len]
-            seq_lens.append(seq_len)
+            req_len = min(req_data.get_len(), context_len + token_chunk_size)
+            prompt_tokens = req_data.get_token_ids()[context_len:req_len]
+            req_lens.append(req_len)
 
             # NOTE: This only works for oooooooxxx style attention.
             if computed_block_nums is not None and len(
@@ -259,9 +259,9 @@ class ModelRunner:
                 prompt_tokens = prompt_tokens[context_len:]
                 prefix_block_tables.append(computed_block_nums)
             elif self.scheduler_config.chunked_prefill_enabled:
-                if seq_group_metadata.block_tables is not None:
+                if task_metadata.block_tables is not None:
                     # Prefill has chunked before.
-                    block_table = seq_group_metadata.block_tables[seq_id]
+                    block_table = task_metadata.block_tables[seq_id]
                     prefix_block_tables.append(block_table)
                 else:
                     # The first prefill.
@@ -274,35 +274,35 @@ class ModelRunner:
 
             # actual prompt lens
             context_lens.append(context_len)
-            query_lens.append(seq_len - context_len)
+            query_lens.append(req_len - context_len)
 
             input_tokens.extend(prompt_tokens)
             # Here we assume that the first token in the prompt
-            # is always the first token in the sequence.
-            input_positions.extend(list(range(context_len, seq_len)))
-            lora_id = seq_group_metadata.lora_int_id
+            # is always the first token in the req.
+            input_positions.extend(list(range(context_len, req_len)))
+            lora_id = task_metadata.lora_int_id
 
             if lora_id > 0:
-                lora_requests.add(seq_group_metadata.lora_request)
+                lora_requests.add(task_metadata.lora_request)
 
-            lora_index_mapping += [lora_id] * (seq_len - context_len)
+            lora_index_mapping += [lora_id] * (req_len - context_len)
             lora_prompt_mapping.extend(
                 [lora_id] *
-                (seq_len - context_len
-                 if seq_group_metadata.sampling_params.prompt_logprobs else 1))
+                (req_len - context_len
+                 if task_metadata.sampling_params.prompt_logprobs else 1))
 
-            if seq_group_metadata.multi_modal_data:
+            if task_metadata.multi_modal_data:
                 multi_modal_input_list.append(
-                    seq_group_metadata.multi_modal_data.data)
+                    task_metadata.multi_modal_data.data)
 
-            if seq_group_metadata.block_tables is None:
+            if task_metadata.block_tables is None:
                 # During memory profiling, the block tables are not initialized
                 # yet. In this case, we just use a dummy slot mapping.
-                slot_mapping.extend([_PAD_SLOT_ID] * seq_len)
+                slot_mapping.extend([_PAD_SLOT_ID] * req_len)
                 continue
 
             # Compute the slot mapping.
-            block_table = seq_group_metadata.block_tables[seq_id]
+            block_table = task_metadata.block_tables[seq_id]
 
             # Mask the [0, start_idx) tokens of the prompt with _PAD_SLOT_ID,
             # where start_idx is max(0, seq_len - sliding_window).
@@ -314,9 +314,9 @@ class ModelRunner:
                 assert context_len == 0, (
                     "Prefix caching is currently not supported with "
                     "sliding window attention")
-                start_idx = max(0, seq_len - self.sliding_window)
+                start_idx = max(0, req_len - self.sliding_window)
 
-            for i in range(context_len, seq_len):
+            for i in range(context_len, req_len):
                 if i < start_idx:
                     slot_mapping.append(_PAD_SLOT_ID)
                     continue
@@ -327,7 +327,7 @@ class ModelRunner:
                 slot_mapping.append(slot)
 
         max_query_len = max(query_lens)
-        max_seq_len = max(seq_lens)
+        max_req_len = max(req_lens)
         assert max_query_len > 0
 
         context_lens_tensor = torch.tensor(context_lens,
@@ -362,7 +362,7 @@ class ModelRunner:
                                          dtype=torch.int32,
                                          device=self.device)
 
-        seq_lens_tensor = torch.tensor(seq_lens,
+        seq_lens_tensor = torch.tensor(req_lens,
                                        dtype=torch.int,
                                        device=self.device)
         seq_start_loc = torch.zeros(seq_lens_tensor.shape[0] + 1,
@@ -384,15 +384,15 @@ class ModelRunner:
                 is_prompt=True,
                 use_cuda_graph=False,
                 seq_start_loc=seq_start_loc,
-                max_seq_len=max_seq_len,
+                max_seq_len=max_req_len,
                 block_tables=block_tables)
         else:
             attn_metadata = self.attn_backend.make_metadata(
                 is_prompt=True,
-                seq_lens=seq_lens,
+                seq_lens=req_lens,
                 seq_lens_tensor=seq_lens_tensor,
                 max_query_len=max_query_len,
-                max_seq_len=max_seq_len,
+                max_seq_len=max_req_len,
                 subquery_start_loc=subquery_start_loc,
                 seq_start_loc=seq_start_loc,
                 context_lens_tensor=context_lens_tensor,
@@ -404,7 +404,7 @@ class ModelRunner:
             input_tokens=input_tokens,
             input_positions=input_positions,
             attn_metadata=attn_metadata,
-            seq_lens=seq_lens,
+            seq_lens=req_lens,
             query_lens=query_lens,
             lora_index_mapping=lora_index_mapping,
             lora_prompt_mapping=lora_prompt_mapping,
@@ -451,14 +451,14 @@ class ModelRunner:
             assert not seq_group_metadata.is_prompt
             assert seq_group_metadata.token_chunk_size == 1
 
-            seq_ids = list(seq_group_metadata.seq_data.keys())
+            seq_ids = list(seq_group_metadata.req_data.keys())
             lora_id = seq_group_metadata.lora_int_id
 
             if lora_id > 0:
                 lora_requests.add(seq_group_metadata.lora_request)
 
             for seq_id in seq_ids:
-                seq_data = seq_group_metadata.seq_data[seq_id]
+                seq_data = seq_group_metadata.req_data[seq_id]
                 generation_token = seq_data.get_last_token_id()
                 input_tokens.append(generation_token)
 
@@ -855,9 +855,9 @@ class ModelRunner:
             seq_data, fake_multi_modal_input = _prepare_fake_inputs(
                 seq_len, self.vision_language_config)
             seq = TaskMetadata(
-                request_id=str(group_id),
+                task_id=str(group_id),
                 is_prompt=True,
-                seq_data={group_id: seq_data},
+                req_data={group_id: seq_data},
                 sampling_params=sampling_params,
                 block_tables=None,
                 lora_request=dummy_lora_requests_per_seq[group_id]
