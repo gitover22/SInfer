@@ -266,6 +266,10 @@ if __name__ == "__main__":
                         type=str,
                         choices=["sinfer", "hf"],
                         default="sinfer")
+    parser.add_argument("--hf-max-batch-size",
+                        type=int,
+                        default=None,  # None
+                        help="Maximum batch size for HF backend.")
     parser.add_argument("--dataset",
                         type=str,
                         default=None,
@@ -283,13 +287,13 @@ if __name__ == "__main__":
                         "output length from the dataset.")
     parser.add_argument('--max-num-seqs',
                         type=int,
-                        default=1024,                    # 256
+                        default=512,                    # 256
                         help='Maximum number of sequences per iteration.')
     parser.add_argument("--num-prompts",
                         type=int,
                         default=900,                    # 1000
                         help="Number of prompts to process.")
-    parser.add_argument("--tensor-parallel-size", "-tp", type=int, default=4)           # 1
+    parser.add_argument("--tensor-parallel-size", "-tp", type=int, default=1)           # 1
     parser.add_argument("--model", type=str, default="./Meta-Llama-3-8B-Instruct")
     parser.add_argument('--gpu-memory-utilization',
                         type=float,
@@ -308,10 +312,7 @@ if __name__ == "__main__":
                         help="Number of generated sequences per prompt.")
     parser.add_argument("--use-beam-search", action="store_true")
     parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument("--hf-max-batch-size",
-                        type=int,
-                        default=None,
-                        help="Maximum batch size for HF backend.")
+   
     parser.add_argument('--trust-remote-code',
                         action='store_true',
                         help='trust remote code from huggingface')
@@ -341,8 +342,7 @@ if __name__ == "__main__":
         help=
         'Data type for kv cache storage. If "auto", will use model data type. '
         'FP8_E5M2 (without scaling) is only supported on cuda version greater '
-        'than 11.8. On ROCm (AMD GPU), FP8_E4M3 is instead supported for '
-        'common inference criteria.')
+        'than 11.8.')
     parser.add_argument(
         '--quantization-param-path',
         type=str,
@@ -350,9 +350,7 @@ if __name__ == "__main__":
         help='Path to the JSON file containing the KV cache scaling factors. '
         'This should generally be supplied, when KV cache dtype is FP8. '
         'Otherwise, KV cache scaling factors default to 1.0, which may cause '
-        'accuracy issues. FP8_E5M2 (without scaling) is only supported on '
-        'cuda version greater than 11.8. On ROCm (AMD GPU), FP8_E4M3 is '
-        'instead supported for common inference criteria.')
+        'accuracy issues. ')
     parser.add_argument(
         "--device",
         type=str,

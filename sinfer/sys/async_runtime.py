@@ -7,8 +7,8 @@ from transformers import PreTrainedTokenizer
 
 import sinfer.envs as envs
 from sinfer.config import DecodingConfig, ModelConfig
-from sinfer.core.scheduler import SchedulerOutputs
-from sinfer.sys.arg_utils import AsyncRuntimeArgs
+from sinfer.core.TAScheduler import SchedulerOutputs
+from sinfer.sys.runtime_args import AsyncRuntimeArgs
 from sinfer.sys.runtime import LLMRuntime
 from sinfer.executor.ray_utils import initialize_ray_cluster, ray
 from sinfer.logger import init_logger

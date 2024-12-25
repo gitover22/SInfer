@@ -5,14 +5,6 @@ from sinfer.task import Task
 
 
 class Policy:
-
-    def get_score(
-        self,
-        now: float,
-        task: Task,
-    ) -> float:
-        raise NotImplementedError
-
     def sort_by_priority(
         self,
         now: float,
@@ -24,10 +16,16 @@ class Policy:
                 key=lambda seq_group: self.get_score(now, seq_group),
                 reverse=True,
             ))
+    
+    def get_score(
+        self,
+        now: float,
+        task: Task,
+    ) -> float:
+        raise NotImplementedError
 
 
 class FCFS(Policy):
-
     def get_score(
         self,
         now: float,
@@ -89,8 +87,8 @@ class TAS(Policy):
 class PolicyFactory:
 
     _POLICY_REGISTRY = {
-        'fcfs': FCFS,
         'tas' : TAS,
+        'fcfs': FCFS,
         }
 
     @classmethod

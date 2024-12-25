@@ -94,13 +94,13 @@ sinfer/attention/ops/__init__.py
 sinfer/attention/ops/paged_attn.py
 sinfer/attention/ops/prefix_prefill.py
 sinfer/attention/ops/triton_flash_attention.py
+sinfer/core/TAScheduler.py
 sinfer/core/__init__.py
 sinfer/core/block_manager.py
-sinfer/core/evictor_v1.py
-sinfer/core/evictor_v2.py
+sinfer/core/evictor.py
+sinfer/core/evictor_prefix_caching.py
+sinfer/core/factory.py
 sinfer/core/interfaces.py
-sinfer/core/policy.py
-sinfer/core/scheduler.py
 sinfer/core/block/__init__.py
 sinfer/core/block/block_table.py
 sinfer/core/block/common.py
@@ -232,10 +232,10 @@ sinfer/model_executor/models/stablelm.py
 sinfer/model_executor/models/starcoder2.py
 sinfer/model_executor/models/xverse.py
 sinfer/sys/__init__.py
-sinfer/sys/arg_utils.py
 sinfer/sys/async_runtime.py
 sinfer/sys/metrics.py
 sinfer/sys/runtime.py
+sinfer/sys/runtime_args.py
 sinfer/sys/output_processor/__init__.py
 sinfer/sys/output_processor/interfaces.py
 sinfer/sys/output_processor/multi_step.py
@@ -269,5 +269,7 @@ sinfer/worker/worker.py
 sinfer/worker/worker_base.py
 test/test_chat_completion_client.py
 test/test_completion_client.py
+test/test_latency.py
 test/test_python.py
 test/test_runtime.py
+test/test_throughput.py

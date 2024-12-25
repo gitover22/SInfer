@@ -8,9 +8,9 @@ from sinfer.task import MultiModalData, Task, TaskMetadata
 from sinfer.config import (CacheConfig, DecodingConfig, DeviceConfig, LoadConfig,
                          LoRAConfig, ModelConfig, ParallelConfig,
                          SchedulerConfig, VisionLanguageConfig)
-from sinfer.core.scheduler import (ScheduledTask, Scheduler,
+from sinfer.core.TAScheduler import (ScheduledTask, Scheduler,
                                  SchedulerOutputs)
-from sinfer.sys.arg_utils import RuntimeArgs
+from sinfer.sys.runtime_args import RuntimeArgs
 from sinfer.sys.metrics import StatLogger, Stats
 from sinfer.sys.output_processor.interfaces import (
     SequenceGroupOutputProcessor)
@@ -507,9 +507,9 @@ class LLMRuntime:
         now = time.time()
 
 
-        num_running_sys = len(self.scheduler.running)
-        num_swapped_sys = len(self.scheduler.swapped)
-        num_waiting_sys = len(self.scheduler.waiting)
+        num_running_sys = len(self.scheduler.RunningPool)
+        num_swapped_sys = len(self.scheduler.BlockedPool)
+        num_waiting_sys = len(self.scheduler.ReadyPool)
 
         # KV Cache Usage in %
         num_total_gpu = self.cache_config.num_gpu_blocks

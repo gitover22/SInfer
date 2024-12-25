@@ -14,7 +14,7 @@ from tensorizer.utils import convert_bytes, get_mem_usage, no_init_or_tensor
 from transformers import AutoConfig, PretrainedConfig
 
 from sinfer.distributed import initialize_model_parallel
-from sinfer.sys.arg_utils import RuntimeArgs
+from sinfer.sys.runtime_args import RuntimeArgs
 from sinfer.sys.runtime import LLMRuntime
 from sinfer.model_executor.model_loader.tensorizer import TensorizerArgs
 from sinfer.model_executor.models import ModelRegistry

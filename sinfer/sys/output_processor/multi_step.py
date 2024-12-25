@@ -4,7 +4,7 @@ from typing import Callable, List
 from transformers import PreTrainedTokenizer
 
 from sinfer.task import Task, TaskOutput
-from sinfer.core.scheduler import Scheduler
+from sinfer.core.TAScheduler import Scheduler
 from sinfer.sys.output_processor.interfaces import (
     SequenceGroupOutputProcessor)
 from sinfer.sys.output_processor.stop_checker import StopChecker
@@ -139,4 +139,4 @@ class MultiStepOutputProcessor(SequenceGroupOutputProcessor):
                 break
 
         if seq.is_finished():
-            self.scheduler.free_seq(seq)
+            self.scheduler.free_req(seq)

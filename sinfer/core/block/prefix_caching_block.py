@@ -7,7 +7,7 @@ from sinfer.core.block.common import (CopyOnWriteTracker,
                                     get_all_blocks_recursively)
 from sinfer.core.block.interfaces import Block, BlockAllocator, BlockId, Device
 from sinfer.core.block.naive_block import NaiveBlock, NaiveBlockAllocator
-from sinfer.core.evictor_v2 import EvictionPolicy, Evictor, make_evictor
+from sinfer.core.evictor_prefix_caching import EvictionPolicy, Evictor, make_evictor
 
 PrefixHash = int
 

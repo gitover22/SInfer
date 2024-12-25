@@ -5,7 +5,7 @@ from transformers import PreTrainedTokenizer
 
 from sinfer.task import Task, TaskOutput
 from sinfer.config import SchedulerConfig
-from sinfer.core.scheduler import Scheduler
+from sinfer.core.TAScheduler import Scheduler
 from sinfer.sys.output_processor.stop_checker import StopChecker
 from sinfer.request import Request
 from sinfer.transformers_utils.detokenizer import Detokenizer

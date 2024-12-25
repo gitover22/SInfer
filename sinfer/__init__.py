@@ -1,5 +1,5 @@
 
-from sinfer.sys.arg_utils import AsyncRuntimeArgs, RuntimeArgs
+from sinfer.sys.runtime_args import AsyncRuntimeArgs, RuntimeArgs
 from sinfer.sys.async_runtime import AsyncLLMRuntime
 from sinfer.sys.runtime import LLMRuntime
 from sinfer.entrypoints.llm import LLM
