@@ -219,25 +219,6 @@ def run_hf(
     end = time.perf_counter()
     return end - start
 
-
-# def run_mii(
-#     requests: List[Tuple[str, int, int]],
-#     model: str,
-#     tensor_parallel_size: int,
-#     output_len: int,
-# ) -> float:
-#     from mii import client, serve
-#     llm = serve(model, tensor_parallel=tensor_parallel_size)
-#     prompts = [prompt for prompt, _, _ in requests]
-
-#     start = time.perf_counter()
-#     llm.generate(prompts, max_new_tokens=output_len)
-#     end = time.perf_counter()
-#     client = client(model)
-#     client.terminate_server()
-#     return end - start
-
-
 def main(args: argparse.Namespace):
     print(args)
     random.seed(args.seed)
@@ -271,9 +252,6 @@ def main(args: argparse.Namespace):
         elapsed_time = run_hf(requests, args.model, tokenizer, args.n,
                               args.use_beam_search, args.hf_max_batch_size,
                               args.trust_remote_code)
-    # elif args.backend == "mii":
-    #     elapsed_time = run_mii(requests, args.model, args.tensor_parallel_size,
-    #                            args.output_len)
     else:
         raise ValueError(f"Unknown backend: {args.backend}")
     total_num_tokens = sum(prompt_len + output_len
@@ -286,39 +264,49 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Benchmark the throughput.")
     parser.add_argument("--backend",
                         type=str,
-                        choices=["sinfer", "hf", "mii"],
+                        choices=["sinfer", "hf"],
                         default="sinfer")
     parser.add_argument("--dataset",
                         type=str,
-                        # default=None,
-                        default="/home/zouguoqiang/SInfer/benchmarks/dataset.json",
+                        default=None,
+                        # default="/home/zouguoqiang/SInfer/benchmarks/dataset.json",
                         help="Path to the dataset.")
     parser.add_argument("--input-len",
                         type=int,
-                        default=None,
-                        # default=32,
+                        # default=None,
+                        default=32,
                         help="Input prompt length for each request")
     parser.add_argument("--output-len",
                         type=int,
-                        default=128,
+                        default=128,            #128
                         help="Output length for each request. Overrides the "
                         "output length from the dataset.")
-    parser.add_argument("--model", type=str, default="/home/zouguoqiang/SInfer/models/Meta-Llama-3-8B-Instruct")
+    parser.add_argument('--max-num-seqs',
+                        type=int,
+                        default=1024,                    # 256
+                        help='Maximum number of sequences per iteration.')
+    parser.add_argument("--num-prompts",
+                        type=int,
+                        default=900,                    # 1000
+                        help="Number of prompts to process.")
+    parser.add_argument("--tensor-parallel-size", "-tp", type=int, default=4)           # 1
+    parser.add_argument("--model", type=str, default="./Meta-Llama-3-8B-Instruct")
+    parser.add_argument('--gpu-memory-utilization',
+                        type=float,
+                        default=1,                            # 0.9
+                        help='the fraction of GPU memory to be used for '
+                        'the model executor, which can range from 0 to 1.'
+                        'If unspecified, will use the default value of 0.9.')
     parser.add_argument("--tokenizer", type=str, default=None)
     parser.add_argument('--quantization',
                         '-q',
                         choices=[*QUANTIZATION_METHODS, None],
                         default=None)
-    parser.add_argument("--tensor-parallel-size", "-tp", type=int, default=1)
     parser.add_argument("--n",
                         type=int,
                         default=1,
                         help="Number of generated sequences per prompt.")
     parser.add_argument("--use-beam-search", action="store_true")
-    parser.add_argument("--num-prompts",
-                        type=int,
-                        default=1000,
-                        help="Number of prompts to process.")
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--hf-max-batch-size",
                         type=int,
@@ -336,19 +324,12 @@ if __name__ == "__main__":
     parser.add_argument(
         '--dtype',
         type=str,
-        # default='auto',
-        default='float16',
+        default='float16',         
         choices=['auto', 'half', 'float16', 'bfloat16', 'float', 'float32'],
         help='data type for model weights and activations. '
         'The "auto" option will use FP16 precision '
         'for FP32 and FP16 models, and BF16 precision '
         'for BF16 models.')
-    parser.add_argument('--gpu-memory-utilization',
-                        type=float,
-                        default=0.9,
-                        help='the fraction of GPU memory to be used for '
-                        'the model executor, which can range from 0 to 1.'
-                        'If unspecified, will use the default value of 0.9.')
     parser.add_argument("--enforce-eager",
                         action="store_true",
                         help="enforce eager execution")
@@ -407,10 +388,6 @@ if __name__ == "__main__":
                         help='Maximum sequence length covered by CUDA '
                         'graphs. When a sequence has context length '
                         'larger than this, we fall back to eager mode.')
-    parser.add_argument('--max-num-seqs',
-                        type=int,
-                        default=256,
-                        help='Maximum number of sequences per iteration.')
     parser.add_argument('--load-format',
                         type=str,
                         default='auto',
