@@ -12,7 +12,7 @@ from tqdm import tqdm
 from transformers import (AutoModelForCausalLM, AutoTokenizer,
                           PreTrainedTokenizerBase)
 
-from common import init_logger
+from tool import init_logger
 from sinfer.model_executor.layers.quantization import QUANTIZATION_METHODS
 
 
@@ -220,22 +220,22 @@ def run_hf(
     return end - start
 
 
-def run_mii(
-    requests: List[Tuple[str, int, int]],
-    model: str,
-    tensor_parallel_size: int,
-    output_len: int,
-) -> float:
-    from mii import client, serve
-    llm = serve(model, tensor_parallel=tensor_parallel_size)
-    prompts = [prompt for prompt, _, _ in requests]
+# def run_mii(
+#     requests: List[Tuple[str, int, int]],
+#     model: str,
+#     tensor_parallel_size: int,
+#     output_len: int,
+# ) -> float:
+#     from mii import client, serve
+#     llm = serve(model, tensor_parallel=tensor_parallel_size)
+#     prompts = [prompt for prompt, _, _ in requests]
 
-    start = time.perf_counter()
-    llm.generate(prompts, max_new_tokens=output_len)
-    end = time.perf_counter()
-    client = client(model)
-    client.terminate_server()
-    return end - start
+#     start = time.perf_counter()
+#     llm.generate(prompts, max_new_tokens=output_len)
+#     end = time.perf_counter()
+#     client = client(model)
+#     client.terminate_server()
+#     return end - start
 
 
 def main(args: argparse.Namespace):
@@ -271,9 +271,9 @@ def main(args: argparse.Namespace):
         elapsed_time = run_hf(requests, args.model, tokenizer, args.n,
                               args.use_beam_search, args.hf_max_batch_size,
                               args.trust_remote_code)
-    elif args.backend == "mii":
-        elapsed_time = run_mii(requests, args.model, args.tensor_parallel_size,
-                               args.output_len)
+    # elif args.backend == "mii":
+    #     elapsed_time = run_mii(requests, args.model, args.tensor_parallel_size,
+    #                            args.output_len)
     else:
         raise ValueError(f"Unknown backend: {args.backend}")
     total_num_tokens = sum(prompt_len + output_len
@@ -426,7 +426,7 @@ if __name__ == "__main__":
         assert args.output_len is not None
     else:
         assert args.input_len is None
-    # backend : sinfer/hf/mii
+    # backend : sinfer/hf
     if args.backend == "sinfer":
         if args.hf_max_batch_size is not None:
             raise ValueError("HF max batch size is only for HF backend.")
@@ -436,19 +436,4 @@ if __name__ == "__main__":
             raise ValueError("HF max batch size is required for HF backend.")
         if args.quantization is not None:
             raise ValueError("Quantization is only for SInfer backend.")
-    # Microsoft Inferencing and Integration
-    elif args.backend == "mii":
-        if args.dtype != "auto":
-            raise ValueError("dtype must be auto for MII backend.")
-        if args.n != 1:
-            raise ValueError("n must be 1 for MII backend.")
-        if args.use_beam_search:
-            raise ValueError("Beam search is not supported for MII backend.")
-        if args.quantization is not None:
-            raise ValueError("Quantization is only for SInfer backend.")
-        if args.hf_max_batch_size is not None:
-            raise ValueError("HF max batch size is only for HF backend.")
-        if args.tokenizer != args.model:
-            raise ValueError("Tokenizer must be the same as the model for MII "
-                             "backend.")
     main(args)

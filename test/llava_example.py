@@ -1,12 +1,9 @@
 import argparse
 import os
 import subprocess
-
 import torch
-
 from sinfer import LLM
 from sinfer.task import MultiModalData
-
 
 def run_llava_pixel_values():
     llm = LLM(

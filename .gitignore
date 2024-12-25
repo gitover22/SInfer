@@ -8,6 +8,7 @@ test/sinfer_queue_view.jpg
 test/sinfer_scheduler_view.csv
 test/sinfer_time_view.csv
 test/sinfer_utilization_view.jpg
+test/archive
 test/images
 test/log
 sinfer/**/__pycache__/

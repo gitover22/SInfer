@@ -6,7 +6,7 @@ from sinfer.task import Task
 
 class Policy:
 
-    def get_priority(
+    def get_score(
         self,
         now: float,
         task: Task,
@@ -21,14 +21,14 @@ class Policy:
         return deque(
             sorted(
                 tasks,
-                key=lambda seq_group: self.get_priority(now, seq_group),
+                key=lambda seq_group: self.get_score(now, seq_group),
                 reverse=True,
             ))
 
 
 class FCFS(Policy):
 
-    def get_priority(
+    def get_score(
         self,
         now: float,
         task: Task,
@@ -46,14 +46,14 @@ class TAS(Policy):
         alpha: 控制到达时间对优先级的影响
         beta: 控制队列等待时间对优先级的影响
         gamma: 控制已调度任务的优先级
-        delta: 控制执行进度对优先级的影响
+        delta: 控制执行进度对优先级的影响(生成进度)
         """
         self.alpha = alpha
         self.beta = beta
         self.gamma = gamma
         self.delta = delta
 
-    def get_priority(
+    def get_score(
         self,
         now: float,
         task: Task,
@@ -78,13 +78,13 @@ class TAS(Policy):
         execution_progress = (metrics.last_token_time or 0.0) - (metrics.first_token_time or 0.0)
 
         # 计算优先级（加权公式）
-        priority = (
+        score = (
             self.alpha * arrival_priority +
             self.beta * time_in_queue -
             self.gamma * first_scheduled_penalty +
             self.delta * execution_progress
         )
-        return priority
+        return score
 
 class PolicyFactory:
 

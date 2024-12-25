@@ -8,7 +8,6 @@ class LogicalTokenBlock:
     """
     一个KV cache的逻辑块
     """
-
     def __init__(
         self,
         block_number: int,
