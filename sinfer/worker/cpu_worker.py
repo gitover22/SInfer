@@ -45,7 +45,7 @@ class CPUCacheEngine:
         # Note: In CacheConfig, num_gpu_blocks actual is num_cpu_blocks
         # for CPU backend, because we want to reuse KV cache management
         # in the scheduler.
-        self.num_cpu_blocks = cache_config.num_gpu_blocks
+        self.num_cpu_blocks = cache_config.num_mlu_blocks
 
         if cache_config.cache_dtype == "auto":
             self.dtype = model_config.dtype
@@ -193,7 +193,7 @@ class CPUWorker(LoraNotSupportedWorkerBase):
         num_cpu_blocks = 0
         return num_gpu_blocks, num_cpu_blocks
 
-    def initialize_cache(self, num_gpu_blocks: int,
+    def initialize_cache(self, num_mlu_blocks: int,
                          num_cpu_blocks: int) -> None:
         """Initialize the KV cache. Currently, swappable CPU memory is not
         supported.
@@ -206,10 +206,10 @@ class CPUWorker(LoraNotSupportedWorkerBase):
 
         # Note: To reuse the cache management procedure,
         # use cpu cache as 'gpu cache'.
-        num_cpu_blocks = num_gpu_blocks
+        num_cpu_blocks = num_mlu_blocks
 
         self._validate_num_cpu_blocks(num_cpu_blocks)
-        self.cache_config.num_gpu_blocks = num_cpu_blocks
+        self.cache_config.num_mlu_blocks = num_cpu_blocks
         self.cache_config.num_cpu_blocks = 0
 
         # Initialize the cache.
@@ -254,7 +254,7 @@ class CPUWorker(LoraNotSupportedWorkerBase):
             self.cache_engine.copy(blocks_to_copy)
 
     @torch.inference_mode()
-    def execute_model(
+    def infer_model(
         self,
         execute_model_req: Optional[ExecuteModelRequest] = None,
     ) -> List[SamplerOutput]:

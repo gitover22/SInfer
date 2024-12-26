@@ -176,7 +176,7 @@ class Ray_MLUExecutor(Distributed_MLUExecutor):
             self,
             execute_model_req: ExecuteModelRequest) -> List[SamplerOutput]:
         all_outputs = self._run_workers(
-            "execute_model",
+            "infer_model",
             driver_kwargs={"execute_model_req": execute_model_req},
             use_ray_compiled_dag=USE_RAY_COMPILED_DAG)
         # 只有主节点返回采样结果
@@ -225,7 +225,7 @@ class Ray_MLUExecutor(Distributed_MLUExecutor):
         else:
             # 启动所有 Ray 工作进程，并远程调用指定方法
             ray_worker_outputs = [
-                worker.execute_method.remote(method, *worker_args,
+                worker.infer_.remote(method, *worker_args,
                                              **worker_kwargs)
                 for (worker, worker_args, worker_kwargs
                      ) in zip(self.workers, all_worker_args, all_worker_kwargs)
@@ -233,12 +233,12 @@ class Ray_MLUExecutor(Distributed_MLUExecutor):
 
         # 执行主节点的方法
         if not use_dummy_driver:
-            driver_worker_output = self.driver_worker.execute_method(
+            driver_worker_output = self.driver_worker.infer_(
                 method, *driver_args, **driver_kwargs)
         else:
             assert self.driver_dummy_worker is not None
             driver_worker_output = ray.get(
-                self.driver_dummy_worker.execute_method.remote(
+                self.driver_dummy_worker.infer_.remote(
                     method, *driver_args, **driver_kwargs))
         # 获取所有 Ray 工作进程的执行结果
         if self.workers:
@@ -303,7 +303,7 @@ class Ray_MLUExecutor(Distributed_MLUExecutor):
 class Ray_MLUExecutorAsync(Ray_MLUExecutor, Distributed_MLUExecutorAsync):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.driver_executor = make_async(self.driver_worker.execute_method)
+        self.driver_executor = make_async(self.driver_worker.infer_)
 
     async def _run_workers_async(
         self,
@@ -325,7 +325,7 @@ class Ray_MLUExecutorAsync(Ray_MLUExecutor, Distributed_MLUExecutorAsync):
             self.driver_executor(method, *driver_args, **driver_kwargs))
 
         for worker in self.workers:
-            coros.append(worker.execute_method.remote(method, *args, **kwargs))
+            coros.append(worker.infer_.remote(method, *args, **kwargs))
 
         all_outputs = await asyncio.gather(*coros)
         return all_outputs

@@ -209,21 +209,21 @@ class LLMRuntime:
             ))
 
     def _initialize_kv_caches(self) -> None:
-        num_gpu_blocks, num_cpu_blocks = (
+        num_mlu_blocks, num_cpu_blocks = (
             self.model_executor.determine_num_available_blocks())
 
-        if self.cache_config.num_gpu_blocks_override is not None:
-            num_gpu_blocks_override = self.cache_config.num_gpu_blocks_override
+        if self.cache_config.num_mlu_blocks_override is not None:
+            num_mlu_blocks_override = self.cache_config.num_mlu_blocks_override
             logger.info(
-                "Overriding num_gpu_blocks=%d with "
-                "num_gpu_blocks_override=%d", num_gpu_blocks,
-                num_gpu_blocks_override)
-            num_gpu_blocks = num_gpu_blocks_override
+                "Overriding num_mlu_blocks=%d with "
+                "num_mlu_blocks_override=%d", num_mlu_blocks,
+                num_mlu_blocks_override)
+            num_mlu_blocks = num_mlu_blocks_override
 
-        self.cache_config.num_gpu_blocks = num_gpu_blocks
+        self.cache_config.num_mlu_blocks = num_mlu_blocks
         self.cache_config.num_cpu_blocks = num_cpu_blocks
 
-        self.model_executor.initialize_cache(num_gpu_blocks, num_cpu_blocks)
+        self.model_executor.initialize_cache(num_mlu_blocks, num_cpu_blocks)
 
     @classmethod
     def from_runtime_args(
@@ -512,7 +512,7 @@ class LLMRuntime:
         num_waiting_sys = len(self.scheduler.ReadyPool)
 
         # KV Cache Usage in %
-        num_total_gpu = self.cache_config.num_gpu_blocks
+        num_total_gpu = self.cache_config.num_mlu_blocks
         num_free_gpu = self.scheduler.block_manager.get_num_free_gpu_blocks()
         gpu_cache_usage_sys = 1.0 - (num_free_gpu / num_total_gpu)
 

@@ -70,7 +70,7 @@ class MLUExecutor(ExecutorBase):
     def execute_model(
             self,
             execute_model_req: ExecuteModelRequest) -> List[SamplerOutput]:
-        output = self.driver_worker.execute_model(execute_model_req)
+        output = self.driver_worker.infer_model(execute_model_req)
         return output
 
     def add_lora(self, lora_request: LoRARequest) -> bool:
@@ -100,6 +100,6 @@ class MLUExecutorAsync(MLUExecutor, ExecutorAsyncBase):
         self,
         execute_model_req: ExecuteModelRequest,
     ) -> List[SamplerOutput]:
-        output = await make_async(self.driver_worker.execute_model
+        output = await make_async(self.driver_worker.infer_model
                                   )(execute_model_req=execute_model_req, )
         return output

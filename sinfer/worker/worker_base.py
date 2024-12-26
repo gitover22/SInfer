@@ -42,14 +42,14 @@ class WorkerBase(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def initialize_cache(self, num_gpu_blocks: int,
+    def initialize_cache(self, num_mlu_blocks: int,
                          num_cpu_blocks: int) -> None:
         """Initialize the KV cache with the given size in blocks.
         """
         raise NotImplementedError
 
     @abstractmethod
-    def execute_model(
+    def infer_model(
             self,
             execute_model_req: ExecuteModelRequest) -> List[SamplerOutput]:
         """Executes at least one model step on the given sequences, unless no
@@ -124,7 +124,7 @@ class WorkerDelayBase:
         worker_class = getattr(mod, self.worker_class_name)
         self.worker = worker_class(*args, **kwargs) # 实例化worker
 
-    def execute_method(self, method, *args, **kwargs):
+    def infer_(self, method, *args, **kwargs):
         try:
             target = self if self.worker is None else self.worker
             executor = getattr(target, method)

@@ -79,7 +79,7 @@ sinfer/Intercept/transformers_utils/__init__.py
 sinfer/Intercept/transformers_utils/configs/__init__.py
 sinfer/Intercept/transformers_utils/configs/custom.py
 sinfer/Intercept/worker/__init__.py
-sinfer/Intercept/worker/model_runner.py
+sinfer/Intercept/worker/model_inference.py
 sinfer/Intercept/worker/worker.py
 sinfer/attention/__init__.py
 sinfer/attention/layer.py
@@ -261,10 +261,10 @@ sinfer/transformers_utils/tokenizers/baichuan.py
 sinfer/usage/__init__.py
 sinfer/usage/usage_lib.py
 sinfer/worker/__init__.py
-sinfer/worker/cache_engine.py
+sinfer/worker/cache_manager.py
 sinfer/worker/cpu_model_runner.py
 sinfer/worker/cpu_worker.py
-sinfer/worker/model_runner.py
+sinfer/worker/model_inference.py
 sinfer/worker/worker.py
 sinfer/worker/worker_base.py
 test/test_chat_completion_client.py
