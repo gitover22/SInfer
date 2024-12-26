@@ -1,4 +1,3 @@
-"""A GPU worker class."""
 import gc
 import os
 from typing import Any, Dict, List, Optional, Set, Tuple
@@ -25,10 +24,10 @@ from sinfer.worker.worker_base import WorkerBase
 
 
 class Worker(WorkerBase):
-    """A worker class that executes (a partition of) the model on a GPU.
+    """A worker class that executes (a partition of) the model on a MLU.
 
-    Each worker is associated with a single GPU. The worker is responsible for
-    maintaining the KV cache and executing the model on the GPU. In case of
+    Each worker is associated with a single MLU. The worker is responsible for
+    maintaining the KV cache and executing the model on the MLU. In case of
     distributed inference, each worker is assigned a partition of the model.
     """
 

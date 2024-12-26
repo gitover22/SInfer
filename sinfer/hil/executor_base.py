@@ -9,12 +9,6 @@ from sinfer.request import ExecuteModelRequest, SamplerOutput
 
 
 class ExecutorBase(ABC):
-    """所有executors的基类
-
-    执行器负责在特定的设备类型（例如 CPU、GPU、Neuron 等）上执行模型。
-    或者，它可以是一个分布式执行器，能够在多个设备上执行模型。
-    """
-
     def __init__(
         self,
         model_config: ModelConfig,
@@ -53,7 +47,6 @@ class ExecutorBase(ABC):
     def execute_model(
             self,
             execute_model_req: ExecuteModelRequest) -> List[SamplerOutput]:
-        """Executes at least one model step on the given sequences."""
         raise NotImplementedError
 
     @abstractmethod
@@ -70,28 +63,20 @@ class ExecutorBase(ABC):
 
     @abstractmethod
     def check_health(self) -> None:
-        """Checks if the executor is healthy. If not, it should raise an
-        exception."""
         raise NotImplementedError
 
     def shutdown(self) -> None:
-        """Shutdown the executor."""
         return
 
     def __del__(self):
         self.shutdown()
 
-
 class ExecutorAsyncBase(ExecutorBase):
-
     @abstractmethod
     async def execute_model_async(
             self,
             execute_model_req: ExecuteModelRequest) -> List[SamplerOutput]:
-        """Executes one model step on the given sequences."""
         raise NotImplementedError
 
     async def check_health_async(self) -> None:
-        """Checks if the executor is healthy. If not, it should raise an
-        exception."""
         self.check_health()

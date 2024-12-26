@@ -1,16 +1,16 @@
 from abc import abstractmethod
 from typing import Any, Dict, List, Optional, Set, Tuple
 
-from sinfer.executor.executor_base import ExecutorAsyncBase
-from sinfer.executor.gpu_executor import GPUExecutor
+from sinfer.hil.executor_base import ExecutorAsyncBase
+from sinfer.hil.mlu_executor import MLUExecutor
 from sinfer.logger import init_logger
 from sinfer.lora.request import LoRARequest
 from sinfer.request import SamplerOutput
 
 logger = init_logger(__name__)
 
-class DistributedGPUExecutor(GPUExecutor):
-    """多 GPU 执行器实现的抽象父类"""
+class Distributed_MLUExecutor(MLUExecutor):
+    """多 MLU 执行器实现的抽象父类"""
     def determine_num_available_blocks(self) -> Tuple[int, int]:
         """ 确定可用的 KV 缓存块数量
 
@@ -18,31 +18,32 @@ class DistributedGPUExecutor(GPUExecutor):
         从而保证所选的缓存大小对所有节点来说都是兼容的。
 
         Returns:
-            - tuple[num_gpu_blocks, num_cpu_blocks] GPU 和 CPU 上的可用块数量
+            - tuple[num_mlu_blocks, num_cpu_blocks] MLU 和 CPU 上的可用块数量
         """
-        # 获取 GPU 和 CPU 上可以分配的最大块数量
+        # 获取 mlu 和 CPU 上可以分配的最大块数量
         num_blocks = self._run_workers("determine_num_available_blocks", )
 
         # 由于使用的是共享的集中控制器，这里取所有节点的块数量的最小值，
         # 确保所有内存算子可以应用于所有节点
-        num_gpu_blocks = min(b[0] for b in num_blocks)
+        num_mlu_blocks = min(b[0] for b in num_blocks)
         num_cpu_blocks = min(b[1] for b in num_blocks)
 
-        return num_gpu_blocks, num_cpu_blocks
+        return num_mlu_blocks, num_cpu_blocks
 
-    def initialize_cache(self, num_gpu_blocks: int,
+    def initialize_cache(self, num_mlu_blocks: int,
                          num_cpu_blocks: int) -> None:
         """在所有节点中初始化 KV 缓存
         """
 
-        logger.info("# GPU blocks: %d, # CPU blocks: %d", num_gpu_blocks,
+        logger.info("# MLU kv blocks: %d, # CPU kv blocks: %d", num_mlu_blocks,
                     num_cpu_blocks)
 
-        self.cache_config.num_gpu_blocks = num_gpu_blocks
+
+        self.cache_config.num_gpu_blocks = num_mlu_blocks
         self.cache_config.num_cpu_blocks = num_cpu_blocks
 
         self._run_workers("initialize_cache",
-                          num_gpu_blocks=num_gpu_blocks,
+                          num_gpu_blocks=num_mlu_blocks,
                           num_cpu_blocks=num_cpu_blocks)
 
     def execute_model(self, *args, **kwargs) -> List[SamplerOutput]:
@@ -82,7 +83,7 @@ class DistributedGPUExecutor(GPUExecutor):
         # 在所有节点上运行method
         raise NotImplementedError
 
-class DistributedGPUExecutorAsync(DistributedGPUExecutor, ExecutorAsyncBase):
+class Distributed_MLUExecutorAsync(Distributed_MLUExecutor, ExecutorAsyncBase):
     @abstractmethod
     async def _run_workers_async(
         self,

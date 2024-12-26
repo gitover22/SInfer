@@ -16,8 +16,8 @@ from sinfer.sys.output_processor.interfaces import (
     SequenceGroupOutputProcessor)
 from sinfer.sys.output_processor.stop_checker import StopChecker
 from sinfer.sys.output_processor.util import create_output_by_sequence_group
-from sinfer.executor.executor_base import ExecutorBase
-from sinfer.executor.ray_utils import initialize_ray_cluster
+from sinfer.hil.executor_base import ExecutorBase
+from sinfer.hil.r_utils import initialize_ray_cluster
 from sinfer.logger import init_logger
 from sinfer.lora.request import LoRARequest
 from sinfer.outputs import RequestOutput
@@ -140,7 +140,7 @@ class LLMRuntime:
             lora_config=lora_config,
             vision_language_config=vision_language_config,
             load_config=load_config,
-        ) # 实例化GPUExecutor , 实例化Worker，ModelRunner(初始化kv cache时实例化CacheEngine),加载模型权重
+        ) # 实例化MLUExecutor , 实例化Worker，ModelRunner(初始化kv cache时实例化CacheEngine),加载模型权重
 
         self._initialize_kv_caches() # 初始化kv cache缓存，CacheEngine
 
@@ -235,17 +235,17 @@ class LLMRuntime:
 
         # 明确executor_class指向的执行器
         if runtime_config.device_config.device_type == "cpu":
-            from sinfer.executor.cpu_executor import CPUExecutor
+            from sinfer.hil.cpu_executor import CPUExecutor
             executor_class = CPUExecutor
         elif runtime_config.parallel_config.worker_use_ray:
             initialize_ray_cluster(runtime_config.parallel_config)
-            from sinfer.executor.ray_gpu_executor import RayGPUExecutor
-            executor_class = RayGPUExecutor # 启用TP时为RayGPUExecutor
+            from sinfer.hil.r_MLUExecutor import Ray_MLUExecutor
+            executor_class = Ray_MLUExecutor # 启用TP时为RayGPUExecutor
         else:
             assert runtime_config.parallel_config.world_size == 1, (
                 "Ray is required if parallel_config.world_size > 1.")
-            from sinfer.executor.gpu_executor import GPUExecutor
-            executor_class = GPUExecutor # 单卡时为GPUExecutor
+            from sinfer.hil.mlu_executor import MLUExecutor
+            executor_class = MLUExecutor # 单卡时为GPUExecutor
 
         # 运行构造函数创建engine实例对象
         engine = cls(
