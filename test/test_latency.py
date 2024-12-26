@@ -1,4 +1,3 @@
-"""Benchmark the latency of processing a single batch of requests."""
 import argparse
 import time
 from pathlib import Path
@@ -9,7 +8,7 @@ os.environ['CN_NOTIFIER_POOL_MAX'] = "1000"
 import numpy as np
 import torch
 from tqdm import tqdm
-from common import init_logger
+from tool import init_logger
 from sinfer import LLM, SamplingParams
 from sinfer.model_executor.layers.quantization import QUANTIZATION_METHODS
 logger = init_logger(__name__)
@@ -21,16 +20,13 @@ def main(args: argparse.Namespace):
               quantization=args.quantization,
               tensor_parallel_size=args.tensor_parallel_size,
               trust_remote_code=args.trust_remote_code,
-            #   dtype=args.dtype,
-              dtype= "float16",
+              dtype=args.dtype,
               enforce_eager=args.enforce_eager,
               kv_cache_dtype=args.kv_cache_dtype,
               quantization_param_path=args.quantization_param_path,
-              device=args.device,
               ray_workers_use_nsight=args.ray_workers_use_nsight,
               enable_chunked_prefill=args.enable_chunked_prefill,
               download_dir=args.download_dir,
-              block_size=args.block_size,
               disable_custom_all_reduce=args.disable_custom_all_reduce,
               max_num_batched_tokens=args.max_num_batched_tokens,
               max_model_len=args.max_model_len,
@@ -38,7 +34,8 @@ def main(args: argparse.Namespace):
               max_batch_size_to_capture=args.max_batch_size_to_capture,
               max_num_seqs=args.max_num_seqs,
               skip_tokenizer_init=args.skip_tokenizer_init,
-              load_format=args.load_format)
+              load_format=args.load_format,
+              gpu_memory_utilization= 1)
 
     max_length = args.input_len + args.output_len
     max_model_len = llm.llm_runtime.model_config.max_model_len
@@ -54,9 +51,9 @@ def main(args: argparse.Namespace):
         top_p=1.0,
         use_beam_search=args.use_beam_search,
         ignore_eos=True,
-        max_tokens=args.output_len,
+        max_tokens=args.output_len, # 128
     )
-    print(sampling_params)
+    # print(sampling_params)
     dummy_prompt_token_ids = np.random.randint(10000,
                                                size=(args.batch_size,
                                                      args.input_len))
@@ -99,7 +96,7 @@ def main(args: argparse.Namespace):
         run_to_completion(profile_dir=profile_dir)
         return
 
-    # Benchmark.
+    # 正式测试：由num_iters决定迭代次数
     latencies = []
     for _ in tqdm(range(args.num_iters), desc="Profiling iterations"):
         latencies.append(run_to_completion(profile_dir=None))
@@ -120,30 +117,33 @@ def main(args: argparse.Namespace):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
-        description='Benchmark the latency of processing a single batch of '
-        'requests till completion.')
-    parser.add_argument('--model', type=str, default='/home/zouguoqiang/SInfer/models/Meta-Llama-3-8B-Instruct')
+        description='基准测试处理单个请求批次直到完成的延迟.')
+    parser.add_argument('--model', type=str, default='./Meta-Llama-3-8B-Instruct')
     parser.add_argument('--tokenizer', type=str, default=None)
     parser.add_argument('--quantization',
                         '-q',
                         choices=[*QUANTIZATION_METHODS, None],
                         default=None)
-    parser.add_argument('--tensor-parallel-size', '-tp', type=int, default=1)
-    parser.add_argument('--input-len', type=int, default=32)
-    parser.add_argument('--output-len', type=int, default=128)
-    parser.add_argument('--batch-size', type=int, default=8)
+    parser.add_argument('--tensor-parallel-size', '-tp', type=int, default=4)
+    parser.add_argument('--input-len', type=int, default=32)  # 假数据的prompt长度
+    parser.add_argument('--output-len', type=int, default=512) # max_tokens            128
+    parser.add_argument('--batch-size', type=int, default=900) # batch-size(模拟并发数)  8
+    parser.add_argument('--max-num-seqs',                       # 
+                        type=int,
+                        default=1024,   # 256                     
+                        help='Maximum number of sequences per iteration.')
+    parser.add_argument('--num-iters-warmup',
+                        type=int,
+                        default=1,     # 10
+                        help='Number of iterations to run for warmup.')
     parser.add_argument('--n',
                         type=int,
                         default=1,
                         help='Number of generated sequences per prompt.')
     parser.add_argument('--use-beam-search', action='store_true')
-    parser.add_argument('--num-iters-warmup',
-                        type=int,
-                        default=10,
-                        help='Number of iterations to run for warmup.')
     parser.add_argument('--num-iters',
                         type=int,
-                        default=30,
+                        default=1,  # 30
                         help='Number of iterations to run.')
     parser.add_argument('--trust-remote-code',
                         action='store_true',
@@ -151,7 +151,7 @@ if __name__ == '__main__':
     parser.add_argument(
         '--dtype',
         type=str,
-        default='auto',
+        default='float16',
         choices=['auto', 'half', 'float16', 'bfloat16', 'float', 'float32'],
         help='data type for model weights and activations. '
         'The "auto" option will use FP16 precision '
@@ -190,16 +190,6 @@ if __name__ == '__main__':
         default=None,
         help=('path to save the pytorch profiler output. Can be visualized '
               'with ui.perfetto.dev or Tensorboard.'))
-    parser.add_argument(
-        "--device",
-        type=str,
-        default="cuda",
-        choices=["cuda", "cpu"],
-        help='device type for SInfer execution, supporting CUDA and CPU.')
-    parser.add_argument('--block-size',
-                        type=int,
-                        default=-1,
-                        help='block size of key/value cache')
     parser.add_argument(
         '--enable-chunked-prefill',
         action='store_true',
@@ -242,10 +232,6 @@ if __name__ == '__main__':
                         help='Maximum sequence length covered by CUDA '
                         'graphs. When a sequence has context length '
                         'larger than this, we fall back to eager mode.')
-    parser.add_argument('--max-num-seqs',
-                        type=int,
-                        default=256,
-                        help='Maximum number of sequences per iteration.')
     parser.add_argument("--skip-tokenizer-init",
                         action='store_true',
                         help='If true, skip initialization of tokenizer and '

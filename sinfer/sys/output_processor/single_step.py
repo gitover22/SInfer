@@ -2,7 +2,7 @@ from typing import Dict, List, Tuple, Union
 
 from sinfer.task import Task, TaskOutput
 from sinfer.config import SchedulerConfig
-from sinfer.core.scheduler import Scheduler
+from sinfer.core.TAScheduler import Scheduler
 from sinfer.sys.output_processor.interfaces import (
     SequenceGroupOutputProcessor)
 from sinfer.sys.output_processor.stop_checker import StopChecker
@@ -95,7 +95,7 @@ class SingleStepOutputProcessor(SequenceGroupOutputProcessor):
                 # not be used in the future iterations.
                 parent.status = RequestStatus.FINISHED_ABORTED
                 seq_group.remove(parent.req_id)
-                self.scheduler.free_seq(parent)
+                self.scheduler.free_req(parent)
                 continue
             # Fork the parent sequence if there are multiple child samples.
             for child_sample in child_samples[:-1]:
@@ -129,7 +129,7 @@ class SingleStepOutputProcessor(SequenceGroupOutputProcessor):
                 if seq is not parent:
                     seq_group.add(seq)
                     if not seq.is_finished():
-                        self.scheduler.fork_seq(parent, seq)
+                        self.scheduler.fork_req(parent, seq)
 
             # Free the finished and selected parent sequences' memory in block
             # manager. Keep them in the sequence group as candidate output.
@@ -137,7 +137,7 @@ class SingleStepOutputProcessor(SequenceGroupOutputProcessor):
             # old sequences.
             for seq, parent in child_seqs:
                 if seq is parent and seq.is_finished():
-                    self.scheduler.free_seq(seq)
+                    self.scheduler.free_req(seq)
             return
 
         # Beam search case
@@ -222,13 +222,13 @@ class SingleStepOutputProcessor(SequenceGroupOutputProcessor):
             if seq is not parent:
                 seq_group.add(seq)
                 if not seq.is_finished():
-                    self.scheduler.fork_seq(parent, seq)
+                    self.scheduler.fork_req(parent, seq)
 
         # Free the finished and selected parent sequences' memory in block
         # manager. Keep them in the sequence group as candidate output.
         for seq, parent in selected_child_seqs:
             if seq is parent and seq.is_finished():
-                self.scheduler.free_seq(seq)
+                self.scheduler.free_req(seq)
 
         # Remove the unselected parent sequences from the sequence group and
         # free their memory in block manager.
@@ -237,7 +237,7 @@ class SingleStepOutputProcessor(SequenceGroupOutputProcessor):
                 # Remove the parent sequence if it is not selected for next
                 # iteration
                 seq_group.remove(seq.seq_id)
-                self.scheduler.free_seq(seq)
+                self.scheduler.free_req(seq)
 
     def _check_beam_search_early_stopping(
         self,

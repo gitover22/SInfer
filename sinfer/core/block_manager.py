@@ -9,15 +9,13 @@ from typing import Set
 
 from sinfer.task import Task
 from sinfer.block import BlockTable, PhysicalTokenBlock
-from sinfer.core.evictor_v1 import EvictionPolicy, Evictor, make_evictor
+from sinfer.core.evictor import EvictionPolicy, Evictor, make_evictor
 from sinfer.core.interfaces import AllocStatus, SpaceManager
 from sinfer.logger import init_logger
 from sinfer.request import Request, RequestStatus
 from sinfer.utils import Device
 
 logger = init_logger(__name__)
-
-
 class BlockAllocatorBase(ABC):
     @abstractmethod
     def __init__(self,

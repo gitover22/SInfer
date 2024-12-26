@@ -4,7 +4,7 @@ import torch
 from tqdm import tqdm
 from transformers import PreTrainedTokenizer, PreTrainedTokenizerFast
 
-from sinfer.sys.arg_utils import RuntimeArgs
+from sinfer.sys.runtime_args import RuntimeArgs
 from sinfer.sys.runtime import LLMRuntime
 from sinfer.lora.request import LoRARequest
 from sinfer.outputs import RequestOutput

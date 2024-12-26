@@ -1,9 +1,9 @@
 
-from sinfer.sys.arg_utils import AsyncRuntimeArgs, RuntimeArgs
+from sinfer.sys.runtime_args import AsyncRuntimeArgs, RuntimeArgs
 from sinfer.sys.async_runtime import AsyncLLMRuntime
 from sinfer.sys.runtime import LLMRuntime
 from sinfer.entrypoints.llm import LLM
-from sinfer.executor.ray_utils import initialize_ray_cluster
+from sinfer.hil.r_utils import initialize_ray_cluster
 from sinfer.model_executor.models import ModelRegistry
 from sinfer.outputs import CompletionOutput, RequestOutput
 from sinfer.sampling_params import SamplingParams

@@ -17,7 +17,7 @@ from starlette.routing import Mount
 
 import sinfer
 import sinfer.envs as envs
-from sinfer.sys.arg_utils import AsyncRuntimeArgs
+from sinfer.sys.runtime_args import AsyncRuntimeArgs
 from sinfer.sys.async_runtime import AsyncLLMRuntime
 from sinfer.entrypoints.openai.cli_args import make_arg_parser
 from sinfer.entrypoints.openai.protocol import (ChatCompletionRequest,

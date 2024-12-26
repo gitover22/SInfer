@@ -7,7 +7,7 @@ from ray.util.scheduling_strategies import NodeAffinitySchedulingStrategy
 from transformers import PreTrainedTokenizer
 
 from sinfer.config import TokenizerPoolConfig
-from sinfer.executor.ray_utils import ray
+from sinfer.hil.r_utils import ray
 from sinfer.lora.request import LoRARequest
 from sinfer.transformers_utils.tokenizer_group.base_tokenizer_group import (
     BaseTokenizerGroup)

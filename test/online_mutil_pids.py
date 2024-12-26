@@ -56,7 +56,7 @@ def start():
     completion = client.chat.completions.create(
         model="./test/Meta-Llama-3-8B-Instruct",
         messages=[user_message],
-        max_tokens=1000  # 确保生成内容不超过上下文窗口限制
+        max_tokens=512  # 确保生成内容不超过上下文窗口限制
     )
 
     # 打印用户输入和模型生成内容
@@ -72,7 +72,7 @@ def start():
 def log_process_info(process_id, pid, start_time, end_time, runtime):
     log_message = (
         f"user id: {process_id} | pid: {pid} | start: {start_time} | "
-        f"end: {end_time} | live time: {runtime} ms"
+        f"end: {end_time} | e2e: {runtime} ms"
     )
     logger.info(log_message)  # 使用自定义日志记录器记录日志
     print(log_message)

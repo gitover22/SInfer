@@ -1,26 +1,23 @@
 import argparse
 import os
 import subprocess
-
 import torch
-
 from sinfer import LLM
 from sinfer.task import MultiModalData
 
-
 def run_llava_pixel_values():
     llm = LLM(
-        model="/data/AE/llm/models/llava-1.5-7b-hf/",
+        model="./llava-1.5-7b-hf/",
         image_input_type="pixel_values",
         image_token_id=32000,
         image_input_shape="1,3,336,336",
         image_feature_size=576,
+        dtype="float16",
     )
 
     prompt = "<image>" * 576 + (
         "\nUSER: What is the content of this image?\nASSISTANT:")
 
-    # This should be provided by another online or offline component.
     images = torch.load("images/stop_sign_pixel_values.pt")
 
     outputs = llm.generate(prompt,
@@ -33,18 +30,18 @@ def run_llava_pixel_values():
 
 def run_llava_image_features():
     llm = LLM(
-        model="/data/AE/llm/models/llava-1.5-7b-hf/",
+        model="./llava-1.5-7b-hf/",
         image_input_type="image_features",
         image_token_id=32000,
         image_input_shape="1,576,1024",
         image_feature_size=576,
+        dtype="float16",
     )
 
     prompt = "<image>" * 576 + (
         "\nUSER: What is the content of this image?\nASSISTANT:")
 
-    # This should be provided by another online or offline component.
-    images = torch.load("images/stop_sign_image_features.pt")
+    images = torch.load("images/stop_sign_image_features.pt") # 应该由另一个在线或离线组件提供
 
     outputs = llm.generate(prompt,
                            multi_modal_data=MultiModalData(
@@ -70,19 +67,18 @@ if __name__ == "__main__":
                         help="image input type")
     args = parser.parse_args()
     # Download from s3
-    s3_bucket_path = "s3://air-example-data-2/sinfer_opensource_llava/"
-    local_directory = "images"
+    # s3_bucket_path = "s3://air-example-data-2/vllm_opensource_llava/"
+    # local_directory = "images"
 
-    # Make sure the local directory exists or create it
-    os.makedirs(local_directory, exist_ok=True)
+    # os.makedirs(local_directory, exist_ok=True)
 
-    # Use AWS CLI to sync the directory, assume anonymous access
-    subprocess.check_call([
-        "aws",
-        "s3",
-        "sync",
-        s3_bucket_path,
-        local_directory,
-        "--no-sign-request",
-    ])
+    # # Use AWS CLI to sync the directory, assume anonymous access
+    # subprocess.check_call([
+    #     "aws",
+    #     "s3",
+    #     "sync",
+    #     s3_bucket_path,
+    #     local_directory,
+    #     "--no-sign-request",
+    # ])
     main(args)

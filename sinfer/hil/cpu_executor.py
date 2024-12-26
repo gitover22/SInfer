@@ -4,7 +4,7 @@ import torch
 
 import sinfer.envs as envs
 from sinfer.config import CacheConfig, ModelConfig, SchedulerConfig
-from sinfer.executor.executor_base import ExecutorAsyncBase, ExecutorBase
+from sinfer.hil.executor_base import ExecutorAsyncBase, ExecutorBase
 from sinfer.logger import init_logger
 from sinfer.lora.request import LoRARequest
 from sinfer.request import ExecuteModelRequest, SamplerOutput

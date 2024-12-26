@@ -4,14 +4,14 @@ from typing import List, Optional, Tuple
 from sinfer.config import ParallelConfig
 from sinfer.logger import init_logger
 from sinfer.utils import get_ip
-from sinfer.worker.worker_base import WorkerWrapperBase
+from sinfer.worker.worker_base import WorkerDelayBase
 
 logger = init_logger(__name__)
 
 try:
     import ray
 
-    class RayWorkerWrapper(WorkerWrapperBase):
+    class RayWorkerDelay(WorkerDelayBase):
         """Ray wrapper for sinfer.worker.Worker, allowing Worker to be
         lazliy initialized after Ray sets CUDA_VISIBLE_DEVICES."""
 
@@ -24,10 +24,10 @@ try:
         def get_node_ip(self) -> str:
             return get_ip()
 
-        def get_node_and_gpu_ids(self) -> Tuple[str, List[int]]:
+        def get_node_and_mlu_ids(self) -> Tuple[str, List[int]]:
             node_id = ray.get_runtime_context().get_node_id()
-            gpu_ids = ray.get_gpu_ids()
-            return node_id, gpu_ids
+            mlu_ids = ray.get_gpu_ids()
+            return node_id, mlu_ids
 
         def execute_model_compiled_dag_remote(self, ignored):
             """Used only when compiled DAG is enabled."""
@@ -45,7 +45,7 @@ except ImportError as e:
         "Failed to import Ray with %r. For distributed inference, "
         "please install Ray with `pip install ray`.", e)
     ray = None  
-    RayWorkerWrapper = None 
+    RayWorkerDelay = None 
 
 
 def initialize_ray_cluster(

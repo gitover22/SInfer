@@ -91,7 +91,7 @@ class LoraNotSupportedWorkerBase(WorkerBase):
         raise ValueError(f"{type(self)} does not support LoRA")
 
 
-class WorkerWrapperBase:
+class WorkerDelayBase:
     """
     这个类的主要目的是延迟初始化worker  
     """

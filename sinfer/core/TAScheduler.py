@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 from sinfer.task import Task, TaskMetadata
 from sinfer.config import CacheConfig, LoRAConfig, SchedulerConfig
 from sinfer.core.interfaces import AllocStatus, SpaceManager
-from sinfer.core.policy import Policy, PolicyFactory
+from sinfer.core.factory import Policy, PolicyFactory
 from sinfer.logger import init_logger
 from sinfer.lora.request import LoRARequest
 from sinfer.request import (Request, RequestData, RequestStatus)
@@ -238,9 +238,12 @@ class Scheduler:
             self.prompt_limit = min(
                 self.scheduler_config.max_model_len,
                 self.scheduler_config.max_num_batched_tokens)
+        # 任务池
+        self.RunningPool: Deque[Task] = deque()  # 存储运行态的任务（存储处于decode阶段的任务和chunked prefill）
+        self.ReadyPool: Deque[Task] = deque()  # 存储就绪态任务（存储新来的处于prefill阶段的任务和重计算的任务）waiting队列中的task只包含一个req，即是原始的prompt
+        self.BlockedPool: Deque[Task] = deque() # 存储阻塞态的任务，包含被换出的处于decode阶段的任务，或者chunked prefill开启时存储prefill阶段的任务
 
         BlockSpaceManagerImpl = SpaceManager.get_block_space_manager()
-
         # 创建物理块管理器
         self.block_manager = BlockSpaceManagerImpl(
             block_size=self.cache_config.block_size,
@@ -249,12 +252,6 @@ class Scheduler:
             sliding_window=self.cache_config.sliding_window,
             enable_caching=self.cache_config.enable_prefix_caching)
 
-        # WAITING state.包含new prefill和重计算的task
-        self.waiting: Deque[Task] = deque()  # waiting队列中的task只包含一个req，即是原始的prompt
-        # RUNNING state. 包含decode requests或chunked prefill.
-        self.running: Deque[Task] = deque()  
-        # SWAPPED state. 包含被换出的decode requests或者chunked prefill.
-        self.swapped: Deque[Task] = deque()
 
         self.prev_time = 0.0   # 每执行1次推理阶段前，调度器都要做一次调度，这个变量存放的就是上次调度发起的时间点
         self.prev_prompt = False  # 上一次调度时，调度器有从waiting队列中取出task做推理，即为True，否则为False
@@ -266,8 +263,8 @@ class Scheduler:
                                        if self.enable_artificial_preemption
                                        else 0)
         
-        # add for scheduler profiling
-        logger.info(f"start SInfer scheduler profiling...")
+        # 分析调度器性能
+        logger.info(f"SInfer TAScheduler profiling...")
         
         self.df = pd.DataFrame(
             data={
@@ -300,7 +297,7 @@ class Scheduler:
 
     def add_task(self, task: Task) -> None:
         # 往waiting队列添加序列组
-        self.waiting.append(task)
+        self.ReadyPool.append(task)
 
     def abort_task(self, task_id: Union[str, Iterable[str]]) -> None:
         """
@@ -314,7 +311,7 @@ class Scheduler:
         if isinstance(task_id, str):
             task_id = (task_id, )
         task_ids = set(task_id)
-        for state_queue in [self.waiting, self.running, self.swapped]:
+        for state_queue in [self.ReadyPool, self.RunningPool, self.BlockedPool]:
             aborted_tasks: List[Task] = []
             for task in state_queue:
                 if not task_ids:
@@ -332,16 +329,16 @@ class Scheduler:
                     if seq.is_finished():
                         continue
                     seq.status = RequestStatus.FINISHED_ABORTED
-                    self.free_seq(seq)
+                    self.free_req(seq)
 
     def has_unfinished_tasks(self) -> bool:
         '''是否还有没完成的序列'''
-        return len(self.waiting) != 0 or len(self.running) != 0 or len(
-            self.swapped) != 0
+        return len(self.ReadyPool) != 0 or len(self.RunningPool) != 0 or len(
+            self.BlockedPool) != 0
 
     def get_num_unfinished_tasks(self) -> int:
         '''获取未完成的序列组'''
-        return len(self.waiting) + len(self.running) + len(self.swapped)
+        return len(self.ReadyPool) + len(self.RunningPool) + len(self.BlockedPool)
 
     def _schedule_running(
         self,
@@ -503,7 +500,6 @@ class Scheduler:
         while swapped_queue:
             task = swapped_queue[0]
 
-            # If the task cannot be swapped in, stop.
             alloc_status = self.block_manager.can_swap_in(task)
             if alloc_status == AllocStatus.LATER:
                 break
@@ -697,44 +693,46 @@ class Scheduler:
             num_lookahead_slots=self._get_num_lookahead_slots(is_prefill=True))
 
     def _schedule_default(self) -> SchedulerOutputs:
-        """默认:没有chunked prefill, running队列和swap队列全是decode阶段
-        优先级: prefill > decode  (waiting > running > swapped )
-        此策略旨在优化吞吐量。首先，它将尽可能多的预填充请求进行批处理。
-        然后它调度解码请求。如果 GPU 内存出现压力，解码请求可以被交换或抢占。 
         """
+        running队列和blocked队列全是decode阶段(no chunked prefill)
+        任务池优先级: ReadyPool > RunningPool > BlockedPool
+        此策略旨在优化吞吐量。首先，它将尽可能多的预填充请求进行批处理。
+        然后它调度解码请求。如果MLU内存出现压力，解码请求可以被交换或抢占
+        """ 
         # 调度预算：主要关注tokens总数和seq总数
         budget = SchedulingBudget(
             token_budget=self.scheduler_config.max_num_batched_tokens, # 最大：2048
-            max_num_seqs=self.scheduler_config.max_num_seqs, # 最大：256
+            max_num_seqs=self.scheduler_config.max_num_seqs,
         )
         # 确保在调度prefill请求之前包含当前运行中的序列数，  
         # 以避免预填充的调度超出 `max_num_seqs` 的限制。
-        for task in self.running:
+        for task in self.RunningPool:
             budget.add_num_seqs(task.task_id,
                                 task.get_max_num_running_seqs())
         curr_loras = set(
             task.lora_int_id
-            for task in self.running) if self.lora_enabled else None     # 如果启用了LoRA
+            for task in self.RunningPool) if self.lora_enabled else None # 启用了LoRA
 
-        remaining_waiting, prefills = (self.waiting,
+        remaining_waiting, prefills = (self.ReadyPool,
                                        SchedulerPrefillOutputs.create_empty())
         remaining_running, running_scheduled = (
-            self.running, SchedulerRunningOutputs.create_empty())
+            self.RunningPool, SchedulerRunningOutputs.create_empty())
         remaining_swapped, swapped_in = (
-            self.swapped, SchedulerSwappedInOutputs.create_empty())
+            self.BlockedPool, SchedulerSwappedInOutputs.create_empty())
 
         # 如果swapped队列为空，调度waiting队列
-        if not self.swapped:
+        if not self.BlockedPool:
             remaining_waiting, prefills = self._schedule_prefills(
-                self.waiting, budget, curr_loras, enable_chunking=False)
+                self.ReadyPool, budget, curr_loras, enable_chunking=False)
 
         fcfs_policy = PolicyFactory.get_policy(policy_name="fcfs")
+        # fcfs_policy = PolicyFactory.get_policy(policy_name="tas")
         # 如果已经调度了预填充请求，则不要再调度解码请求
         # 如果 _schedule_prefills 未启用分块模式（chunking），
         # 那么self.running 中仅包含解码请求，而不包含分块的预填充请求
         if len(prefills.tasks) == 0: # 没有调度prefill
             remaining_running, running_scheduled = self._schedule_running(
-                self.running,
+                self.RunningPool,
                 budget,
                 curr_loras,
                 fcfs_policy,
@@ -745,25 +743,25 @@ class Scheduler:
             if len(running_scheduled.preempted) + len(
                     running_scheduled.swapped_out) == 0:
                 remaining_swapped, swapped_in = self._schedule_swapped(
-                    self.swapped, budget, curr_loras, fcfs_policy)
+                    self.BlockedPool, budget, curr_loras, fcfs_policy)
         # 确保预算内的token数和序列数没有超出限制
         assert (budget.num_batched_tokens <=
                 self.scheduler_config.max_num_batched_tokens)
         assert budget.num_curr_seqs <= self.scheduler_config.max_num_seqs
 
         # Update
-        self.waiting = remaining_waiting
-        self.waiting.extendleft(running_scheduled.preempted) # 重计算的SG加入到waiting队列最左侧
+        self.ReadyPool = remaining_waiting
+        self.ReadyPool.extendleft(running_scheduled.preempted) # 重计算的SG加入到waiting队列最左侧
         # 
-        self.running = remaining_running
-        self.running.extend([s.task for s in prefills.tasks])
-        self.running.extend(
+        self.RunningPool = remaining_running
+        self.RunningPool.extend([s.task for s in prefills.tasks])
+        self.RunningPool.extend(
             [s.task for s in running_scheduled.decode_tasks])
-        self.running.extend(
+        self.RunningPool.extend(
             [s.task for s in swapped_in.decode_tasks])
         # 
-        self.swapped = remaining_swapped
-        self.swapped.extend(running_scheduled.swapped_out) # 换出的SG加入到swapped队列
+        self.BlockedPool = remaining_swapped
+        self.BlockedPool.extend(running_scheduled.swapped_out) # 换出的SG加入到swapped队列
 
         # 没开启chunked prefill时，running队列和swapped队列都不应该包含prefill阶段的SG
         assert len(running_scheduled.prefill_tasks) == 0
@@ -784,7 +782,7 @@ class Scheduler:
             ignored_tasks=prefills.ignored_tasks +
             swapped_in.infeasible_tasks,
             num_lookahead_slots=running_scheduled.num_lookahead_slots,
-            running_queue_size=len(self.running),
+            running_queue_size=len(self.RunningPool),
         )
 
     def _schedule_chunked_prefill(self):
@@ -805,17 +803,18 @@ class Scheduler:
         )
         curr_loras: Set[int] = set()
 
-        remaining_waiting, prefills = (self.waiting,
+        remaining_waiting, prefills = (self.ReadyPool,
                                        SchedulerPrefillOutputs.create_empty())
         remaining_running, running_scheduled = (
-            self.running, SchedulerRunningOutputs.create_empty())
+            self.RunningPool, SchedulerRunningOutputs.create_empty())
         remaining_swapped, swapped_in = (
-            self.swapped, SchedulerSwappedInOutputs.create_empty())
+            self.BlockedPool, SchedulerSwappedInOutputs.create_empty())
 
         # Decoding should be always scheduled first by fcfs.
         fcfs_policy = PolicyFactory.get_policy(policy_name="fcfs")
+        # fcfs_policy = PolicyFactory.get_policy(policy_name="tas")
         remaining_running, running_scheduled = self._schedule_running(
-            self.running,
+            self.RunningPool,
             budget,
             curr_loras,
             fcfs_policy,
@@ -826,33 +825,33 @@ class Scheduler:
         if len(running_scheduled.preempted) + len(
                 running_scheduled.swapped_out) == 0:
             remaining_swapped, swapped_in = self._schedule_swapped(
-                self.swapped, budget, curr_loras, fcfs_policy)
+                self.BlockedPool, budget, curr_loras, fcfs_policy)
 
         # Schedule new prefills.
         remaining_waiting, prefills = self._schedule_prefills(
-            self.waiting, budget, curr_loras, enable_chunking=True)
+            self.ReadyPool, budget, curr_loras, enable_chunking=True)
 
         assert (budget.num_batched_tokens <=
                 self.scheduler_config.max_num_batched_tokens)
         assert budget.num_curr_seqs <= self.scheduler_config.max_num_seqs
 
         # Update waiting requests.
-        self.waiting = remaining_waiting
-        self.waiting.extendleft(running_scheduled.preempted)
+        self.ReadyPool = remaining_waiting
+        self.ReadyPool.extendleft(running_scheduled.preempted)
         # Update new running requests.
-        self.running = remaining_running
-        self.running.extend([s.task for s in prefills.tasks])
-        self.running.extend(
+        self.RunningPool = remaining_running
+        self.RunningPool.extend([s.task for s in prefills.tasks])
+        self.RunningPool.extend(
             [s.task for s in running_scheduled.decode_tasks])
-        self.running.extend(
+        self.RunningPool.extend(
             [s.task for s in running_scheduled.prefill_tasks])
-        self.running.extend(
+        self.RunningPool.extend(
             [s.task for s in swapped_in.decode_tasks])
-        self.running.extend(
+        self.RunningPool.extend(
             [s.task for s in swapped_in.prefill_tasks])
         # Update swapped requests.
-        self.swapped = remaining_swapped
-        self.swapped.extend(running_scheduled.swapped_out)
+        self.BlockedPool = remaining_swapped
+        self.BlockedPool.extend(running_scheduled.swapped_out)
         return SchedulerOutputs(
             scheduled_tasks=(prefills.tasks +
                                   running_scheduled.prefill_tasks +
@@ -869,14 +868,14 @@ class Scheduler:
                                        swapped_in.blocks_to_copy),
             ignored_tasks=prefills.ignored_tasks,
             num_lookahead_slots=running_scheduled.num_lookahead_slots,
-            running_queue_size=len(self.running),
+            running_queue_size=len(self.RunningPool),
         )
 
     def _schedule(self) -> SchedulerOutputs:
-        if self.scheduler_config.chunked_prefill_enabled: # 如果开启了分块预填充
+        if self.scheduler_config.chunked_prefill_enabled:
             return self._schedule_chunked_prefill()
         else:
-            return self._schedule_default() # 默认不开启分块预填充
+            return self._schedule_default() # 默认
 
     def _can_append_slots(self, task: Task) -> bool:
         """
@@ -899,7 +898,7 @@ class Scheduler:
 
     def schedule(self) -> Tuple[List[TaskMetadata], SchedulerOutputs]:
         '''
-        调度器的调度入口，会把调度输出进行封装
+        调度器的调度入口，会封装调度输出
         '''
         scheduler_outputs = self._schedule() # 获取调度输出
         now = time.time()
@@ -967,27 +966,24 @@ class Scheduler:
 
         return seq_group_metadata_list, scheduler_outputs
 
-    def fork_seq(self, parent_req: Request, child_req: Request) -> None:
+    def fork_req(self, parent_req: Request, child_req: Request) -> None:
         self.block_manager.fork(parent_req, child_req)
 
-    def free_seq(self, req: Request) -> None:
+    def free_req(self, req: Request) -> None:
         """释放一个序列"""
         self.block_manager.free(req)
 
+    # 释放已经完成的序列组
     def free_finished_tasks(self) -> None:
-        # 释放已经完成的序列组
-        # self.running = deque(task for task in self.running
-        #                      if not task.is_finished())
-        # add for scheduler profiling
-        finished_tasks_ = [task for task in self.running
+        finished_tasks_ = [task for task in self.RunningPool
                                         if task.is_finished()]
 
-        self.running = deque(task for task in self.running
+        self.RunningPool = deque(task for task in self.RunningPool
                                 if not task.is_finished())
 
-        self.running_seqs = len(self.running)
-        self.waiting_seqs = len(self.waiting)
-        self.swapped_seqs = len(self.swapped)
+        self.running_seqs = len(self.RunningPool)
+        self.waiting_seqs = len(self.ReadyPool)
+        self.swapped_seqs = len(self.BlockedPool)
         self.finished_seqs += len(finished_tasks_)
         self.finished_tasks += finished_tasks_
 
@@ -1070,7 +1066,7 @@ class Scheduler:
             req.status = RequestStatus.WAITING 
             # 释放这条seq对应的物理块
             # 即将对应物理块的引用-1，如果此时引用数量为0，说明对应物理块完全自由了，需要再将其放入自由物理块列表中
-            self.free_seq(req)
+            self.free_req(req)
             req.reset_state_for_recompute()
 
     def _preempt_by_swap(
@@ -1125,15 +1121,15 @@ class Scheduler:
         self.prev_time, self.prev_prompt = now, False
         # Delay scheduling prompts to let waiting queue fill up
         # delay_factor：用户配置的，用于调整调度间隔阈值的因子。大于0则意味着用户想开启阈值判断
-        if self.scheduler_config.delay_factor > 0 and self.waiting:
+        if self.scheduler_config.delay_factor > 0 and self.ReadyPool:
             # 计算在waiting队列中，最早到达的seq_group的到达时间
             earliest_arrival_time = min(
-                [e.metrics.arrival_time for e in self.waiting])
+                [e.metrics.arrival_time for e in self.ReadyPool])
             # 实际等待的时间 > 应该等待时间
             passed_delay = (
                 (now - earliest_arrival_time) >
                 (self.scheduler_config.delay_factor * self.last_prompt_latency)
-                or not self.running)
+                or not self.RunningPool)
         else:
             passed_delay = True
         return passed_delay
@@ -1200,7 +1196,7 @@ class Scheduler:
         return df
 
     def __del__(self):
-        logger.info(f"SInfer scheduler profiling save...")
+        logger.info(f"SInfer TAScheduler profiling saving...")
         figure = self.df.plot(y=['waiting', 'running', 'swapped', 'finished']).get_figure()
         figure.savefig("sinfer_queue_view.jpg", dpi=300)
         plt.close(figure)

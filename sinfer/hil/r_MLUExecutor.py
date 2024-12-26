@@ -6,9 +6,9 @@ from itertools import islice, repeat
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 import sinfer.envs as envs
-from sinfer.executor.distributed_gpu_executor import (
-    DistributedGPUExecutor, DistributedGPUExecutorAsync)
-from sinfer.executor.ray_utils import RayWorkerWrapper, ray
+from sinfer.hil.distributed_mlu_executor import (
+    Distributed_MLUExecutor, Distributed_MLUExecutorAsync)
+from sinfer.hil.r_utils import RayWorkerDelay, ray
 from sinfer.logger import init_logger
 from sinfer.request import ExecuteModelRequest, SamplerOutput
 from sinfer.utils import (get_distributed_init_method, get_ip, get_open_port,
@@ -25,7 +25,7 @@ logger = init_logger(__name__)
 USE_RAY_COMPILED_DAG = envs.SINFER_USE_RAY_COMPILED_DAG
 
 
-class RayGPUExecutor(DistributedGPUExecutor):
+class Ray_MLUExecutor(Distributed_MLUExecutor):
 
     def _init_executor(self) -> None:
         assert self.parallel_config.worker_use_ray
@@ -68,17 +68,17 @@ class RayGPUExecutor(DistributedGPUExecutor):
     def _init_workers_ray(self, placement_group: "PlacementGroup",
                           **ray_remote_kwargs):
         if self.parallel_config.tensor_parallel_size == 1:
-            # 对于单 GPU 情况，使用一个带有受限内存的 Ray 工作进程
-            num_gpus = self.cache_config.gpu_memory_utilization
+            # 对于单 MLU 情况，使用一个带有受限内存的 Ray 工作进程
+            num_mlus = self.cache_config.gpu_memory_utilization
         else:
-            # 对于多 GPU 情况，分配完整的 GPU
-            num_gpus = 1 
+            # 对于多 MLU 情况，分配完整的 GPU
+            num_mlus = 1 
 
 
         # 主节点
-        self.driver_dummy_worker: Optional[RayWorkerWrapper] = None
+        self.driver_dummy_worker: Optional[RayWorkerDelay] = None
         # 工作节点
-        self.workers: List[RayWorkerWrapper] = []
+        self.workers: List[RayWorkerDelay] = []
 
         if self.parallel_config.ray_workers_use_nsight:
             ray_remote_kwargs = self._configure_ray_workers_use_nsight(
@@ -97,10 +97,10 @@ class RayGPUExecutor(DistributedGPUExecutor):
             )
             worker = ray.remote(
                 num_cpus=0,  # 分配的 CPU 数
-                num_gpus=num_gpus,  # 分配的 GPU 数
+                num_gpus=num_mlus,  # 分配的 GPU 数
                 scheduling_strategy=scheduling_strategy,
                 **ray_remote_kwargs,
-            )(RayWorkerWrapper).remote(
+            )(RayWorkerDelay).remote(
                 worker_module_name="sinfer.worker.worker",
                 worker_class_name="Worker",
                 trust_remote_code=self.model_config.trust_remote_code,
@@ -110,7 +110,7 @@ class RayGPUExecutor(DistributedGPUExecutor):
             if worker_ip == driver_ip and self.driver_dummy_worker is None:
                 # 如果worker node与driver node位于同一节点
                 self.driver_dummy_worker = worker
-                self.driver_worker = RayWorkerWrapper(
+                self.driver_worker = RayWorkerDelay(
                     worker_module_name="sinfer.worker.worker",
                     worker_class_name="Worker",
                     trust_remote_code=self.model_config.trust_remote_code,
@@ -120,12 +120,12 @@ class RayGPUExecutor(DistributedGPUExecutor):
 
         if self.driver_dummy_worker is None:
             raise ValueError(
-                "Ray does not allocate any GPUs on the driver node. Consider "
+                "Ray does not allocate any MLUs on the driver node. Consider "
                 "adjusting the Ray placement group or running the driver on a "
-                "GPU node.")
+                "MLU node.")
 
         # 获取所有节点的id
-        worker_node_and_gpu_ids = self._run_workers("get_node_and_gpu_ids",
+        worker_node_and_gpu_ids = self._run_workers("get_node_and_mlu_ids",
                                                     use_dummy_driver=True)
 
         node_workers = defaultdict(list)
@@ -268,7 +268,7 @@ class RayGPUExecutor(DistributedGPUExecutor):
         from ray.dag import InputNode, MultiOutputNode
         assert self.parallel_config.worker_use_ray
 
-        # 目前编译的 DAG 至少需要一个参数,暂时传递一个占位值,这个问题很快会被修复
+        # 目前编译的 DAG 至少需要一个参数,暂时传递一个占位值
         with InputNode() as input_data:
             forward_dag = MultiOutputNode([
                 worker.execute_model_compiled_dag_remote.
@@ -277,7 +277,6 @@ class RayGPUExecutor(DistributedGPUExecutor):
         return forward_dag.experimental_compile()
 
     def check_health(self) -> None:
-        """Raises an error if engine is unhealthy."""
         self._check_if_any_actor_is_dead()
 
     def _check_if_any_actor_is_dead(self):
@@ -294,13 +293,14 @@ class RayGPUExecutor(DistributedGPUExecutor):
 
     def get_latency(self):
         '''
-        调用此方法之前，必须执行 torch.cuda.synchronize()，以确保 CUDA 的操作完成（同步 GPU 和 CPU 操作），从而提供准确的延迟数据
+        调用此方法之前，必须执行 torch.cuda.synchronize()，同步 MLU 和 CPU 操作，从而提供准确的延迟数据
         '''
         all_latencies = self._run_workers(method="get_latency")
 
-        # 只有主驱动节点（driver worker）完成了 model.compute_logits() 过程，而其他 Ray 工作者（workers）在计算各自对应的 logit 后便停止运行
+        # 只有主驱动节点（driver worker）完成 model.compute_logits() 过程，而其他 Ray workers在计算各自对应的 logit 后便停止运行
         return all_latencies[0]
-class RayGPUExecutorAsync(RayGPUExecutor, DistributedGPUExecutorAsync):
+
+class Ray_MLUExecutorAsync(Ray_MLUExecutor, Distributed_MLUExecutorAsync):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.driver_executor = make_async(self.driver_worker.execute_method)
@@ -324,7 +324,6 @@ class RayGPUExecutorAsync(RayGPUExecutor, DistributedGPUExecutorAsync):
         coros.append(
             self.driver_executor(method, *driver_args, **driver_kwargs))
 
-        # 异步运行
         for worker in self.workers:
             coros.append(worker.execute_method.remote(method, *args, **kwargs))
 

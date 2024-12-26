@@ -28,7 +28,7 @@ user_message2 = [{
 completion = client.chat.completions.create(
     model="./test/Meta-Llama-3-8B-Instruct",
     messages=user_message2,
-    max_tokens=512  # 限制模型最大生成内容长度，注意token_num(messages长度) + max_tokens < max_model_len(模型支持的最大上下文长度)
+    max_tokens=256  # 限制模型最大生成内容长度，注意token_num(messages长度) + max_tokens < max_model_len(模型支持的最大上下文长度)
 )
 # client.models()
 print(client.models)

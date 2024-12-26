@@ -1,7 +1,15 @@
 test/Meta-Llama-3-8B-Instruct
 test/llama-3-chinese-8b-lora
+test/llava-1.5-7b-hf
 test/proxy_timeout
 test/test_python.py
+test/prompts.csv
+test/sinfer_queue_view.jpg
+test/sinfer_scheduler_view.csv
+test/sinfer_time_view.csv
+test/sinfer_utilization_view.jpg
+test/archive
+test/images
 test/log
 sinfer/**/__pycache__/
 benchmarks/**/__pycache__/

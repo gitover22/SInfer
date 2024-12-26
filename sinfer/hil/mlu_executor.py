@@ -1,22 +1,19 @@
 from typing import Any, Dict, List, Optional, Set, Tuple
 
-from sinfer.executor.executor_base import ExecutorAsyncBase, ExecutorBase
+from sinfer.hil.executor_base import ExecutorAsyncBase, ExecutorBase
 from sinfer.logger import init_logger
 from sinfer.lora.request import LoRARequest
 from sinfer.request import ExecuteModelRequest, SamplerOutput
 from sinfer.utils import (get_distributed_init_method, get_ip, get_open_port,
                         make_async)
-from sinfer.worker.worker_base import WorkerWrapperBase
+from sinfer.worker.worker_base import WorkerDelayBase
 
 logger = init_logger(__name__)
 
 
-class GPUExecutor(ExecutorBase):
+class MLUExecutor(ExecutorBase):
 
     def _init_executor(self) -> None:
-        """
-        初始化worker并加载模型
-        """
         self._init_worker()
 
     def _get_worker_kwargs(
@@ -47,7 +44,7 @@ class GPUExecutor(ExecutorBase):
                        local_rank: int = 0,
                        rank: int = 0,
                        distributed_init_method: Optional[str] = None):
-        wrapper = WorkerWrapperBase(
+        wrapper = WorkerDelayBase(
             worker_module_name="sinfer.worker.worker",
             worker_class_name="Worker",
         )
@@ -57,20 +54,17 @@ class GPUExecutor(ExecutorBase):
 
     def _init_worker(self):
         assert self.parallel_config.world_size == 1, (
-            "GPUExecutor only supports single GPU.")
+            "MLUExecutor only supports single MLU.")
 
-        self.driver_worker = self._create_worker() # 创建worker
+        self.driver_worker = self._create_worker() # 创建工作节点
         self.driver_worker.init_device() # 初始化设备
         self.driver_worker.load_model() # 加载模型
 
     def determine_num_available_blocks(self) -> Tuple[int, int]:
-        """调用Worker来确定blocks数量
-        """
         return self.driver_worker.determine_num_available_blocks()
 
     def initialize_cache(self, num_gpu_blocks: int, num_cpu_blocks) -> None:
-        logger.info("Allocated GPU blocks: %d, CPU blocks: %d", num_gpu_blocks, num_cpu_blocks)
-
+        logger.info("MLU kv blocks: %d, CPU kv blocks: %d", num_gpu_blocks, num_cpu_blocks)
         self.driver_worker.initialize_cache(num_gpu_blocks, num_cpu_blocks)
 
     def execute_model(
@@ -91,8 +85,6 @@ class GPUExecutor(ExecutorBase):
         return self.driver_worker.list_loras()
 
     def check_health(self) -> None:
-        # GPUExecutor will always be healthy as long as
-        # it's running.
         return
     
     def get_latency(self):
@@ -103,8 +95,7 @@ class GPUExecutor(ExecutorBase):
         latency = self.driver_worker.get_latency()
         return latency
 
-class GPUExecutorAsync(GPUExecutor, ExecutorAsyncBase):
-
+class MLUExecutorAsync(MLUExecutor, ExecutorAsyncBase):
     async def execute_model_async(
         self,
         execute_model_req: ExecuteModelRequest,
