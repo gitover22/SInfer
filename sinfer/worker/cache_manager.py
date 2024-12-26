@@ -12,7 +12,7 @@ logger = init_logger(__name__)
 
 class CacheEngine:
     """
-        负责初始化和管理 GPU/CPU 的 KV 缓存，同时提供用于执行 KV 缓存操作的方法，例如交换和拷贝操作
+        负责初始化和管理 MLU/CPU 的 KV 块，同时提供用于执行 KV 缓存操作的方法，例如交换和拷贝操作
     """
 
     def __init__(
@@ -30,7 +30,7 @@ class CacheEngine:
         self.num_heads = model_config.get_num_kv_heads(parallel_config)
 
         self.block_size = cache_config.block_size
-        self.num_gpu_blocks = cache_config.num_gpu_blocks
+        self.num_mlu_blocks = cache_config.num_mlu_blocks
         self.num_cpu_blocks = cache_config.num_cpu_blocks
 
         if cache_config.cache_dtype == "auto":
@@ -42,7 +42,7 @@ class CacheEngine:
         self.attn_backend = get_attn_backend(model_config.dtype)
 
         # 在设备上分配kv cache空间
-        self.gpu_cache = self._allocate_kv_cache(self.num_gpu_blocks, "cuda")
+        self.gpu_cache = self._allocate_kv_cache(self.num_mlu_blocks, "cuda")
         self.cpu_cache = self._allocate_kv_cache(self.num_cpu_blocks, "cpu")
 
     def _allocate_kv_cache(
@@ -89,7 +89,7 @@ class CacheEngine:
         value_cache_block = key_cache_block
         total = num_layers * (key_cache_block + value_cache_block)
         if cache_config.cache_dtype == "auto":
-            dtype = model_config.dtype # 不设置kv cache的数据类型时，默认为模型权重类型
+            dtype = model_config.dtype
         else:
             dtype = STR_DTYPE_TO_TORCH_DTYPE[cache_config.cache_dtype]
         dtype_size = _get_dtype_size(dtype)

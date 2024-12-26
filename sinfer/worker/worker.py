@@ -18,8 +18,8 @@ from sinfer.distributed.device_communicators.custom_all_reduce import (
 from sinfer.lora.request import LoRARequest
 from sinfer.model_executor import set_random_seed
 from sinfer.request import ExecuteModelRequest, SamplerOutput
-from sinfer.worker.cache_engine import CacheEngine
-from sinfer.worker.model_runner import ModelRunner
+from sinfer.worker.cache_manager import CacheEngine
+from sinfer.worker.model_inference import ModelInference
 from sinfer.worker.worker_base import WorkerBase
 
 
@@ -69,7 +69,7 @@ class Worker(WorkerBase):
             assert not self.lora_config, (
                 "To be tested: vision language model with LoRA settings.")
 
-        self.model_runner = ModelRunner(
+        self.model_inference = ModelInference(
             model_config,
             parallel_config,
             scheduler_config,
@@ -82,7 +82,7 @@ class Worker(WorkerBase):
         )
 
         self.cache_engine: CacheEngine  # 没初始化
-        self.gpu_cache: List[torch.Tensor]
+        self.mlu_cache: List[torch.Tensor]
 
     def init_device(self) -> None:
         if self.device_config.device.type == "cuda":
@@ -110,7 +110,7 @@ class Worker(WorkerBase):
         set_random_seed(self.model_config.seed)
 
     def load_model(self):
-        self.model_runner.load_model()
+        self.model_inference.load_model()
 
     @torch.inference_mode()
     def determine_num_available_blocks(self) -> Tuple[int, int]:
@@ -121,55 +121,55 @@ class Worker(WorkerBase):
         # 分析模型的内存使用情况，获取在剩余空闲内存中可以分配的缓存块的最大数量
         torch.cuda.empty_cache() # 清理 CUDA 缓存内存
         # 执行一次前向传递，使用虚拟输入以分析模型的内存使用情况。
-        self.model_runner.profile_run()
+        self.model_inference.profile_run()
         torch.cuda.synchronize() # 同步 CUDA 操作，确保内存分析准确
         free_gpu_memory, total_gpu_memory = torch.cuda.mem_get_info() # 24.9GB  41.5GB
         # 假设在内存分析期间使用同一 GPU 的其他进程没有改变其内存使用情况
         peak_memory = self.init_gpu_memory - free_gpu_memory  # 16.5GB
         assert peak_memory > 0, (
-            "Error in memory profiling. This happens when the GPU memory was "
+            "Error in memory profiling. This happens when the MLU memory was "
             "not properly cleaned up before initializing the SInfer instance.")
 
         cache_block_size = self.get_cache_block_size_bytes() # 获取单个缓存块的大小 128MB
-        num_gpu_blocks = int(
+        num_mlu_blocks = int(
             (total_gpu_memory * self.cache_config.gpu_memory_utilization -
              peak_memory) // cache_block_size)
         num_cpu_blocks = int(self.cache_config.swap_space_bytes //
                              cache_block_size)
-        num_gpu_blocks = max(num_gpu_blocks, 0)
+        num_mlu_blocks = max(num_mlu_blocks, 0)
         num_cpu_blocks = max(num_cpu_blocks, 0)
-        if self.model_runner.lora_manager:
-            self.model_runner.remove_all_loras()
+        if self.model_inference.lora_manager:
+            self.model_inference.remove_all_loras()
         gc.collect()
         torch.cuda.empty_cache()
-        return num_gpu_blocks, num_cpu_blocks
+        return num_mlu_blocks, num_cpu_blocks
 
-    def initialize_cache(self, num_gpu_blocks: int,
+    def initialize_cache(self, num_mlu_blocks: int,
                          num_cpu_blocks: int) -> None:
-        """Allocate GPU and CPU KV cache with the specified number of blocks.
+        """Allocate MLU and CPU KV cache with the specified number of blocks.
 
         This also warms up the model, which may record CUDA graphs.
         """
-        raise_if_cache_size_invalid(num_gpu_blocks,
+        raise_if_cache_size_invalid(num_mlu_blocks,
                                     self.cache_config.block_size,
                                     self.model_config.max_model_len)
 
-        self.cache_config.num_gpu_blocks = num_gpu_blocks
+        self.cache_config.num_mlu_blocks = num_mlu_blocks
         self.cache_config.num_cpu_blocks = num_cpu_blocks
 
         self._init_cache_engine()
         self._warm_up_model()
 
     def _init_cache_engine(self):
-        assert self.cache_config.num_gpu_blocks is not None
+        assert self.cache_config.num_mlu_blocks is not None
         self.cache_engine = CacheEngine(self.cache_config, self.model_config,
                                         self.parallel_config)
-        self.gpu_cache = self.cache_engine.gpu_cache
-        self.model_runner.set_block_size(self.cache_engine.block_size)
+        self.mlu_cache = self.cache_engine.gpu_cache
+        self.model_inference.set_block_size(self.cache_engine.block_size)
 
     def _warm_up_model(self) -> None:
         if not self.model_config.enforce_eager:
-            self.model_runner.capture_model(self.gpu_cache)
+            self.model_inference.capture_model(self.mlu_cache)
         # 重置随机数种子，以确保随机状态不受模型初始化和分析的影响。
         set_random_seed(self.model_config.seed)
 
@@ -188,20 +188,20 @@ class Worker(WorkerBase):
             self.cache_engine.copy(blocks_to_copy)
 
     @torch.inference_mode()
-    def execute_model(
+    def infer_model(
         self,
         execute_model_req: Optional[ExecuteModelRequest] = None
     ) -> List[SamplerOutput]:
 
         if execute_model_req is None:
-            seq_group_metadata_list = None
+            task_metadata_list = None
         else:
-            seq_group_metadata_list = execute_model_req.seq_group_metadata_list
+            task_metadata_list = execute_model_req.seq_group_metadata_list
 
         if self.is_driver_worker:
-            assert seq_group_metadata_list is not None
+            assert task_metadata_list is not None
             assert execute_model_req is not None
-            num_seq_groups = len(seq_group_metadata_list)
+            num_seq_groups = len(task_metadata_list)
             blocks_to_swap_in = execute_model_req.blocks_to_swap_in
             blocks_to_swap_out = execute_model_req.blocks_to_swap_out
             blocks_to_copy = execute_model_req.blocks_to_copy
@@ -225,20 +225,20 @@ class Worker(WorkerBase):
         if num_seq_groups == 0:
             return []
         # 调用ModelRunner执行模型
-        output = self.model_runner.execute_model(seq_group_metadata_list,
-                                                 self.gpu_cache)
+        output = self.model_inference.infer_model(task_metadata_list,
+                                                 self.mlu_cache)
 
         # Worker 仅支持单步执行，将输出包装为一个列表以符合接口要求
         return [output]
 
     def add_lora(self, lora_request: LoRARequest) -> bool:
-        return self.model_runner.add_lora(lora_request)
+        return self.model_inference.add_lora(lora_request)
 
     def remove_lora(self, lora_id: int) -> bool:
-        return self.model_runner.remove_lora(lora_id)
+        return self.model_inference.remove_lora(lora_id)
 
     def list_loras(self) -> Set[int]:
-        return self.model_runner.list_loras()
+        return self.model_inference.list_loras()
 
     @property
     def max_model_len(self) -> int:
@@ -246,7 +246,7 @@ class Worker(WorkerBase):
 
     @property
     def vocab_size(self) -> int:
-        return self.model_runner.vocab_size
+        return self.model_inference.vocab_size
 
     def get_cache_block_size_bytes(self) -> int:
         """获取kv cache的块大小bytes.

@@ -9,7 +9,7 @@ from sinfer.Intercept.mlu_definitions import USE_PAGED, BlockSizeInfo, check_lat
 from sinfer.logger import init_logger
 from sinfer.distributed.device_communicators import pynccl_utils, custom_all_reduce
 from sinfer.task import TaskMetadata
-from sinfer.worker.model_runner import (ModelRunner, CUDAGraphRunner,
+from sinfer.worker.model_inference import (ModelInference, CUDAGraphRunner,
                                       PreparePromptMetadata, PrepareDecodeMetadata,
                                       _get_graph_batch_size, _BATCH_SIZES_TO_CAPTURE,
                                       _BATCH_SIZE_ALIGNMENT, _PAD_SLOT_ID)
@@ -25,7 +25,7 @@ import sinfer.envs as envs
 logger = init_logger(__name__)
 
 
-def intercept_ModelRunner_set_block_size(self, block_size: int) -> None:
+def intercept_ModelInference_set_block_size(self, block_size: int) -> None:
     # support unpaged mode
     BlockSizeInfo.set_block_size(block_size)
     self.block_size = BlockSizeInfo.BLOCK_SIZE
@@ -35,7 +35,7 @@ def intercept_ModelRunner_set_block_size(self, block_size: int) -> None:
         dtype=np.int32)
 
 
-def intercept_ModelRunner_get_max_block_per_batch(self) -> int:
+def intercept_ModelInference_get_max_block_per_batch(self) -> int:
     block_size = self.block_size
     # support unpaged mode
     if USE_PAGED:
@@ -44,7 +44,7 @@ def intercept_ModelRunner_get_max_block_per_batch(self) -> int:
     
 
 
-def intercept_ModelRunner_prepare_prompt(
+def intercept_ModelInference_prepare_prompt(
     self,
     seq_group_metadata_list: List[TaskMetadata],
 ) -> PreparePromptMetadata:
@@ -254,7 +254,7 @@ def intercept_ModelRunner_prepare_prompt(
     )
 
 
-def intercept_ModelRunner_prepare_decode(
+def intercept_ModelInference_prepare_decode(
     self,
     seq_group_metadata_list: List[TaskMetadata],
 ) -> PrepareDecodeMetadata:
@@ -351,7 +351,7 @@ def intercept_ModelRunner_prepare_decode(
         @brief: Use the refact function to get right batch size to inference
         ''' 
         graph_batch_size = \
-            intercept_ModelRunner_get_graph_batch_size(batch_size)
+            intercept_ModelInference_get_graph_batch_size(batch_size)
         
         assert graph_batch_size >= batch_size
         for _ in range(graph_batch_size - batch_size):
@@ -457,7 +457,7 @@ def intercept_ModelRunner_prepare_decode(
 
 
 @torch.inference_mode()
-def intercept_ModelRunner_capture_model(self, kv_caches: List[torch.Tensor], num_gpu_blocks: int) -> None:
+def intercept_ModelInference_capture_model(self, kv_caches: List[torch.Tensor], num_gpu_blocks: int) -> None:
     """Cuda graph capture a model.
 
     Note that CUDA graph's performance gain is negligible if number
@@ -564,7 +564,7 @@ def intercept_ModelRunner_capture_model(self, kv_caches: List[torch.Tensor], num
     _BATCH_SIZES_TO_CAPTURE = batch_size_capture_list
 
 @torch.inference_mode()
-def intercept_ModelRunner_execute_model(
+def intercept_ModelInference_execute_model(
     self,
     seq_group_metadata_list: List[TaskMetadata],
     kv_caches: List[torch.Tensor],
@@ -628,7 +628,7 @@ def intercept_ModelRunner_execute_model(
     return output
 
 
-def intercept_ModelRunner_get_graph_batch_size(batch_size: int) -> int:
+def intercept_ModelInference_get_graph_batch_size(batch_size: int) -> int:
     """Returns the padded batch size given actual batch size.
 
     Batch sizes are 1, 2, 4, _BATCH_SIZE_ALIGNMENT,
@@ -678,10 +678,10 @@ def intercept_CUDAGraphRunner_forward(
     # Return the output tensor.
     return self.output_buffers["hidden_states"]
 
-InterceptObject.add_intercept(ModelRunner,     ModelRunner.set_block_size,          intercept_ModelRunner_set_block_size)
-InterceptObject.add_intercept(ModelRunner,     ModelRunner.get_max_block_per_batch, intercept_ModelRunner_get_max_block_per_batch)
-InterceptObject.add_intercept(ModelRunner,     ModelRunner._prepare_prompt,         intercept_ModelRunner_prepare_prompt)
-InterceptObject.add_intercept(ModelRunner,     ModelRunner._prepare_decode,         intercept_ModelRunner_prepare_decode)
-InterceptObject.add_intercept(ModelRunner,     ModelRunner.capture_model,           intercept_ModelRunner_capture_model)
-InterceptObject.add_intercept(ModelRunner,     ModelRunner.execute_model,           intercept_ModelRunner_execute_model)
+InterceptObject.add_intercept(ModelInference,     ModelInference.set_block_size,          intercept_ModelInference_set_block_size)
+InterceptObject.add_intercept(ModelInference,     ModelInference.get_max_block_per_batch, intercept_ModelInference_get_max_block_per_batch)
+InterceptObject.add_intercept(ModelInference,     ModelInference._prepare_prompt,         intercept_ModelInference_prepare_prompt)
+InterceptObject.add_intercept(ModelInference,     ModelInference._prepare_decode,         intercept_ModelInference_prepare_decode)
+InterceptObject.add_intercept(ModelInference,     ModelInference.capture_model,           intercept_ModelInference_capture_model)
+InterceptObject.add_intercept(ModelInference,     ModelInference.infer_model,           intercept_ModelInference_execute_model)
 InterceptObject.add_intercept(CUDAGraphRunner, CUDAGraphRunner.forward,             intercept_CUDAGraphRunner_forward)

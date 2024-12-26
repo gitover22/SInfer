@@ -61,17 +61,17 @@ def start():
     )
 
     # 打印用户输入和模型生成内容
-    print("="*50)
-    print("User Prompt:", user_message["content"])
-    print("="*50)
-    print("Model Response:", completion.choices[0].message.content)
-    print("="*50)
-    print("\n\n")
+    # print("="*50)
+    # print("User Prompt:", user_message["content"])
+    # print("="*50)
+    # print("Model Response:", completion.choices[0].message.content)
+    # print("="*50)
+    # print("\n\n")
 
 def run_prompt(user_id):
     start_time = get_LocalTime()
     native_id = threading.current_thread().native_id  # 获取真实线程 ID
-    print(f"user id: {user_id} | tid: {native_id} | start: {start_time}")
+    # print(f"user id: {user_id} | tid: {native_id} | start: {start_time}")
     start_ts = int(time.time() * 1000)  # 毫秒时间戳
     start()
     end_ts = int(time.time() * 1000)  # 毫秒时间戳
@@ -79,11 +79,10 @@ def run_prompt(user_id):
     runtime = end_ts - start_ts
     end_time = get_LocalTime()
     log_message = (
-        f"user id: {user_id} | tid: {native_id} | start: {start_time} | "
-        f"end: {end_time} | e2e: {runtime} ms"
+        f"user id: {user_id} | tid: {native_id} | e2e: {runtime} ms"
     )
     logger.info(log_message)  # 记录线程结束日志
-    print(log_message)
+    # print(log_message)
 
 if __name__ == "__main__":
     thread_count = int(input("num threads: "))

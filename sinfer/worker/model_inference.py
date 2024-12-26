@@ -98,7 +98,7 @@ class BatchType(IntEnum):
     MIXED = 2
 
 
-class ModelRunner:
+class ModelInference:
 
     def __init__(
         self,
@@ -761,7 +761,7 @@ class ModelRunner:
                 multi_modal_input)
 
     @torch.inference_mode()
-    def execute_model(
+    def infer_model(
         self,
         seq_group_metadata_list: List[TaskMetadata],
         kv_caches: List[torch.Tensor],
@@ -869,7 +869,7 @@ class ModelRunner:
         
         num_layers = self.model_config.get_num_layers(self.parallel_config)
         kv_caches = [None] * num_layers
-        self.execute_model(seqs, kv_caches) # 用假数据运行模型
+        self.infer_model(seqs, kv_caches) # 用假数据运行模型
         torch.cuda.synchronize()
         return
 

@@ -49,7 +49,7 @@ def intercept_Worker_init_device(self) -> None:
 def intercept_Worker_warm_up_model(self) -> None:
     # add num_gpu_blocks for mlu graph capture
     if not self.model_config.enforce_eager:
-        self.model_runner.capture_model(self.gpu_cache, self.cache_config.num_gpu_blocks)
+        self.model_inference.capture_model(self.gpu_cache, self.cache_config.num_mlu_blocks)
     
     set_random_seed(self.model_config.seed)
 
@@ -59,7 +59,7 @@ def intercept_Worker_get_latency(self):
     requires that torch.cuda.synchronize() be executed before this function 
     for getting an accurate reading
     '''
-    start, end = self.model_runner.time_markers
+    start, end = self.model_inference.time_markers
     return start.elapsed_time(end)
 
 
@@ -108,7 +108,7 @@ def intercept_Worker_stat_input_hook(m, x, y, name, act_range, is_linear, is_sav
 
 
 def intercept_Worker_setup_smooth_hook(self, is_save_input_id: bool = False):
-    model = self.model_runner.model
+    model = self.model_inference.model
     self.act_range = defaultdict(lambda: {
         "x": None,
         "split": None,
@@ -182,7 +182,7 @@ def intercept_Worker_get_act_range(self):
 
 def intercept_Worker_get_named_parameters(self):
     name_parameters = {}
-    for name, param in self.model_runner.model.named_parameters():
+    for name, param in self.model_inference.model.named_parameters():
         name_parameters[name] = param.to("cpu")
 
     return name_parameters

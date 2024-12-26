@@ -4,7 +4,7 @@ import sinfer
 import sinfer.envs as envs
 import numpy as np
 from typing import List, Union, Optional
-from sinfer.worker.model_runner import _BATCH_SIZES_TO_CAPTURE, _BATCH_SIZE_ALIGNMENT
+from sinfer.worker.model_inference import _BATCH_SIZES_TO_CAPTURE, _BATCH_SIZE_ALIGNMENT
 from sinfer.logger import init_logger
 import ctypes # 用于与 C/C++ 动态链接库交互
 

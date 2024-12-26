@@ -39,11 +39,11 @@ class Distributed_MLUExecutor(MLUExecutor):
                     num_cpu_blocks)
 
 
-        self.cache_config.num_gpu_blocks = num_mlu_blocks
+        self.cache_config.num_mlu_blocks = num_mlu_blocks
         self.cache_config.num_cpu_blocks = num_cpu_blocks
 
         self._run_workers("initialize_cache",
-                          num_gpu_blocks=num_mlu_blocks,
+                          num_mlu_blocks=num_mlu_blocks,
                           num_cpu_blocks=num_cpu_blocks)
 
     def execute_model(self, *args, **kwargs) -> List[SamplerOutput]:
@@ -98,7 +98,7 @@ class Distributed_MLUExecutorAsync(Distributed_MLUExecutor, ExecutorAsyncBase):
 
     async def execute_model_async(self, *args,
                                   **kwargs) -> List[SamplerOutput]:
-        all_outputs = await self._run_workers_async("execute_model",
+        all_outputs = await self._run_workers_async("infer_model",
                                                     driver_args=args,
                                                     driver_kwargs=kwargs)
         # 只有主节点返回结果

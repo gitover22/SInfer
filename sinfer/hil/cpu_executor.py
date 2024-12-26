@@ -59,7 +59,7 @@ class CPUExecutor(ExecutorBase):
         """
         return self.driver_worker.determine_num_available_blocks()
 
-    def initialize_cache(self, num_gpu_blocks: int,
+    def initialize_cache(self, num_mlu_blocks: int,
                          num_cpu_blocks: int) -> None:
         """Initialize the KV cache by invoking the underlying worker.
         """
@@ -69,13 +69,13 @@ class CPUExecutor(ExecutorBase):
         # NOTE: `cpu block` for CPU backend is located on CPU memory but is
         # referred as `gpu block`. Because we want to reuse the existing block
         # management procedure.
-        logger.info("# CPU blocks: %d", num_gpu_blocks)
-        self.driver_worker.initialize_cache(num_gpu_blocks, num_cpu_blocks)
+        logger.info("# CPU blocks: %d", num_mlu_blocks)
+        self.driver_worker.initialize_cache(num_mlu_blocks, num_cpu_blocks)
 
     def execute_model(
             self,
             execute_model_req: ExecuteModelRequest) -> List[SamplerOutput]:
-        output = self.driver_worker.execute_model(execute_model_req)
+        output = self.driver_worker.infer_model(execute_model_req)
         return output
 
     def add_lora(self, lora_request: LoRARequest) -> bool:
@@ -98,7 +98,7 @@ class CPUExecutorAsync(CPUExecutor, ExecutorAsyncBase):
     async def execute_model_async(
             self,
             execute_model_req: ExecuteModelRequest) -> List[SamplerOutput]:
-        output = await make_async(self.driver_worker.execute_model
+        output = await make_async(self.driver_worker.infer_model
                                   )(execute_model_req=execute_model_req, )
         return output
 

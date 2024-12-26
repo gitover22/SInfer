@@ -433,7 +433,6 @@ class AsyncLLMRuntime:
 
         for new_request in new_requests:
             # 将请求添加到 SInfer 引擎的等待队列中
-            # TODO: Maybe add add_request_batch to reduce Ray overhead
             try:
                 if self.engine_use_ray:
                     await self.runtime.add_task.remote(  # type: ignore
@@ -441,7 +440,6 @@ class AsyncLLMRuntime:
                 else:
                     await self.runtime.add_task_async(**new_request)
             except ValueError as e:
-                # TODO: use a SInfer specific error for failed validation
                 self._request_pool.process_exception(
                     new_request["task_id"],
                     e,
@@ -562,69 +560,6 @@ class AsyncLLMRuntime:
         lora_request: Optional[LoRARequest] = None,
         multi_modal_data: Optional[MultiModalData] = None
     ) -> AsyncIterator[RequestOutput]:
-        """Generate outputs for a request.
-
-        Generate outputs for a request. This method is a coroutine. It adds the
-        request into the waiting queue of the LLMEngine and streams the outputs
-        from the LLMEngine to the caller.
-
-        Args:
-            prompt: The prompt string. Can be None if prompt_token_ids is
-                provided.
-            sampling_params: The sampling parameters of the request.
-            request_id: The unique id of the request.
-            prompt_token_ids: The token IDs of the prompt. If None, we
-                use the tokenizer to convert the prompts to token IDs.
-            lora_request: LoRA request to use for generation, if any.
-            multi_modal_data: Multi modal data per request.
-
-        Yields:
-            The output `RequestOutput` objects from the LLMEngine for the
-            request.
-
-        Details:
-            - If the engine is not running, start the background loop,
-              which iteratively invokes
-              :meth:`~sinfer.engine.async_llm_engine.AsyncLLMEngine.engine_step`
-              to process the waiting requests.
-            - Add the request to the engine's `RequestTracker`.
-              On the next background loop, this request will be sent to
-              the underlying engine.
-              Also, a corresponding `AsyncStream` will be created.
-            - Wait for the request outputs from `AsyncStream` and yield them.
-
-        Example:
-            >>> # Please refer to entrypoints/api_server.py for
-            >>> # the complete example.
-            >>>
-            >>> # initialize the engine and the example input
-            >>> engine = AsyncLLMEngine.from_engine_args(engine_args)
-            >>> example_input = {
-            >>>     "prompt": "What is LLM?",
-            >>>     "stream": False, # assume the non-streaming case
-            >>>     "temperature": 0.0,
-            >>>     "request_id": 0,
-            >>> }
-            >>>
-            >>> # start the generation
-            >>> results_generator = engine.generate(
-            >>>    example_input["prompt"],
-            >>>    SamplingParams(temperature=example_input["temperature"]),
-            >>>    example_input["request_id"])
-            >>>
-            >>> # get the results
-            >>> final_output = None
-            >>> async for request_output in results_generator:
-            >>>     if await request.is_disconnected():
-            >>>         # Abort the request if the client disconnects.
-            >>>         await engine.abort(request_id)
-            >>>         # Return or raise an error
-            >>>         ...
-            >>>     final_output = request_output
-            >>>
-            >>> # Process and return the final output
-            >>> ...
-        """
         # Preprocess the request.
         arrival_time = time.time()
 
@@ -647,13 +582,13 @@ class AsyncLLMRuntime:
             raise e
 
     async def abort(self, task_id: str) -> None:
-        """Abort a request.
+        """Abort a task.
 
-        Abort a submitted request. If the request is finished or not found,
+        Abort a submitted task. If the task is finished or not found,
         this method will be a no-op.
 
         Args:
-            task_id: The unique id of the request.
+            task_id: The unique id of the task.
         """
         if not self.is_running:
             raise AsyncRuntimeDeadError(
@@ -666,9 +601,6 @@ class AsyncLLMRuntime:
 
     def _abort(self, task_id: str) -> None:
         """终止一个已提交的request. 
-        If the request is finished or not found,
-        this method will be a no-op.
-
         """
         self._request_pool.abort_request(task_id,
                                             verbose=self.log_requests)
@@ -699,7 +631,6 @@ class AsyncLLMRuntime:
             self.runtime.do_log_stats()
 
     async def check_health(self) -> None:
-        """Raises an error if runtime is unhealthy."""
         t = time.perf_counter()
         logger.debug("Starting health check...")
         if self.is_stopped:
