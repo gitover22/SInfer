@@ -11,6 +11,7 @@ test/sinfer_utilization_view.jpg
 test/archive
 # test/images
 test/log
+test/**/__pycache__/
 sinfer/**/__pycache__/
 benchmarks/**/__pycache__/
 examples/**/__pycache__/

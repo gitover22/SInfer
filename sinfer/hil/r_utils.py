@@ -51,6 +51,7 @@ except ImportError as e:
 def initialize_ray_cluster(
     parallel_config: ParallelConfig,
     ray_address: Optional[str] = None,
+    # ray_address: Optional[str] = "local",
 ):
     """使用 Ray 初始化分布式集群
     它将连接到 Ray 集群并为worker创建一个 placement group, 该组包括每个分布式worker进程的资源规范。
@@ -66,7 +67,7 @@ def initialize_ray_cluster(
             "serving.")
 
     # Connect to a ray cluster.
-    ray.init(address=ray_address, ignore_reinit_error=True)
+    ray.init(address=ray_address, ignore_reinit_error=True,num_cpus=2)
 
     if parallel_config.placement_group:
         return

@@ -49,7 +49,7 @@ def intercept_Worker_init_device(self) -> None:
 def intercept_Worker_warm_up_model(self) -> None:
     # add num_gpu_blocks for mlu graph capture
     if not self.model_config.enforce_eager:
-        self.model_inference.capture_model(self.gpu_cache, self.cache_config.num_mlu_blocks)
+        self.model_inference.capture_model(self.mlu_cache, self.cache_config.num_mlu_blocks)
     
     set_random_seed(self.model_config.seed)
 

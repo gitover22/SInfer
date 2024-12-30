@@ -39,8 +39,8 @@ class RuntimeArgs:
     max_parallel_loading_workers: Optional[int] = None
     block_size: int = -1
     enable_prefix_caching: bool = False
-    swap_space: int = 4  # GiB
-    gpu_memory_utilization: float = 0.90
+    swap_space: int = 2  # GiB
+    gpu_memory_utilization: float = 0.95
     max_num_batched_tokens: Optional[int] = None
     max_num_seqs: int = 512
     max_logprobs: int = 5  # OpenAI default value

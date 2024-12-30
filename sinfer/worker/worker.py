@@ -25,7 +25,6 @@ from sinfer.worker.worker_base import WorkerBase
 
 class Worker(WorkerBase):
     """A worker class that executes (a partition of) the model on a MLU.
-
     Each worker is associated with a single MLU. The worker is responsible for
     maintaining the KV cache and executing the model on the MLU. In case of
     distributed inference, each worker is assigned a partition of the model.
@@ -123,9 +122,9 @@ class Worker(WorkerBase):
         # 执行一次前向传递，使用虚拟输入以分析模型的内存使用情况。
         self.model_inference.profile_run()
         torch.cuda.synchronize() # 同步 CUDA 操作，确保内存分析准确
-        free_gpu_memory, total_gpu_memory = torch.cuda.mem_get_info() # 24.9GB  41.5GB
+        free_gpu_memory, total_gpu_memory = torch.cuda.mem_get_info() #  12731  23,373 MB   剩余可用（总大小 - 已被占用）  总大小
         # 假设在内存分析期间使用同一 GPU 的其他进程没有改变其内存使用情况
-        peak_memory = self.init_gpu_memory - free_gpu_memory  # 16.5GB
+        peak_memory = self.init_gpu_memory - free_gpu_memory  # 已被占用的: 10642 MB
         assert peak_memory > 0, (
             "Error in memory profiling. This happens when the MLU memory was "
             "not properly cleaned up before initializing the SInfer instance.")
