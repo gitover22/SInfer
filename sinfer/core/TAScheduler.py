@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 from sinfer.task import Task, TaskMetadata
 from sinfer.config import CacheConfig, LoRAConfig, SchedulerConfig
 from sinfer.core.interfaces import AllocStatus, SpaceManager
-from sinfer.core.factory import Policy, PolicyFactory
+from sinfer.core.factory import Profiler, Profilers
 from sinfer.logger import init_logger
 from sinfer.lora.request import LoRARequest
 from sinfer.request import (Request, RequestData, RequestStatus)
@@ -247,7 +247,7 @@ class Scheduler:
         # 创建物理块管理器
         self.block_manager = BlockSpaceManagerImpl(
             block_size=self.cache_config.block_size,
-            num_gpu_blocks=self.cache_config.num_mlu_blocks,
+            num_mlu_blocks=self.cache_config.num_mlu_blocks,
             num_cpu_blocks=self.cache_config.num_cpu_blocks,
             sliding_window=self.cache_config.sliding_window,
             enable_caching=self.cache_config.enable_prefix_caching)
@@ -345,7 +345,7 @@ class Scheduler:
         running_queue: deque,
         budget: SchedulingBudget,
         curr_loras: Optional[Set[int]],
-        policy: Policy,
+        policy: Profiler,
         enable_chunking: bool = False,
     ) -> Tuple[deque, SchedulerRunningOutputs]:
         """调度 running 队列中的SG
@@ -380,7 +380,7 @@ class Scheduler:
         swapped_out: List[Task] = []
 
         now = time.time()
-        running_queue = policy.sort_by_priority(now, running_queue)
+        running_queue = policy.sort_by_score(now, running_queue)
         while running_queue:
             task = running_queue[0]
             num_running_tokens = self._get_num_new_tokens(
@@ -459,7 +459,7 @@ class Scheduler:
         swapped_queue: deque,
         budget: SchedulingBudget,
         curr_loras: Optional[Set[int]],
-        policy: Policy,
+        policy: Profiler,
         enable_chunking: bool = False,
     ) -> Tuple[deque, SchedulerSwappedInOutputs]:
         """调度被swap out的序列组
@@ -493,7 +493,7 @@ class Scheduler:
         prefill_seq_groups: List[ScheduledTask] = []
 
         now = time.time()
-        swapped_queue = policy.sort_by_priority(now, swapped_queue)
+        swapped_queue = policy.sort_by_score(now, swapped_queue)
         infeasible_tasks: List[Task] = []
 
         leftover_swapped: Deque[Task] = deque()
@@ -725,7 +725,7 @@ class Scheduler:
             remaining_waiting, prefills = self._schedule_prefills(
                 self.ReadyPool, budget, curr_loras, enable_chunking=False)
 
-        fcfs_policy = PolicyFactory.get_policy(policy_name="fcfs")
+        fcfs_policy = Profilers.get_profiler(_name="fcfs")
         # fcfs_policy = PolicyFactory.get_policy(policy_name="tas")
         # 如果已经调度了预填充请求，则不要再调度解码请求
         # 如果 _schedule_prefills 未启用分块模式（chunking），
@@ -811,7 +811,7 @@ class Scheduler:
             self.BlockedPool, SchedulerSwappedInOutputs.create_empty())
 
         # Decoding should be always scheduled first by fcfs.
-        fcfs_policy = PolicyFactory.get_policy(policy_name="fcfs")
+        fcfs_policy = Profilers.get_profiler(_name="fcfs")
         # fcfs_policy = PolicyFactory.get_policy(policy_name="tas")
         remaining_running, running_scheduled = self._schedule_running(
             self.RunningPool,
@@ -903,7 +903,7 @@ class Scheduler:
         scheduler_outputs = self._schedule() # 获取调度输出
         now = time.time()
 
-        seq_group_metadata_list: List[TaskMetadata] = []
+        task_metadata_list: List[TaskMetadata] = []
         # 依次遍历每一个序列组
         for i, scheduled_task in enumerate(
                 scheduler_outputs.scheduled_tasks):
@@ -938,7 +938,7 @@ class Scheduler:
             # It assumes the scheduled_seq_groups is ordered by
             # prefill < decoding.
             is_prompt = task.is_prefill()
-            seq_group_metadata = TaskMetadata(
+            task_metadata = TaskMetadata(
                 task_id=task.task_id,
                 is_prompt=is_prompt,
                 req_data=req_data,
@@ -956,7 +956,7 @@ class Scheduler:
                 multi_modal_data=task.multi_modal_data
                 if scheduler_outputs.num_prefill_tasks > 0 else None,
             )
-            seq_group_metadata_list.append(seq_group_metadata)
+            task_metadata_list.append(task_metadata)
 
         # 假设批次中的所有块都会在下次调度调用之前完成计算
         # 这是因为模型执行中的失败会导致 SInfer 实例崩溃，而不会进行重试
@@ -964,7 +964,7 @@ class Scheduler:
             self.block_manager.mark_blocks_as_computed(
                 scheduled_task.task)
 
-        return seq_group_metadata_list, scheduler_outputs
+        return task_metadata_list, scheduler_outputs
 
     def fork_req(self, parent_req: Request, child_req: Request) -> None:
         self.block_manager.fork(parent_req, child_req)
@@ -992,8 +992,8 @@ class Scheduler:
             self.total_seqs = total_seqs_
 
         self.batch_utils = self.running_seqs / self.scheduler_config.max_num_seqs
-        self.block_utils = (self.block_manager.num_total_gpu_blocks -
-                            self.block_manager.get_num_free_gpu_blocks()) / self.block_manager.num_total_gpu_blocks
+        self.block_utils = (self.block_manager.num_total_mlu_blocks -
+                            self.block_manager.get_num_free_gpu_blocks()) / self.block_manager.num_total_mlu_blocks
         self.preempt_ratio = self.running_to_waiting_seqs / self.total_seqs
 
         df_ = pd.DataFrame(
@@ -1124,7 +1124,7 @@ class Scheduler:
         if self.scheduler_config.delay_factor > 0 and self.ReadyPool:
             # 计算在waiting队列中，最早到达的seq_group的到达时间
             earliest_arrival_time = min(
-                [e.metrics.arrival_time for e in self.ReadyPool])
+                [e.metadata.arrival_time for e in self.ReadyPool])
             # 实际等待的时间 > 应该等待时间
             passed_delay = (
                 (now - earliest_arrival_time) >
@@ -1174,10 +1174,10 @@ class Scheduler:
         dtype=np.float32
         )
         for task in tasks:
-            ttft = task.metrics.first_token_time - task.metrics.arrival_time
-            time_in_queue = task.metrics.time_in_queue
-            context_latency = task.metrics.first_token_time - task.metrics.first_scheduled_time
-            decoder_latency = task.metrics.finished_time - task.metrics.first_token_time
+            ttft = task.metadata.first_token_time - task.metadata.arrival_time
+            time_in_queue = task.metadata.time_in_queue
+            context_latency = task.metadata.first_token_time - task.metadata.first_scheduled_time
+            decoder_latency = task.metadata.finished_time - task.metadata.first_token_time
             decoder_token_num = task.get_reqs()[0].get_output_len() - 1
             per_token_latency = decoder_latency if decoder_token_num == 0 \
                                                 else decoder_latency / decoder_token_num

@@ -18,7 +18,7 @@ from sinfer.distributed.device_communicators.custom_all_reduce import (
 from sinfer.lora.request import LoRARequest
 from sinfer.model_executor import set_random_seed
 from sinfer.request import ExecuteModelRequest, SamplerOutput
-from sinfer.worker.cache_manager import CacheEngine
+from sinfer.worker.cache_manager import CacheManager
 from sinfer.worker.model_inference import ModelInference
 from sinfer.worker.worker_base import WorkerBase
 
@@ -80,7 +80,7 @@ class Worker(WorkerBase):
             vision_language_config=vision_language_config,
         )
 
-        self.cache_engine: CacheEngine  # 没初始化
+        self.cache_manager: CacheManager  # 没初始化
         self.mlu_cache: List[torch.Tensor]
 
     def init_device(self) -> None:
@@ -156,15 +156,15 @@ class Worker(WorkerBase):
         self.cache_config.num_mlu_blocks = num_mlu_blocks
         self.cache_config.num_cpu_blocks = num_cpu_blocks
 
-        self._init_cache_engine()
+        self._init_Cmanager()
         self._warm_up_model()
 
-    def _init_cache_engine(self):
+    def _init_Cmanager(self):
         assert self.cache_config.num_mlu_blocks is not None
-        self.cache_engine = CacheEngine(self.cache_config, self.model_config,
+        self.cache_manager = CacheManager(self.cache_config, self.model_config,
                                         self.parallel_config)
-        self.mlu_cache = self.cache_engine.gpu_cache
-        self.model_inference.set_block_size(self.cache_engine.block_size)
+        self.mlu_cache = self.cache_manager.mlu_cache
+        self.model_inference.set_block_size(self.cache_manager.block_size)
 
     def _warm_up_model(self) -> None:
         if not self.model_config.enforce_eager:
@@ -180,11 +180,11 @@ class Worker(WorkerBase):
     ) -> None:
         # 
         if blocks_to_swap_in:
-            self.cache_engine.swap_in(blocks_to_swap_in)
+            self.cache_manager.swap_in(blocks_to_swap_in)
         if blocks_to_swap_out:
-            self.cache_engine.swap_out(blocks_to_swap_out)
+            self.cache_manager.swap_out(blocks_to_swap_out)
         if blocks_to_copy:
-            self.cache_engine.copy(blocks_to_copy)
+            self.cache_manager.copy(blocks_to_copy)
 
     @torch.inference_mode()
     def infer_model(
@@ -250,7 +250,7 @@ class Worker(WorkerBase):
     def get_cache_block_size_bytes(self) -> int:
         """获取kv cache的块大小bytes.
         """
-        return CacheEngine.get_cache_block_size(self.cache_config,
+        return CacheManager.get_cache_block_size(self.cache_config,
                                                 self.model_config,
                                                 self.parallel_config)
 

@@ -140,9 +140,9 @@ class LLMRuntime:
             lora_config=lora_config,
             vision_language_config=vision_language_config,
             load_config=load_config,
-        ) # 实例化MLUExecutor , 实例化Worker，ModelRunner(初始化kv cache时实例化CacheEngine),加载模型权重
+        ) # 实例化MLUExecutor , 实例化Worker，ModelInference(初始化kv cache时实例化CacheManager),加载模型权重
 
-        self._initialize_kv_caches() # 初始化kv cache缓存，CacheEngine
+        self._initialize_kv_caches() # 初始化kv cache缓存，CacheManager
 
         # 收集信息
         if is_usage_stats_enabled():
@@ -240,12 +240,12 @@ class LLMRuntime:
         elif runtime_config.parallel_config.worker_use_ray:
             initialize_ray_cluster(runtime_config.parallel_config)
             from sinfer.hil.r_MLUExecutor import Ray_MLUExecutor
-            executor_class = Ray_MLUExecutor # 启用TP时为RayGPUExecutor
+            executor_class = Ray_MLUExecutor # 启用TP时为Ray_MLUExecutor
         else:
             assert runtime_config.parallel_config.world_size == 1, (
                 "Ray is required if parallel_config.world_size > 1.")
             from sinfer.hil.mlu_executor import MLUExecutor
-            executor_class = MLUExecutor # 单卡时为GPUExecutor
+            executor_class = MLUExecutor # 单卡时为MLUExecutor
 
         # 运行构造函数创建engine实例对象
         engine = cls(
@@ -409,9 +409,9 @@ class LLMRuntime:
     def _process_model_outputs(
         self,
         output: List[SamplerOutput],
-        scheduled_seq_groups: List[ScheduledTask],
-        ignored_seq_groups: List[Task],
-        seq_group_metadata_list: List[TaskMetadata],
+        scheduled_tasks: List[ScheduledTask],
+        ignored_tasks: List[Task],
+        task_metadata_list: List[TaskMetadata],
     ) -> List[RequestOutput]:
         """Apply the model output to the sequences in the scheduled seq groups.
 
@@ -423,12 +423,12 @@ class LLMRuntime:
         # Organize outputs by [sequence group][step] instead of
         # [step][sequence group].
         output_by_sequence_group = create_output_by_sequence_group(
-            sampler_outputs=output, num_seq_groups=len(scheduled_seq_groups))
+            sampler_outputs=output, num_seq_groups=len(scheduled_tasks))
 
         # Update the scheduled sequence groups with the model outputs.
         for scheduled_seq_group, outputs, seq_group_meta in zip(
-                scheduled_seq_groups, output_by_sequence_group,
-                seq_group_metadata_list):
+                scheduled_tasks, output_by_sequence_group,
+                task_metadata_list):
             seq_group = scheduled_seq_group.task
             seq_group.update_num_computed_tokens(
                 scheduled_seq_group.token_chunk_size)
@@ -442,12 +442,12 @@ class LLMRuntime:
 
         # Create the outputs.
         request_outputs: List[RequestOutput] = []
-        for scheduled_seq_group in scheduled_seq_groups:
+        for scheduled_seq_group in scheduled_tasks:
             seq_group = scheduled_seq_group.task
             seq_group.maybe_set_first_token_time(now)
             request_output = RequestOutput.from_task(seq_group)
             request_outputs.append(request_output)
-        for seq_group in ignored_seq_groups:
+        for seq_group in ignored_tasks:
             request_output = RequestOutput.from_task(seq_group)
             request_outputs.append(request_output)
         return request_outputs
@@ -583,7 +583,7 @@ class LLMRuntime:
                 if task.is_finished():
                     # Latency timings
                     time_e2e_requests.append(now -
-                                             task.metrics.arrival_time)
+                                             task.metadata.arrival_time)
 
                     # Metadata
                     num_prompt_tokens_requests.append(

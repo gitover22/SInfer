@@ -72,16 +72,6 @@ class Request_Stage(enum.Enum):
     DECODE = enum.auto()
 
 
-@dataclass
-class RequestMetrics:
-    arrival_time: float # 请求到达的时间
-    last_token_time: float 
-    first_scheduled_time: Optional[float] # 请求第一次被调度的时间
-    first_token_time: Optional[float] # 第一个令牌生成的时间
-    time_in_queue: Optional[float] # 请求在队列中等待的时间
-    finished_time: Optional[float] = None # 请求完成的时间
-
-
 class RequestData:
     """
         请求的数据,包括prompt和输出的token ids,以及累积的对数概率
@@ -201,7 +191,7 @@ class Request:
         self.output_logprobs: SampleLogprobs = []
         self.output_text = ""
 
-        self.logical_token_blocks: List[LogicalTokenBlock] = [] # 每个seq都会维护自己的逻辑块列表
+        self.logical_token_blocks: List[LogicalTokenBlock] = [] # 每个req都会维护自己的逻辑块列表
         # 使用提示(prompt)的token ID初始化逻辑token块。
         self._append_tokens_to_blocks(prompt_token_ids)
         self.status = RequestStatus.WAITING

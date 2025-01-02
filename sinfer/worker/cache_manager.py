@@ -10,7 +10,7 @@ from sinfer.utils import STR_DTYPE_TO_TORCH_DTYPE, is_pin_memory_available
 logger = init_logger(__name__)
 
 
-class CacheEngine:
+class CacheManager:
     """
         负责初始化和管理 MLU/CPU 的 KV 块，同时提供用于执行 KV 缓存操作的方法，例如交换和拷贝操作
     """
@@ -41,7 +41,7 @@ class CacheEngine:
         self.attn_backend = get_attn_backend(model_config.dtype)
 
         # 在设备上分配kv cache空间
-        self.gpu_cache = self._allocate_kv_cache(self.num_mlu_blocks, "cuda")
+        self.mlu_cache = self._allocate_kv_cache(self.num_mlu_blocks, "cuda")
         self.cpu_cache = self._allocate_kv_cache(self.num_cpu_blocks, "cpu")
 
     def _allocate_kv_cache(
@@ -63,16 +63,16 @@ class CacheEngine:
 
     def swap_in(self, src_to_dst: Dict[int, int]) -> None:
         for i in range(self.num_layers):
-            self.attn_backend.swap_blocks(self.cpu_cache[i], self.gpu_cache[i],
+            self.attn_backend.swap_blocks(self.cpu_cache[i], self.mlu_cache[i],
                                           src_to_dst)
 
     def swap_out(self, src_to_dst: Dict[int, int]) -> None:
         for i in range(self.num_layers):
-            self.attn_backend.swap_blocks(self.gpu_cache[i], self.cpu_cache[i],
+            self.attn_backend.swap_blocks(self.mlu_cache[i], self.cpu_cache[i],
                                           src_to_dst)
 
     def copy(self, src_to_dsts: Dict[int, List[int]]) -> None:
-        self.attn_backend.copy_blocks(self.gpu_cache, src_to_dsts)
+        self.attn_backend.copy_blocks(self.mlu_cache, src_to_dsts)
 
     @staticmethod
     def get_cache_block_size(

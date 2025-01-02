@@ -169,16 +169,16 @@ class CPUModelRunner:
 
     def _prepare_decode(
         self,
-        seq_group_metadata_list: List[TaskMetadata],
+        task_metadata_list: List[TaskMetadata],
     ) -> Tuple[torch.Tensor, torch.Tensor, AttentionMetadata]:
-        assert len(seq_group_metadata_list) > 0
+        assert len(task_metadata_list) > 0
         input_tokens: List[int] = []
         input_positions: List[int] = []
         slot_mapping: List[int] = []
         seq_lens: List[int] = []
         block_tables: List[List[int]] = []
 
-        for seq_group_metadata in seq_group_metadata_list:
+        for seq_group_metadata in task_metadata_list:
             assert not seq_group_metadata.is_prompt
             assert seq_group_metadata.token_chunk_size == 1
 
@@ -256,25 +256,25 @@ class CPUModelRunner:
 
     def prepare_input_tensors(
         self,
-        seq_group_metadata_list: List[TaskMetadata],
+        task_metadata_list: List[TaskMetadata],
     ) -> Tuple[torch.Tensor, torch.Tensor, AttentionMetadata, SamplingMetadata,
                Optional[torch.Tensor]]:
         multi_modal_input = None
         if self.is_driver_worker:
             # NOTE: We assume that all sequences in the group are all prompts or
             # all decodes.
-            is_prompt = seq_group_metadata_list[0].is_prompt
+            is_prompt = task_metadata_list[0].is_prompt
             # Prepare input tensors.
             if is_prompt:
                 (input_tokens, input_positions, attn_metadata, seq_lens,
                  multi_modal_input
-                 ) = self._prepare_prompt(seq_group_metadata_list)
+                 ) = self._prepare_prompt(task_metadata_list)
             else:
                 (input_tokens, input_positions,
-                 attn_metadata) = self._prepare_decode(seq_group_metadata_list)
+                 attn_metadata) = self._prepare_decode(task_metadata_list)
                 seq_lens = []
             sampling_metadata = SamplingMetadata.prepare(
-                seq_group_metadata_list,
+                task_metadata_list,
                 seq_lens,
                 # query_lens is not needed if chunked prefill is not
                 # supported. Since CPU worker doesn't support chunked prefill
@@ -313,12 +313,12 @@ class CPUModelRunner:
     @torch.inference_mode()
     def execute_model(
         self,
-        seq_group_metadata_list: List[TaskMetadata],
+        task_metadata_list: List[TaskMetadata],
         kv_caches: List[torch.Tensor],
     ) -> Optional[SamplerOutput]:
         (input_tokens, input_positions, attn_metadata, sampling_metadata,
          multi_modal_input
-         ) = self.prepare_input_tensors(seq_group_metadata_list)
+         ) = self.prepare_input_tensors(task_metadata_list)
 
         model_executable = self.model
         execute_model_kwargs = {

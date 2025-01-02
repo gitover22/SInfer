@@ -1,9 +1,9 @@
 import time
 from typing import List, Optional, Union
 
-from sinfer.task import Task
+from sinfer.task import Metadata, Task
 from sinfer.lora.request import LoRARequest
-from sinfer.request import (PromptLogprobs, RequestMetrics, SampleLogprobs,
+from sinfer.request import (PromptLogprobs, SampleLogprobs,
                            RequestStatus)
 
 
@@ -80,7 +80,7 @@ class RequestOutput:
         prompt_logprobs: Optional[PromptLogprobs],
         outputs: List[CompletionOutput],
         finished: bool,
-        metrics: Optional[RequestMetrics] = None,
+        metrics: Optional[Metadata] = None,
         lora_request: Optional[LoRARequest] = None,
     ) -> None:
         self.request_id = request_id
@@ -137,7 +137,7 @@ class RequestOutput:
                    prompt_logprobs,
                    outputs,
                    finished,
-                   task.metrics,
+                   task.metadata,
                    lora_request=task.lora_request)
 
     def __repr__(self) -> str:

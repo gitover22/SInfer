@@ -27,6 +27,7 @@ from sinfer.logger import enable_trace_function_call, init_logger
 T = TypeVar("T")
 logger = init_logger(__name__)
 
+# 数据映射关系
 STR_DTYPE_TO_TORCH_DTYPE = {
     "half": torch.half,
     "bfloat16": torch.bfloat16,

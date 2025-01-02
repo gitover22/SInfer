@@ -230,14 +230,14 @@ class _BlockSpaceManager(SpaceManager):
     def __init__(
         self,
         block_size: int,     # 每个block的槽位大小
-        num_gpu_blocks: int, # 当前gpu上最多能分配的block数量
+        num_mlu_blocks: int, # 当前gpu上最多能分配的block数量
         num_cpu_blocks: int, # 当前cpu上，用于做swap的内存中，最多能分配的block数量
         watermark: float = 0.01, # 内存交换的水位线（阈值）
         sliding_window: Optional[int] = None, # 滑动窗口的大小
         enable_caching: bool = False, # 是否需要做prefix caching
     ) -> None:
         self.block_size = block_size
-        self.num_total_gpu_blocks = num_gpu_blocks
+        self.num_total_mlu_blocks = num_mlu_blocks
         self.num_total_cpu_blocks = num_cpu_blocks
 
         if enable_caching and sliding_window is not None:
@@ -257,18 +257,18 @@ class _BlockSpaceManager(SpaceManager):
 
         # 水位线block数量：这个阈值决定是否要给当前seq分配block
         # 设置水位线block的目的是不要一下打满设备中的物理块，留一些buffer，避免后续频繁地发生swap
-        self.watermark_blocks = int(watermark * num_gpu_blocks)
+        self.watermark_blocks = int(watermark * num_mlu_blocks)
 
         # 根据是否开启了prefix caching，来选择不同的allocator
         if self.enable_caching:
             logger.info("Automatic prefix caching is enabled.")
-            self.gpu_allocator: BlockAllocatorBase = CachedBlockAllocator(
-                Device.GPU, block_size, num_gpu_blocks)
+            self.mlu_allocator: BlockAllocatorBase = CachedBlockAllocator(
+                Device.GPU, block_size, num_mlu_blocks)
             self.cpu_allocator: BlockAllocatorBase = CachedBlockAllocator(
                 Device.CPU, block_size, num_cpu_blocks)
         else:
-            self.gpu_allocator = UncachedBlockAllocator(
-                Device.GPU, block_size, num_gpu_blocks)
+            self.mlu_allocator = UncachedBlockAllocator(
+                Device.GPU, block_size, num_mlu_blocks)
             self.cpu_allocator = UncachedBlockAllocator(
                 Device.CPU, block_size, num_cpu_blocks)
             
@@ -283,18 +283,18 @@ class _BlockSpaceManager(SpaceManager):
         - AllocStatus.LATER 延迟分配
         '''
         req = task.get_reqs(status=RequestStatus.WAITING)[0] # waiting队列中都是prefill阶段的序列，且只有一个序列
-        num_required_blocks = len(req.logical_token_blocks) # 这个序列的所有逻辑块数量
+        _required_blocks = len(req.logical_token_blocks) # 这个序列的所有逻辑块数量
 
         if self.block_sliding_window is not None:
-            num_required_blocks = min(num_required_blocks,
+            _required_blocks = min(_required_blocks,
                                       self.block_sliding_window)
-        num_free_gpu_blocks = self.gpu_allocator.get_num_free_blocks() # 获取所有可用物理块数量
+        _free_mlu_blocks = self.mlu_allocator.get_num_free_blocks() # 获取所有可用物理块数量
 
         # 设备中所有的物理块数量 - 该seq实际需要的物理块数量 < 水位线block数量，则不分配（说明当前seq太长了）
-        if (self.num_total_gpu_blocks - num_required_blocks <
+        if (self.num_total_mlu_blocks - _required_blocks <
                 self.watermark_blocks):
             return AllocStatus.NEVER
-        if num_free_gpu_blocks - num_required_blocks >= self.watermark_blocks:  # 如果设备中可用的物理块数量 - 该seq实际需要的block数量 >= 水位线block数量，则分配
+        if _free_mlu_blocks - _required_blocks >= self.watermark_blocks:  # 如果设备中可用的物理块数量 - 该seq实际需要的block数量 >= 水位线block数量，则分配
             return AllocStatus.OK
         else:
             return AllocStatus.LATER         # 否则，现在不能分配，但可以延迟分配
@@ -321,12 +321,12 @@ class _BlockSpaceManager(SpaceManager):
                 block.ref_count = task.num_reqs()
             # 如果做了prefix caching，即使用的是CachedBlockAllocator
             elif self.enable_caching:
-                block = self.gpu_allocator.allocate(
+                block = self.mlu_allocator.allocate(
                     req.hash_of_block(logical_idx),
                     req.num_hashed_tokens_of_block(logical_idx))
             # UncachedBlockAllocator对应的情况
             else:
-                block = self.gpu_allocator.allocate()
+                block = self.mlu_allocator.allocate()
                 # Set the reference counts of the token blocks.
                 block.ref_count = task.num_reqs()
             block_table.append(block)
@@ -348,7 +348,7 @@ class _BlockSpaceManager(SpaceManager):
         if not USE_PAGED:
             return True
         else:
-            num_free_gpu_blocks = self.gpu_allocator.get_num_free_blocks()
+            num_free_gpu_blocks = self.mlu_allocator.get_num_free_blocks()
             num_reqs = task.num_reqs(status=RequestStatus.RUNNING)
             return num_reqs <= num_free_gpu_blocks
 
@@ -364,13 +364,13 @@ class _BlockSpaceManager(SpaceManager):
 
         # 如果根据new_hash，这最后一个物理块在cached_tables(有人正在和你用一样的)
         # 或者在驱逐器中
-        if self.gpu_allocator.contains_block(new_hash):
-            self.gpu_allocator.free(last_block) # 释放最后一个物理块
-            return self.gpu_allocator.allocate(new_hash) # 用new_hash重新分配（即复用）物理块
+        if self.mlu_allocator.contains_block(new_hash):
+            self.mlu_allocator.free(last_block) # 释放最后一个物理块
+            return self.mlu_allocator.allocate(new_hash) # 用new_hash重新分配（即复用）物理块
         # 如果根据new_hash，这最后一个物理块既不在cached_tables也不在驱逐器中
         # （说明只有它的默认hash值在cached_tables中）
         else:
-            self.gpu_allocator.update_hash(new_hash, last_block) # 对于这个物理块，在cached_tables中用new_hash代替old_hash
+            self.mlu_allocator.update_hash(new_hash, last_block) # 对于这个物理块，在cached_tables中用new_hash代替old_hash
             return last_block
 
     def _is_last_block_full(
@@ -399,7 +399,7 @@ class _BlockSpaceManager(SpaceManager):
         在想添加新的物理块之前，调用这个函数，来判断是不是真得有必要添加一个物理块
         '''
         if not self.enable_caching:
-            return self.gpu_allocator.allocate() # 如果不使用prefix caching，就直接分配物理块
+            return self.mlu_allocator.allocate() # 如果不使用prefix caching，就直接分配物理块
         block_hash: Optional[int] = None
         # 如果该seq的最后一块逻辑块是满的
         if (self._is_last_block_full(req)):
@@ -412,7 +412,7 @@ class _BlockSpaceManager(SpaceManager):
 
         # 使用prefix caching下的allocate方法，根据物理块的hash值，检查当前
         # 是否有可复用的物理块，以此决定是新分配一个物理块，还是复用旧物理块。
-        new_block = self.gpu_allocator.allocate(block_hash, num_hashed_tokens)
+        new_block = self.mlu_allocator.allocate(block_hash, num_hashed_tokens)
 
         # If the block has is None, then the block is not full.
         # If the block is not full, then we expect it to have a refcount of 1.
@@ -466,7 +466,7 @@ class _BlockSpaceManager(SpaceManager):
             new_block = self._allocate_last_physical_block(req)
 
             block_table[-1] = new_block
-            self.gpu_allocator.free(last_block)
+            self.mlu_allocator.free(last_block)
             return {last_block.block_number: [new_block.block_number]}
 
     def fork(self, parent_req: Request, child_req: Request) -> None:
@@ -500,12 +500,12 @@ class _BlockSpaceManager(SpaceManager):
                 ), "BlockSpaceManagerV1 does not support lookahead allocation"
         blocks = self._get_physical_blocks(task)
         num_swapped_reqs = task.num_reqs(status=RequestStatus.SWAPPED)
-        num_free_blocks = self.gpu_allocator.get_num_free_blocks()
+        num_free_blocks = self.mlu_allocator.get_num_free_blocks()
         # NOTE: Conservatively, we assume that every sequence will allocate
         # at least one free block right after the swap-in.
         # NOTE: This should match the logic in can_append_slot().
         num_required_blocks = len(blocks) + num_swapped_reqs
-        if self.gpu_allocator.get_num_total_blocks() < num_required_blocks:
+        if self.mlu_allocator.get_num_total_blocks() < num_required_blocks:
             return AllocStatus.NEVER
         elif num_free_blocks - num_required_blocks >= self.watermark_blocks:
             return AllocStatus.OK
@@ -529,7 +529,7 @@ class _BlockSpaceManager(SpaceManager):
                     gpu_block = mapping[cpu_block]
                     gpu_block.ref_count += 1
                 else:
-                    gpu_block = self.gpu_allocator.allocate(
+                    gpu_block = self.mlu_allocator.allocate(
                         cpu_block.block_hash, cpu_block.num_hashed_tokens)
                     mapping[cpu_block] = gpu_block
                 new_block_table.append(gpu_block)
@@ -564,7 +564,7 @@ class _BlockSpaceManager(SpaceManager):
                     mapping[gpu_block] = cpu_block
                 new_block_table.append(cpu_block)
                 # Free the GPU block swapped out to CPU.
-                self.gpu_allocator.free(gpu_block)
+                self.mlu_allocator.free(gpu_block)
             self.block_tables[req.req_id] = new_block_table
 
         block_number_mapping = {
@@ -584,7 +584,7 @@ class _BlockSpaceManager(SpaceManager):
                           block_table)
         for block in set(blocks_to_free):
             if block.device == Device.GPU:
-                self.gpu_allocator.free(block)
+                self.mlu_allocator.free(block)
             else:
                 self.cpu_allocator.free(block)
 
@@ -606,7 +606,7 @@ class _BlockSpaceManager(SpaceManager):
         return [block.block_number for block in block_table]
 
     def get_num_free_gpu_blocks(self) -> int:
-        return self.gpu_allocator.get_num_free_blocks()
+        return self.mlu_allocator.get_num_free_blocks()
 
     def get_num_free_cpu_blocks(self) -> int:
         return self.cpu_allocator.get_num_free_blocks()

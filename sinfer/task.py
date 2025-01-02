@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING,Dict, List, Optional
 import enum
 
 from sinfer.lora.request import LoRARequest
-from sinfer.request import PromptLogprobs, Request, RequestData, RequestMetrics, RequestOutput, RequestStatus
+from sinfer.request import PromptLogprobs, Request, RequestData, RequestOutput, RequestStatus
 from sinfer.sampling_params import SamplingParams
 
 
@@ -28,6 +28,19 @@ class MultiModalData:
         self.type = type
         self.data = data
 
+@dataclass
+class Metadata:
+    request_complexity: Optional[float] = None  # 请求复杂度
+    resource_requirements: Optional[dict] = None  # 资源需求
+    priority: int = 0  # 用户优先级（0 表示低优先级，1 表示高优先级）
+    deadline: Optional[float] = None  # 请求截止时间
+    arrival_time: float = 0.0 # 请求到达的时间
+    last_token_time: float = 0.0
+    first_scheduled_time: Optional[float] = None # 请求第一次被调度的时间
+    first_token_time: Optional[float] = None # 第一个令牌生成的时间
+    time_in_queue: Optional[float] = None # 请求在队列中等待的时间
+    finished_time: Optional[float] = None # 请求完成的时间
+    prompt_length: Optional[int] = None # 请求的提示长度
 
 @dataclass
 class Task_State:
@@ -35,6 +48,8 @@ class Task_State:
 
     # torch.Generator used in seeded sampling
     generator: Optional = None  # type: ignore
+
+
 
 
 class Task:
@@ -61,11 +76,12 @@ class Task:
         self.task_id = task_id
         self.reqs_dict = {req.req_id: req for req in reqs}
         self.sampling_params = sampling_params
-        self.metrics = RequestMetrics(arrival_time=arrival_time,
+        self.metadata = Metadata(arrival_time=arrival_time,
                                       last_token_time=arrival_time,
                                       first_scheduled_time=None,
                                       first_token_time=None,
                                       time_in_queue=None)
+        self.metadata.prompt_length = max(len(req.prompt) for req in reqs)
         self.lora_request = lora_request
         self.prompt_logprobs: Optional[PromptLogprobs] = None
         self.state = Task_State()
@@ -96,8 +112,8 @@ class Task:
                 "if the seq_group is in prefill phase.")
 
         # Otherwise return token latency.
-        latency = now - self.metrics.last_token_time
-        self.metrics.last_token_time = now
+        latency = now - self.metadata.last_token_time
+        self.metadata.last_token_time = now
         return latency
 
     def maybe_set_first_token_time(self, time: float) -> None:
@@ -106,20 +122,20 @@ class Task:
         #   recomputed, the time between iterations is counted
         #   in TPOT, rather than recalculating TTFT (since from the )
         #   POV of the user, there is simply a long generation delay.
-        if (self.metrics.first_token_time is None
+        if (self.metadata.first_token_time is None
                 and self.get_reqs()[0].get_output_len() == 1):
-            self.metrics.first_token_time = time
+            self.metadata.first_token_time = time
 
     def maybe_set_first_scheduled_time(self, time: float) -> None:
         """Sets the first scheduled time and time in queue for Request
         level timings."""
-        if self.metrics.first_scheduled_time is None:
-            self.metrics.first_scheduled_time = time
-            self.metrics.time_in_queue = time - self.metrics.arrival_time
+        if self.metadata.first_scheduled_time is None:
+            self.metadata.first_scheduled_time = time
+            self.metadata.time_in_queue = time - self.metadata.arrival_time
 
     def set_finished_time(self, time: Optional[float]) -> None:
         """Sets the finished time for Request level timings."""
-        self.metrics.finished_time = time
+        self.metadata.finished_time = time
 
     def get_max_num_running_seqs(self) -> int:
         """
@@ -209,26 +225,23 @@ class Task:
 
 
 class TaskMetadata:
-    """Metadata for a sequence group. Used to create `AttentionMetadata`.
+    """任务的元数据。用于创建 `AttentionMetadata`。
 
-    Args:
-        request_id: The ID of the request.
-        is_prompt: Whether the request is at prompt stage.
-        req_data: The sequence data. (req id -> sequence data)
-        sampling_params: The sampling parameters used to generate the outputs.
-        block_tables: The block tables. (req id -> list of physical block
-            numbers)
-        do_sample: True if sampling is required. Sampling is not required when
-            e.g., prefill is chunked, and the current iteration only computes
-            query tokens for prefill, we don't need sampling.
-        token_chunk_size: The number of tokens to be processed (per sequence).
-            None if chunking is not required.
-        lora_request: LoRA request.
-        computed_block_nums: The block numbers that are already computed,
-            used in prefix caching.
-        state: Internal state tied to this sequence group.
-        multi_modal_data: Multi modal data.
+    参数:
+        request_id: 请求的 ID。
+        is_prompt: 请求是否处于提示（prompt）阶段。
+        req_data: 序列数据。（req_id -> 序列数据）
+        sampling_params: 用于生成输出的采样参数。
+        block_tables: 块表。（req_id -> 物理块编号列表）
+        do_sample: 如果需要采样则为 True。当不需要采样时，例如在预填充（prefill）被分块的情况下，
+            当前迭代仅计算预填充的查询标记时，不需要进行采样。
+        token_chunk_size: 每次处理的标记数量（每个序列）。如果不需要分块，则为 None。
+        lora_request: LoRA 请求。
+        computed_block_nums: 已经计算的块编号，用于前缀缓存。
+        state: 与此序列组绑定的内部状态。
+        multi_modal_data: 多模态数据。
     """
+
 
     def __init__(
         self,

@@ -42,7 +42,7 @@ class RuntimeArgs:
     swap_space: int = 2  # GiB
     gpu_memory_utilization: float = 0.95
     max_num_batched_tokens: Optional[int] = None
-    max_num_seqs: int = 512
+    max_num_seqs: int = 256     # batch size
     max_logprobs: int = 5  # OpenAI default value
     disable_log_stats: bool = False
     revision: Optional[str] = None
@@ -260,9 +260,7 @@ class RuntimeArgs:
         parser.add_argument('--enable-prefix-caching',
                             action='store_true',
                             help='Enables automatic prefix caching.')
-        parser.add_argument('--use-v2-block-manager',
-                            action='store_true',
-                            help='Use BlockSpaceMangerV2.')
+        
         parser.add_argument(
             '--num-lookahead-slots',
             type=int,

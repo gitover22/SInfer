@@ -1,25 +1,16 @@
 import argparse
+import random
 from typing import List, Tuple
 
 from sinfer import RuntimeArgs, LLMRuntime, RequestOutput, SamplingParams
+from tool import read_prompts_from_csv
 
-
-def create_test_prompts() -> List[Tuple[str, SamplingParams]]:
-    return [
-        ("A robot may not injure a human being",
-         SamplingParams(temperature=0.0, logprobs=1, prompt_logprobs=1)),
-        ("To be or not to be,",
-         SamplingParams(temperature=0.8, top_k=5, presence_penalty=0.2)),
-        ("What is the meaning of life?",
-         SamplingParams(n=2,
-                        best_of=5,
-                        temperature=0.8,
-                        top_p=0.95,
-                        frequency_penalty=0.1)),
-        ("It is only with the heart that one can see rightly",
-         SamplingParams(n=3, best_of=3, use_beam_search=True,
-                        temperature=0.0)),
-    ]
+def create_test_prompts(args:argparse.Namespace) -> List[Tuple[str, SamplingParams]]:
+    prompts = read_prompts_from_csv("prompts.csv",args.num)
+    result = []
+    for prompt in prompts:
+        result.append((prompt, SamplingParams(temperature=0.8, top_p=0.95, max_tokens=random.randint(16, 512))))
+    return result
 
 
 def process_requests(runtime: LLMRuntime,
@@ -46,7 +37,7 @@ def initialize_runtime(args: argparse.Namespace) -> LLMRuntime:
 
 def main(args: argparse.Namespace):
     runtime = initialize_runtime(args)
-    test_prompts = create_test_prompts()
+    test_prompts = create_test_prompts(args)
     process_requests(runtime, test_prompts)
 
 
@@ -54,5 +45,12 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description='Demo on using the LLMRuntime class directly')
     parser = RuntimeArgs.add_cli_args(parser)
+    
+    parser.add_argument("--num", type=int, default=8)
     args = parser.parse_args()
+    args.model = './Meta-Llama-3-8B-Instruct'
+    args.dtype = 'float16'
+    args.tensor_parallel_size = 4
+    args.gpu_memory_utilization = 1
+    args.trust_remote_code=True
     main(args)
