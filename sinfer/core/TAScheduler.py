@@ -725,8 +725,11 @@ class Scheduler:
             remaining_waiting, prefills = self._schedule_prefills(
                 self.ReadyPool, budget, curr_loras, enable_chunking=False)
 
-        fcfs_policy = Profilers.get_profiler(_name="fcfs")
-        # fcfs_policy = PolicyFactory.get_policy(policy_name="tas")
+        # scheduler_policy = Profilers.get_profiler(_name="fcfs")
+        # scheduler_policy = Profilers.get_profiler(_name="tas_v1")
+        scheduler_policy = Profilers.get_profiler(_name="tas_v2")
+        # scheduler_policy = Profilers.get_profiler(_name="tas_v3")
+        scheduler_policy = Profilers.get_profiler(_name="tas_v5")
         # 如果已经调度了预填充请求，则不要再调度解码请求
         # 如果 _schedule_prefills 未启用分块模式（chunking），
         # 那么self.running 中仅包含解码请求，而不包含分块的预填充请求
@@ -735,7 +738,7 @@ class Scheduler:
                 self.RunningPool,
                 budget,
                 curr_loras,
-                fcfs_policy,
+                scheduler_policy,
                 enable_chunking=False)
 
             # 如果有任何序列组被抢占或换出，则不要swap in任何序列组，  
@@ -743,7 +746,7 @@ class Scheduler:
             if len(running_scheduled.preempted) + len(
                     running_scheduled.swapped_out) == 0:
                 remaining_swapped, swapped_in = self._schedule_swapped(
-                    self.BlockedPool, budget, curr_loras, fcfs_policy)
+                    self.BlockedPool, budget, curr_loras, scheduler_policy)
         # 确保预算内的token数和序列数没有超出限制
         assert (budget.num_batched_tokens <=
                 self.scheduler_config.max_num_batched_tokens)
@@ -810,14 +813,15 @@ class Scheduler:
         remaining_swapped, swapped_in = (
             self.BlockedPool, SchedulerSwappedInOutputs.create_empty())
 
-        # Decoding should be always scheduled first by fcfs.
-        fcfs_policy = Profilers.get_profiler(_name="fcfs")
-        # fcfs_policy = PolicyFactory.get_policy(policy_name="tas")
+        # scheduler_policy = Profilers.get_profiler(_name="fcfs")
+        # scheduler_policy = Profilers.get_profiler(_name="tas_v1")
+        scheduler_policy = Profilers.get_profiler(_name="tas_v2")
+        # scheduler_policy = Profilers.get_profiler(_name="tas_v3")
         remaining_running, running_scheduled = self._schedule_running(
             self.RunningPool,
             budget,
             curr_loras,
-            fcfs_policy,
+            scheduler_policy,
             enable_chunking=True)
 
         # Schedule swapped out requests.
@@ -825,7 +829,7 @@ class Scheduler:
         if len(running_scheduled.preempted) + len(
                 running_scheduled.swapped_out) == 0:
             remaining_swapped, swapped_in = self._schedule_swapped(
-                self.BlockedPool, budget, curr_loras, fcfs_policy)
+                self.BlockedPool, budget, curr_loras, scheduler_policy)
 
         # Schedule new prefills.
         remaining_waiting, prefills = self._schedule_prefills(
