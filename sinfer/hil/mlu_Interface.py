@@ -1,6 +1,6 @@
 from typing import Any, Dict, List, Optional, Set, Tuple
 
-from sinfer.hil.executor_base import ExecutorAsyncBase, ExecutorBase
+from sinfer.hil.InterfaceBase import InterfaceAsyncBase, InterfaceBase
 from sinfer.logger import init_logger
 from sinfer.lora.request import LoRARequest
 from sinfer.request import ExecuteModelRequest, SamplerOutput
@@ -11,7 +11,7 @@ from sinfer.worker.worker_base import WorkerDelayBase
 logger = init_logger(__name__)
 
 
-class MLUExecutor(ExecutorBase):
+class MLUInterface(InterfaceBase):
 
     def _init_executor(self) -> None:
         self._init_worker()
@@ -95,7 +95,7 @@ class MLUExecutor(ExecutorBase):
         latency = self.driver_worker.get_latency()
         return latency
 
-class MLUExecutorAsync(MLUExecutor, ExecutorAsyncBase):
+class MLUInterfaceAsync(MLUInterface, InterfaceAsyncBase):
     async def execute_model_async(
         self,
         execute_model_req: ExecuteModelRequest,

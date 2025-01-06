@@ -4,7 +4,7 @@ from typing import Callable, List
 from transformers import PreTrainedTokenizer
 
 from sinfer.task import Task, TaskOutput
-from sinfer.core.TAScheduler import Scheduler
+from sinfer.scheduler.TAScheduler import Scheduler
 from sinfer.sys.output_processor.interfaces import (
     SequenceGroupOutputProcessor)
 from sinfer.sys.output_processor.stop_checker import StopChecker

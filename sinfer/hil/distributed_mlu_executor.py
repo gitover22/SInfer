@@ -1,15 +1,15 @@
 from abc import abstractmethod
 from typing import Any, Dict, List, Optional, Set, Tuple
 
-from sinfer.hil.executor_base import ExecutorAsyncBase
-from sinfer.hil.mlu_executor import MLUExecutor
+from sinfer.hil.InterfaceBase import InterfaceAsyncBase
+from sinfer.hil.mlu_Interface import MLUInterface
 from sinfer.logger import init_logger
 from sinfer.lora.request import LoRARequest
 from sinfer.request import SamplerOutput
 
 logger = init_logger(__name__)
 
-class Distributed_MLUExecutor(MLUExecutor):
+class Distributed_MLUInterface(MLUInterface):
     """多 MLU 执行器实现的抽象父类"""
     def determine_num_available_blocks(self) -> Tuple[int, int]:
         """ 确定可用的 KV 缓存块数量
@@ -83,7 +83,7 @@ class Distributed_MLUExecutor(MLUExecutor):
         # 在所有节点上运行method
         raise NotImplementedError
 
-class Distributed_MLUExecutorAsync(Distributed_MLUExecutor, ExecutorAsyncBase):
+class Distributed_MLUInterfaceAsync(Distributed_MLUInterface, InterfaceAsyncBase):
     @abstractmethod
     async def _run_workers_async(
         self,

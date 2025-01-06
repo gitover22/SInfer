@@ -18,7 +18,7 @@ from sinfer.distributed.device_communicators.custom_all_reduce import (
 from sinfer.lora.request import LoRARequest
 from sinfer.model_executor import set_random_seed
 from sinfer.request import ExecuteModelRequest, SamplerOutput
-from sinfer.worker.cache_manager import CacheManager
+from sinfer.worker.kvcache_manager import CacheManager
 from sinfer.worker.model_inference import ModelInference
 from sinfer.worker.worker_base import WorkerBase
 

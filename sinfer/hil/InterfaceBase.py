@@ -8,7 +8,7 @@ from sinfer.lora.request import LoRARequest
 from sinfer.request import ExecuteModelRequest, SamplerOutput
 
 
-class ExecutorBase(ABC):
+class InterfaceBase(ABC):
     def __init__(
         self,
         model_config: ModelConfig,
@@ -71,7 +71,7 @@ class ExecutorBase(ABC):
     def __del__(self):
         self.shutdown()
 
-class ExecutorAsyncBase(ExecutorBase):
+class InterfaceAsyncBase(InterfaceBase):
     @abstractmethod
     async def execute_model_async(
             self,

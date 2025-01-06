@@ -3,11 +3,11 @@ from itertools import takewhile
 from os.path import commonprefix
 from typing import Dict, FrozenSet, Iterable, List, Optional
 
-from sinfer.core.block.common import (CopyOnWriteTracker,
+from sinfer.scheduler.block.common import (CopyOnWriteTracker,
                                     get_all_blocks_recursively)
-from sinfer.core.block.interfaces import Block, BlockAllocator, BlockId, Device
-from sinfer.core.block.naive_block import NaiveBlock, NaiveBlockAllocator
-from sinfer.core.evictor_prefix_caching import EvictionPolicy, Evictor, make_evictor
+from sinfer.scheduler.block.interfaces import Block, BlockAllocator, BlockId, Device
+from sinfer.scheduler.block.naive_block import NaiveBlock, NaiveBlockAllocator
+from sinfer.scheduler.evictor_prefix_caching import EvictionPolicy, Evictor, make_evictor
 
 PrefixHash = int
 

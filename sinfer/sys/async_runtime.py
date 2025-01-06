@@ -7,7 +7,7 @@ from transformers import PreTrainedTokenizer
 
 import sinfer.envs as envs
 from sinfer.config import DecodingConfig, ModelConfig
-from sinfer.core.TAScheduler import SchedulerOutputs
+from sinfer.scheduler.TAScheduler import SchedulerOutputs
 from sinfer.sys.runtime_args import AsyncRuntimeArgs
 from sinfer.sys.runtime import LLMRuntime
 from sinfer.hil.r_utils import initialize_ray_cluster, ray
@@ -333,17 +333,17 @@ class AsyncLLMRuntime:
         if runtime_config.device_config.device_type == "cpu":
             assert not runtime_config.parallel_config.worker_use_ray, (
                 "Ray is not supported with the CPU backend.")
-            from sinfer.hil.cpu_executor import CPUExecutorAsync
-            executor_class = CPUExecutorAsync
+            from sinfer.hil.cpu_Interface import CPUInterfaceAsync
+            executor_class = CPUInterfaceAsync
         elif runtime_config.parallel_config.worker_use_ray:
             initialize_ray_cluster(runtime_config.parallel_config)
-            from sinfer.hil.r_MLUExecutor import Ray_MLUExecutorAsync
-            executor_class = Ray_MLUExecutorAsync
+            from sinfer.hil.r_MLUInterface import Ray_MLUInterfaceAsync
+            executor_class = Ray_MLUInterfaceAsync
         else:
             assert runtime_config.parallel_config.world_size == 1, (
                 "Ray is required if parallel_config.world_size > 1.")
-            from sinfer.hil.mlu_executor import MLUExecutorAsync
-            executor_class = MLUExecutorAsync    # tensor-parallel-size = 1 时
+            from sinfer.hil.mlu_Interface import MLUInterfaceAsync
+            executor_class = MLUInterfaceAsync    # tensor-parallel-size = 1 时
         # 创建异步LLM runtime
         runtime = cls(
             runtime_config.parallel_config.worker_use_ray,

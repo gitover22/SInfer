@@ -1,7 +1,7 @@
 from collections import defaultdict
 from typing import Dict, Iterable, List, Optional, Protocol
 
-from sinfer.core.block.interfaces import Block, BlockAllocator
+from sinfer.scheduler.block.interfaces import Block, BlockAllocator
 
 BlockId = int
 RefCount = int

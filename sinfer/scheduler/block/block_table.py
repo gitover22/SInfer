@@ -1,6 +1,6 @@
 from typing import List, Optional
 
-from sinfer.core.block.interfaces import Block, DeviceAwareBlockAllocator
+from sinfer.scheduler.block.interfaces import Block, DeviceAwareBlockAllocator
 from sinfer.utils import Device, cdiv, chunk_list
 
 

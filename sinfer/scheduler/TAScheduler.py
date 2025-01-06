@@ -11,8 +11,8 @@ import matplotlib.pyplot as plt
 
 from sinfer.task import Task, TaskMetadata
 from sinfer.config import CacheConfig, LoRAConfig, SchedulerConfig
-from sinfer.core.interfaces import AllocStatus, SpaceManager
-from sinfer.core.factory import Profiler, Profilers
+from sinfer.scheduler.interfaces import AllocStatus, SpaceManager
+from sinfer.scheduler.factory import Profiler, Profilers
 from sinfer.logger import init_logger
 from sinfer.lora.request import LoRARequest
 from sinfer.request import (Request, RequestData, RequestStatus)
@@ -727,9 +727,10 @@ class Scheduler:
 
         # scheduler_policy = Profilers.get_profiler(_name="fcfs")
         # scheduler_policy = Profilers.get_profiler(_name="tas_v1")
-        scheduler_policy = Profilers.get_profiler(_name="tas_v2")
-        # scheduler_policy = Profilers.get_profiler(_name="tas_v3")
-        scheduler_policy = Profilers.get_profiler(_name="tas_v5")
+        # scheduler_policy = Profilers.get_profiler(_name="tas_v2")
+        scheduler_policy = Profilers.get_profiler(_name="tas_v3")
+        # scheduler_policy = Profilers.get_profiler(_name="tas_v4")
+        # scheduler_policy = Profilers.get_profiler(_name="tas_v5")
         # 如果已经调度了预填充请求，则不要再调度解码请求
         # 如果 _schedule_prefills 未启用分块模式（chunking），
         # 那么self.running 中仅包含解码请求，而不包含分块的预填充请求
@@ -815,8 +816,10 @@ class Scheduler:
 
         # scheduler_policy = Profilers.get_profiler(_name="fcfs")
         # scheduler_policy = Profilers.get_profiler(_name="tas_v1")
-        scheduler_policy = Profilers.get_profiler(_name="tas_v2")
-        # scheduler_policy = Profilers.get_profiler(_name="tas_v3")
+        # scheduler_policy = Profilers.get_profiler(_name="tas_v2")
+        scheduler_policy = Profilers.get_profiler(_name="tas_v3")
+        # scheduler_policy = Profilers.get_profiler(_name="tas_v4")
+        # scheduler_policy = Profilers.get_profiler(_name="tas_v5")
         remaining_running, running_scheduled = self._schedule_running(
             self.RunningPool,
             budget,

@@ -1,9 +1,9 @@
 from typing import Dict, FrozenSet, List, Optional
 
-from sinfer.core.block.interfaces import (Block, BlockAllocator, BlockId,
+from sinfer.scheduler.block.interfaces import (Block, BlockAllocator, BlockId,
                                         DeviceAwareBlockAllocator)
-from sinfer.core.block.naive_block import NaiveBlock, NaiveBlockAllocator
-from sinfer.core.block.prefix_caching_block import PrefixCachingBlockAllocator
+from sinfer.scheduler.block.naive_block import NaiveBlock, NaiveBlockAllocator
+from sinfer.scheduler.block.prefix_caching_block import PrefixCachingBlockAllocator
 from sinfer.utils import Device
 
 

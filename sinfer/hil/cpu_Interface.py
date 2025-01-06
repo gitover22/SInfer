@@ -4,7 +4,7 @@ import torch
 
 import sinfer.envs as envs
 from sinfer.config import CacheConfig, ModelConfig, SchedulerConfig
-from sinfer.hil.executor_base import ExecutorAsyncBase, ExecutorBase
+from sinfer.hil.InterfaceBase import InterfaceAsyncBase, InterfaceBase
 from sinfer.logger import init_logger
 from sinfer.lora.request import LoRARequest
 from sinfer.request import ExecuteModelRequest, SamplerOutput
@@ -14,7 +14,7 @@ from sinfer.utils import (get_distributed_init_method, get_ip, get_open_port,
 logger = init_logger(__name__)
 
 
-class CPUExecutor(ExecutorBase):
+class CPUInterface(InterfaceBase):
 
     def _init_executor(self) -> None:
         assert self.device_config.device_type == "cpu"
@@ -93,7 +93,7 @@ class CPUExecutor(ExecutorBase):
         return
 
 
-class CPUExecutorAsync(CPUExecutor, ExecutorAsyncBase):
+class CPUInterfaceAsync(CPUInterface, InterfaceAsyncBase):
 
     async def execute_model_async(
             self,

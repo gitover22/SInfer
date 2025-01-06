@@ -22,7 +22,7 @@ class AllocStatus(enum.Enum):
 class SpaceManager(ABC):
     @staticmethod
     def get_block_space_manager():
-        from sinfer.core.block_manager import _BlockSpaceManager
+        from sinfer.scheduler.block_manager import _BlockSpaceManager
         return _BlockSpaceManager
 
     @abstractmethod

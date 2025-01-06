@@ -2,7 +2,7 @@ from typing import Dict, List, Tuple, Union
 
 from sinfer.task import Task, TaskOutput
 from sinfer.config import SchedulerConfig
-from sinfer.core.TAScheduler import Scheduler
+from sinfer.scheduler.TAScheduler import Scheduler
 from sinfer.sys.output_processor.interfaces import (
     SequenceGroupOutputProcessor)
 from sinfer.sys.output_processor.stop_checker import StopChecker

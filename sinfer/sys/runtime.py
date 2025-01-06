@@ -8,7 +8,7 @@ from sinfer.task import MultiModalData, Task, TaskMetadata
 from sinfer.config import (CacheConfig, DecodingConfig, DeviceConfig, LoadConfig,
                          LoRAConfig, ModelConfig, ParallelConfig,
                          SchedulerConfig, VisionLanguageConfig)
-from sinfer.core.TAScheduler import (ScheduledTask, Scheduler,
+from sinfer.scheduler.TAScheduler import (ScheduledTask, Scheduler,
                                  SchedulerOutputs)
 from sinfer.sys.runtime_args import RuntimeArgs
 from sinfer.sys.metrics import StatLogger, Stats
@@ -16,7 +16,7 @@ from sinfer.sys.output_processor.interfaces import (
     SequenceGroupOutputProcessor)
 from sinfer.sys.output_processor.stop_checker import StopChecker
 from sinfer.sys.output_processor.util import create_output_by_sequence_group
-from sinfer.hil.executor_base import ExecutorBase
+from sinfer.hil.InterfaceBase import InterfaceBase
 from sinfer.hil.r_utils import initialize_ray_cluster
 from sinfer.logger import init_logger
 from sinfer.lora.request import LoRARequest
@@ -72,7 +72,7 @@ class LLMRuntime:
         lora_config: Optional[LoRAConfig],
         vision_language_config: Optional[VisionLanguageConfig],
         decoding_config: Optional[DecodingConfig],
-        executor_class: Type[ExecutorBase],
+        executor_class: Type[InterfaceBase],
         log_stats: bool,
         usage_context: UsageContext = UsageContext.ENGINE_CONTEXT,
     ) -> None:
@@ -235,17 +235,17 @@ class LLMRuntime:
 
         # 明确executor_class指向的执行器
         if runtime_config.device_config.device_type == "cpu":
-            from sinfer.hil.cpu_executor import CPUExecutor
-            executor_class = CPUExecutor
+            from sinfer.hil.cpu_Interface import CPUInterface
+            executor_class = CPUInterface
         elif runtime_config.parallel_config.worker_use_ray:
             initialize_ray_cluster(runtime_config.parallel_config)
-            from sinfer.hil.r_MLUExecutor import Ray_MLUExecutor
-            executor_class = Ray_MLUExecutor # 启用TP时为Ray_MLUExecutor
+            from sinfer.hil.r_MLUInterface import Ray_MLUInterface
+            executor_class = Ray_MLUInterface # 启用TP时为Ray_MLUExecutor
         else:
             assert runtime_config.parallel_config.world_size == 1, (
                 "Ray is required if parallel_config.world_size > 1.")
-            from sinfer.hil.mlu_executor import MLUExecutor
-            executor_class = MLUExecutor # 单卡时为MLUExecutor
+            from sinfer.hil.mlu_Interface import MLUInterface
+            executor_class = MLUInterface # 单卡时为MLUExecutor
 
         # 运行构造函数创建engine实例对象
         engine = cls(

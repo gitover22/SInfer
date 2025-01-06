@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 import sinfer.envs as envs
 from sinfer.hil.distributed_mlu_executor import (
-    Distributed_MLUExecutor, Distributed_MLUExecutorAsync)
+    Distributed_MLUInterface, Distributed_MLUInterfaceAsync)
 from sinfer.hil.r_utils import RayWorkerDelay, ray
 from sinfer.logger import init_logger
 from sinfer.request import ExecuteModelRequest, SamplerOutput
@@ -25,7 +25,7 @@ logger = init_logger(__name__)
 USE_RAY_COMPILED_DAG = envs.SINFER_USE_RAY_COMPILED_DAG
 
 
-class Ray_MLUExecutor(Distributed_MLUExecutor):
+class Ray_MLUInterface(Distributed_MLUInterface):
 
     def _init_executor(self) -> None:
         assert self.parallel_config.worker_use_ray
@@ -300,7 +300,7 @@ class Ray_MLUExecutor(Distributed_MLUExecutor):
         # 只有主驱动节点（driver worker）完成 model.compute_logits() 过程，而其他 Ray workers在计算各自对应的 logit 后便停止运行
         return all_latencies[0]
 
-class Ray_MLUExecutorAsync(Ray_MLUExecutor, Distributed_MLUExecutorAsync):
+class Ray_MLUInterfaceAsync(Ray_MLUInterface, Distributed_MLUInterfaceAsync):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.driver_executor = make_async(self.driver_worker.infer_)

@@ -4,7 +4,6 @@ import math
 
 from sinfer.task import Task
 
-
 class Profiler:
     def sort_by_score(
         self,
@@ -80,14 +79,12 @@ class Profiler_TAS_v2(Profiler):
         wait_time = max(current_time - arrival_time, 0)  # 确保非负
         return self.alpha * (wait_time ** 0.5)
 
-
     def _queue_time_effect(self, time_in_queue: float) -> float:
         time_in_queue = max(time_in_queue, 0)  # 确保非负
         if time_in_queue < 10:
             return self.beta * (time_in_queue ** 2)
         else:
             return self.beta * (10 + (time_in_queue - 10) * 1.5)
-
 
     def _schedule_penalty(self, first_scheduled_time: float) -> float:
         if first_scheduled_time:
@@ -121,7 +118,6 @@ class Profiler_TAS_v2(Profiler):
             (self.delta + normalized_progress) * progress_effect
         )
 
-
     def total_score(
         self,
         current_time: float,
@@ -141,106 +137,79 @@ class Profiler_TAS_v2(Profiler):
 class Profiler_TAS_v3(Profiler):
     def __init__(self, alpha: float = 1.0, alpha2: float = 3.0, 
                  beta: float = 0.1,scale:int =100, degree: int = 3):
-        """
-        初始化参数，并引入多项式阶数
-        :param alpha: 到达时间得分权重
-        :param a2: 队列等待时间得分权重
-        :param b: 首次调度时间得分权重
-        :param polynomial_degree: 多项式的阶数，用于调整复杂性
-        """
         self.alpha = alpha # a1
         self.alpha2 = alpha2 # a2
         self.beta = beta # b
         self.scale = scale
-        self.degree = degree  # 抽象的多项式阶数
+        self.degree = degree
 
     def _polynomial_sum(self, x: float, degree: int = 1) -> float:
         return sum([(math.pow(x, i)) / math.factorial(i) for i in range(1, degree + 1)])
 
     def _arrival_score(self, current_time: float, arrival_time: float, priority: int) -> float:
-        """
-        等待时间得分
-        """
         if arrival_time is None:
             return 0.0
         wait_time = current_time - arrival_time
-        poly_sum = self._polynomial_sum(wait_time, self.degree)  # 使用抽象多项式求和
-        priority_factor = math.exp(0.2 * priority)  # 优先级的指数加权
+        poly_sum = self._polynomial_sum(wait_time, self.degree)
+        priority_factor = math.exp(0.2 * priority)
         return self.alpha * poly_sum * priority_factor
 
     def time_in_queue_score(self, time_in_queue: float, priority: int) -> float:
-        """
-        根据任务在队列中的等待时间计算得分
-        """
         if time_in_queue is None or time_in_queue == 0.0:
             return 0.0
-        poly_sum = self._polynomial_sum(time_in_queue, self.degree)  # 使用多项式求和
-        priority_factor = math.exp(priority)  # 优先级的指数加成
+        poly_sum = self._polynomial_sum(time_in_queue, self.degree)
+        priority_factor = math.exp(priority)
         return self.alpha2 * poly_sum * priority_factor
     def _schedule_score(self, first_scheduled_time: float) -> float:
-        """
-        根据首次调度时间计算得分
-        """
         if first_scheduled_time is None:
             return 0.0
         else:
             schedule_scale = math.log(self.scale)
-        poly_sum = self._polynomial_sum(schedule_scale)  # 使用多项式求和
-        bonus = math.log(poly_sum)  # 首次调度时间的平方根奖励
+        poly_sum = self._polynomial_sum(schedule_scale)
+        bonus = math.log(poly_sum)
         return self.beta * bonus
 
     def promptLen_score(self, promptLen: int) -> float:
-        """
-        根据用户请求长度（Prompt 长度）计算得分
-        """
         if promptLen is None or promptLen == 0:
             return 0.0
-        poly_sum = self._polynomial_sum(promptLen/self.scale, self.degree)  # 使用多项式求和
-        penalty = math.log(poly_sum + 1 if poly_sum<1 else 0)  # 对数惩罚
-        return self.beta*penalty  # 长请求得分越低
-
+        poly_sum = self._polynomial_sum(promptLen/self.scale, self.degree)
+        if poly_sum < 1:
+            penalty = math.log(poly_sum + 1)
+        else:
+            penalty = math.log(poly_sum)
+        return self.beta*penalty
 
     def total_score(
         self,
         current_time: float,
         task: Task,
     ) -> float:
-        """
-        计算任务的总得分
-        """
         metadata = task.metadata
         priority = metadata.priority
         score = 0.0
 
-        # x1
         if metadata.arrival_time != 0:
             arrival_time = metadata.arrival_time
-            wait_score = self._arrival_score(current_time, arrival_time, priority) # 0.266
+            wait_score = self._arrival_score(current_time, arrival_time, priority)
             score += wait_score
         else:
             metadata.arrival_time = current_time
 
-        # x2
         if metadata.time_in_queue is not None:
             time_in_queue = metadata.time_in_queue
-            queue_score = self.time_in_queue_score(time_in_queue, priority) # 0.077
+            queue_score = self.time_in_queue_score(time_in_queue, priority)
             score += queue_score
         else:
             metadata.time_in_queue = 0.0
 
-        # x3
         if metadata.first_scheduled_time is not None:
-            schedule_score = self._schedule_score(metadata.first_scheduled_time) # 0.152
+            schedule_score = self._schedule_score(metadata.first_scheduled_time)
             score += schedule_score
 
-        # x4
         if metadata.prompt_length is not None:
-            length_score = self.promptLen_score(metadata.prompt_length) # 0.0379
+            length_score = self.promptLen_score(metadata.prompt_length)
             score -= length_score
-
         return score
-
-
 
 class Profiler_TAS_v4(Profiler):
     def __init__(self, alpha: float = 1.0, beta: float = 2.0, 
@@ -361,7 +330,6 @@ class Profiler_TAS_v5(Profiler):
         sum_exp_scores = sum(exp_scores)
         return [self._validate_real(score / sum_exp_scores) for score in exp_scores]
 
-
     def total_score(
         self,
         current_time: float,
@@ -389,7 +357,6 @@ class Profiler_TAS_v5(Profiler):
         return self._validate_real(score)
 
 class Profilers:
-
     _PROFILERS = {
         'fcfs': Profiler_FCFS,
         'tas_v1': Profiler_TAS_v1,

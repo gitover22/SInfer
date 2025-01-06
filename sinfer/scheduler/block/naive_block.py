@@ -1,8 +1,8 @@
 from typing import Dict, FrozenSet, Iterable, List, Optional, Set
 
-from sinfer.core.block.common import (CopyOnWriteTracker, RefCounter,
+from sinfer.scheduler.block.common import (CopyOnWriteTracker, RefCounter,
                                     get_all_blocks_recursively)
-from sinfer.core.block.interfaces import Block, BlockAllocator, BlockId, Device
+from sinfer.scheduler.block.interfaces import Block, BlockAllocator, BlockId, Device
 
 Refcount = int
 
