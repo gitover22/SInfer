@@ -1,7 +1,7 @@
 from typing import Optional
 
 from sinfer.config import TokenizerPoolConfig
-from sinfer.hil.r_utils import ray
+from sinfer.hil.init_ray import ray
 from sinfer.transformers_utils.tokenizer_group.base_tokenizer_group import (
     BaseTokenizerGroup)
 from sinfer.transformers_utils.tokenizer_group.tokenizer_group import (

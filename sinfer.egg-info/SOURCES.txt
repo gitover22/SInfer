@@ -115,10 +115,10 @@ sinfer/hil/InterfaceBase.py
 sinfer/hil/__init__.py
 sinfer/hil/cpu_Interface.py
 sinfer/hil/distributed_mlu_executor.py
+sinfer/hil/init_ray.py
 sinfer/hil/mlu_Interface.py
 sinfer/hil/multiproc_worker_utils.py
 sinfer/hil/r_MLUInterface.py
-sinfer/hil/r_utils.py
 sinfer/logging/__init__.py
 sinfer/logging/formatter.py
 sinfer/lora/__init__.py

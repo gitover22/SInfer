@@ -17,7 +17,7 @@ from sinfer.sys.output_processor.interfaces import (
 from sinfer.sys.output_processor.stop_checker import StopChecker
 from sinfer.sys.output_processor.util import create_output_by_sequence_group
 from sinfer.hil.InterfaceBase import InterfaceBase
-from sinfer.hil.r_utils import initialize_ray_cluster
+from sinfer.hil.init_ray import initialize_ray_cluster
 from sinfer.logger import init_logger
 from sinfer.lora.request import LoRARequest
 from sinfer.outputs import RequestOutput
@@ -72,7 +72,7 @@ class LLMRuntime:
         lora_config: Optional[LoRAConfig],
         vision_language_config: Optional[VisionLanguageConfig],
         decoding_config: Optional[DecodingConfig],
-        executor_class: Type[InterfaceBase],
+        interfacer: Type[InterfaceBase],
         log_stats: bool,
         usage_context: UsageContext = UsageContext.ENGINE_CONTEXT,
     ) -> None:
@@ -131,7 +131,7 @@ class LLMRuntime:
         self.generation_config_fields = _load_generation_config_dict(
             model_config)
 
-        self.model_executor = executor_class(
+        self._interfacer = interfacer(
             model_config=model_config,
             cache_config=cache_config,
             parallel_config=parallel_config,
@@ -140,7 +140,7 @@ class LLMRuntime:
             lora_config=lora_config,
             vision_language_config=vision_language_config,
             load_config=load_config,
-        ) # 实例化MLUExecutor , 实例化Worker，ModelInference(初始化kv cache时实例化CacheManager),加载模型权重
+        ) # 实例化Interfacer , 实例化Worker，ModelInference(初始化kv cache时实例化CacheManager),加载模型权重
 
         self._initialize_kv_caches() # 初始化kv cache缓存，CacheManager
 
@@ -210,7 +210,7 @@ class LLMRuntime:
 
     def _initialize_kv_caches(self) -> None:
         num_mlu_blocks, num_cpu_blocks = (
-            self.model_executor.determine_num_available_blocks())
+            self._interfacer.determine_num_available_blocks())
 
         if self.cache_config.num_mlu_blocks_override is not None:
             num_mlu_blocks_override = self.cache_config.num_mlu_blocks_override
@@ -223,7 +223,7 @@ class LLMRuntime:
         self.cache_config.num_mlu_blocks = num_mlu_blocks
         self.cache_config.num_cpu_blocks = num_cpu_blocks
 
-        self.model_executor.initialize_cache(num_mlu_blocks, num_cpu_blocks)
+        self._interfacer.initialize_cache(num_mlu_blocks, num_cpu_blocks)
 
     @classmethod
     def from_runtime_args(
@@ -236,25 +236,25 @@ class LLMRuntime:
         # 明确executor_class指向的执行器
         if runtime_config.device_config.device_type == "cpu":
             from sinfer.hil.cpu_Interface import CPUInterface
-            executor_class = CPUInterface
+            interfacer = CPUInterface
         elif runtime_config.parallel_config.worker_use_ray:
             initialize_ray_cluster(runtime_config.parallel_config)
             from sinfer.hil.r_MLUInterface import Ray_MLUInterface
-            executor_class = Ray_MLUInterface # 启用TP时为Ray_MLUExecutor
+            interfacer = Ray_MLUInterface # 启用TP时为Ray_MLUExecutor
         else:
             assert runtime_config.parallel_config.world_size == 1, (
                 "Ray is required if parallel_config.world_size > 1.")
             from sinfer.hil.mlu_Interface import MLUInterface
-            executor_class = MLUInterface # 单卡时为MLUExecutor
+            interfacer = MLUInterface # 单卡时为MLUExecutor
 
-        # 运行构造函数创建engine实例对象
-        engine = cls(
+        # 运行构造函数创建runtime对象
+        runtime = cls(
             **runtime_config.to_dict(),
-            executor_class=executor_class,
+            interfacer=interfacer,
             log_stats=not runtime_args.disable_log_stats,
             usage_context=usage_context,
         )
-        return engine
+        return runtime
 
     def __reduce__(self):
         # 确保 LLMRuntime 对象不会被序列化
@@ -467,7 +467,7 @@ class LLMRuntime:
                 num_lookahead_slots=scheduler_outputs.num_lookahead_slots,
                 running_queue_size=scheduler_outputs.running_queue_size,
             )
-            output = self.model_executor.execute_model(
+            output = self._interfacer.execute_model(
                 execute_model_req=execute_model_req)
         else:
             output = []
@@ -640,17 +640,17 @@ class LLMRuntime:
         )
 
     def add_lora(self, lora_request: LoRARequest) -> bool:
-        return self.model_executor.add_lora(lora_request)
+        return self._interfacer.add_lora(lora_request)
 
     def remove_lora(self, lora_id: int) -> bool:
-        return self.model_executor.remove_lora(lora_id)
+        return self._interfacer.remove_lora(lora_id)
 
     def list_loras(self) -> List[int]:
-        return self.model_executor.list_loras()
+        return self._interfacer.list_loras()
 
     def check_health(self) -> None:
-        self.model_executor.check_health()
+        self._interfacer.check_health()
 
     def intercept_get_latency(self):
-        latency = self.model_executor.get_latency()
+        latency = self._interfacer.get_latency()
         return latency

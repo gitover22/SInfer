@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 import sinfer.envs as envs
 from sinfer.hil.distributed_mlu_executor import (
     Distributed_MLUInterface, Distributed_MLUInterfaceAsync)
-from sinfer.hil.r_utils import RayWorkerDelay, ray
+from sinfer.hil.init_ray import RayWorkerDelay, ray
 from sinfer.logger import init_logger
 from sinfer.request import ExecuteModelRequest, SamplerOutput
 from sinfer.utils import (get_distributed_init_method, get_ip, get_open_port,
@@ -71,7 +71,7 @@ class Ray_MLUInterface(Distributed_MLUInterface):
             # 对于单 MLU 情况，使用一个带有受限内存的 Ray 工作进程
             num_mlus = self.cache_config.gpu_memory_utilization
         else:
-            # 对于多 MLU 情况，分配完整的 GPU
+            # 对于多 MLU 情况，分配完整的 MLU
             num_mlus = 1 
 
 

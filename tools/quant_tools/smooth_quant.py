@@ -300,22 +300,22 @@ def generate_weights_of_smoothquant(llm: LLM, args: argparse.Namespace):
     tp_size = args.tp_size
 
     if tp_size > 1:
-        llm.llm_runtime.model_executor._run_workers("setup_smooth_hook", args.dump_input_ids)
+        llm.llm_runtime._interfacer._run_workers("setup_smooth_hook", args.dump_input_ids)
     else:
-        llm.llm_runtime.model_executor.driver_worker.setup_smooth_hook(args.dump_input_ids)
+        llm.llm_runtime._interfacer.driver_worker.setup_smooth_hook(args.dump_input_ids)
 
     llm.generate(prompts, sampling_params, prompt_token_ids=prompt_token_ids, use_tqdm=True)
 
     logger.info("llm generate finished")
 
     if tp_size > 1:
-        llm.llm_runtime.model_executor._run_workers("remove_hooks")
-        act_range = llm.llm_runtime.model_executor._run_workers("get_act_range")
-        named_parameters = llm.llm_runtime.model_executor._run_workers("get_named_parameters")
+        llm.llm_runtime._interfacer._run_workers("remove_hooks")
+        act_range = llm.llm_runtime._interfacer._run_workers("get_act_range")
+        named_parameters = llm.llm_runtime._interfacer._run_workers("get_named_parameters")
     else:
-        llm.llm_runtime.model_executor.driver_worker.remove_hooks()
-        act_range = llm.llm_runtime.model_executor.driver_worker.get_act_range()
-        named_parameters = llm.llm_runtime.model_executor.driver_worker.get_named_parameters()
+        llm.llm_runtime._interfacer.driver_worker.remove_hooks()
+        act_range = llm.llm_runtime._interfacer.driver_worker.get_act_range()
+        named_parameters = llm.llm_runtime._interfacer.driver_worker.get_named_parameters()
 
     del llm
     del prompts

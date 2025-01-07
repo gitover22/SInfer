@@ -10,7 +10,7 @@ from sinfer.config import DecodingConfig, ModelConfig
 from sinfer.scheduler.TAScheduler import SchedulerOutputs
 from sinfer.sys.runtime_args import AsyncRuntimeArgs
 from sinfer.sys.runtime import LLMRuntime
-from sinfer.hil.r_utils import initialize_ray_cluster, ray
+from sinfer.hil.init_ray import initialize_ray_cluster, ray
 from sinfer.logger import init_logger
 from sinfer.lora.request import LoRARequest
 from sinfer.outputs import RequestOutput
@@ -208,7 +208,7 @@ class _AsyncLLMRuntime(LLMRuntime):
                 num_lookahead_slots=scheduler_outputs.num_lookahead_slots,
                 running_queue_size=scheduler_outputs.running_queue_size,
             )
-            output = await self.model_executor.execute_model_async(
+            output = await self._interfacer.execute_model_async(
                 execute_model_req)
         else:
             output = []
@@ -266,7 +266,7 @@ class _AsyncLLMRuntime(LLMRuntime):
                                 multi_modal_data=multi_modal_data)
 
     async def check_health_async(self) -> None:
-        self.model_executor.check_health()
+        self._interfacer.check_health()
 
 
 class AsyncLLMRuntime:
@@ -334,22 +334,22 @@ class AsyncLLMRuntime:
             assert not runtime_config.parallel_config.worker_use_ray, (
                 "Ray is not supported with the CPU backend.")
             from sinfer.hil.cpu_Interface import CPUInterfaceAsync
-            executor_class = CPUInterfaceAsync
+            interfacer = CPUInterfaceAsync
         elif runtime_config.parallel_config.worker_use_ray:
             initialize_ray_cluster(runtime_config.parallel_config)
             from sinfer.hil.r_MLUInterface import Ray_MLUInterfaceAsync
-            executor_class = Ray_MLUInterfaceAsync
+            interfacer = Ray_MLUInterfaceAsync
         else:
             assert runtime_config.parallel_config.world_size == 1, (
                 "Ray is required if parallel_config.world_size > 1.")
             from sinfer.hil.mlu_Interface import MLUInterfaceAsync
-            executor_class = MLUInterfaceAsync    # tensor-parallel-size = 1 时
+            interfacer = MLUInterfaceAsync    # tensor-parallel-size = 1 时
         # 创建异步LLM runtime
         runtime = cls(
             runtime_config.parallel_config.worker_use_ray,
             runtime_args.engine_use_ray,
             **runtime_config.to_dict(),
-            executor_class=executor_class,
+            interfacer=interfacer,
             log_requests=not runtime_args.disable_log_requests,
             log_stats=not runtime_args.disable_log_stats,
             max_log_len=runtime_args.max_log_len,

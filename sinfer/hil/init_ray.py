@@ -10,11 +10,7 @@ logger = init_logger(__name__)
 
 try:
     import ray
-
     class RayWorkerDelay(WorkerDelayBase):
-        """Ray wrapper for sinfer.worker.Worker, allowing Worker to be
-        lazliy initialized after Ray sets CUDA_VISIBLE_DEVICES."""
-
         def __init__(self, *args, **kwargs) -> None:
             super().__init__(*args, **kwargs)
             # 由于已编译的 DAG 在不同的线程中运行主执行过程，并在该线程中调用了 cuda.set_device
@@ -47,37 +43,32 @@ except ImportError as e:
     ray = None  
     RayWorkerDelay = None 
 
-
 def initialize_ray_cluster(
     parallel_config: ParallelConfig,
     ray_address: Optional[str] = None,
     # ray_address: Optional[str] = "local",
 ):
-    """使用 Ray 初始化分布式集群
+    """初始化分布式集群
     它将连接到 Ray 集群并为worker创建一个 placement group, 该组包括每个分布式worker进程的资源规范。
-
-    Args:
+    Args: 
         parallel_config: The configurations for parallel execution.
         ray_address: The address of the Ray cluster. If None, uses
             the default Ray cluster address.
     """
     if ray is None:
         raise ImportError(
-            "Ray is not installed. Please install Ray to use distributed "
-            "serving.")
+            "Ray is not installed. Please install Ray to use distributed serving.")
 
-    # Connect to a ray cluster.
-    ray.init(address=ray_address, ignore_reinit_error=True,num_cpus=2)
+    # ray集群初始化
+    ray.init(address=ray_address, ignore_reinit_error=True, num_cpus=2)
 
-    if parallel_config.placement_group:
+    if parallel_config.placement_group: # 配置中已经存在Placement Group，则直接返回
         return
 
-    # Create placement group for worker processes
-    current_placement_group = ray.util.get_current_placement_group()
+    current_placement_group = ray.util.get_current_placement_group() # 获取当前的 Placement Group
     if current_placement_group:
-        # We are in a placement group
         bundles = current_placement_group.bundle_specs
-        # Verify that we can use the placement group.
+        # 验证 Placement Group 中的 GPU 数量是否符合要求
         gpu_bundles = 0
         for bundle in bundles:
             bundle_gpus = bundle.get("GPU", 0)
@@ -96,14 +87,11 @@ def initialize_ray_cluster(
             raise ValueError(
                 "The number of required GPUs exceeds the total number of "
                 "available GPUs in the cluster.")
-        # Create a new placement group
+        
         placement_group_specs = ([{"GPU": 1}] * parallel_config.world_size)
-        current_placement_group = ray.util.placement_group(
-            placement_group_specs)
-        # Wait until PG is ready - this will block until all
-        # requested resources are available, and will timeout
-        # if they cannot be provisioned.
+        current_placement_group = ray.util.placement_group(placement_group_specs) # 创建 Placement Group
+        # 等待 Placement Group 准备就绪
         ray.get(current_placement_group.ready(), timeout=1800)
 
-    # Set the placement group in the parallel config
+    # 将创建或获取的 Placement Group 保存
     parallel_config.placement_group = current_placement_group
