@@ -20,3 +20,8 @@ tools/**/__pycache__/
 .pytest_cache
 # .vscode
 log/
+test/toINT8.py
+test/TAS_TaskPool.jpg
+test/TAS_ResourceUtil_Rate.jpg
+test/tas_infomation.csv
+test/sinfer_perf.csv

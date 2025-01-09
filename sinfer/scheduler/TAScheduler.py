@@ -20,13 +20,6 @@ from sinfer.utils import merge_dicts
 
 logger = init_logger(__name__)
 
-# Test-only. If configured, decode is preempted with
-# ARTIFICIAL_PREEMPTION_PROB% probability.
-ENABLE_ARTIFICIAL_PREEMPT = bool(
-    os.getenv("SINFER_TEST_ENABLE_ARTIFICIAL_PREEMPT", False))
-ARTIFICIAL_PREEMPTION_PROB = 0.5
-ARTIFICIAL_PREEMPTION_MAX_CNT = 500
-
 class PreemptionStrategy(enum.Enum):
     SWAP = enum.auto() # 换出 kv cache 从gpu换出到cpu
     RECOMPUTE = enum.auto() # 重计算
@@ -203,8 +196,8 @@ class SchedulerSwappedInOutputs:
 
 @dataclass
 class SchedulerPrefillOutputs:
-    """从waiting队列调度的序列组
-    可能包含新的预填充请求或被抢占的请求(抢占策略为重计算),这些请求需要从头重新计算
+    """从就绪池调度的任务
+    新的预填充请求或被抢占的请求(抢占策略为重计算)
     """
     # Selected tasks for prefill.
     tasks: List[Task]
@@ -220,6 +213,13 @@ class SchedulerPrefillOutputs:
             num_lookahead_slots=0,
         )
 
+# Test-only. If configured, decode is preempted with
+# ARTIFICIAL_PREEMPTION_PROB% probability.
+ENABLE_ARTIFICIAL_PREEMPT = bool(
+    os.getenv("SINFER_TEST_ENABLE_ARTIFICIAL_PREEMPT", False))
+ARTIFICIAL_PREEMPTION_PROB = 0.5
+ARTIFICIAL_PREEMPTION_MAX_CNT = 500
+
 class Scheduler:
     def __init__(
         self,
@@ -229,7 +229,7 @@ class Scheduler:
     ) -> None:
         self.scheduler_config = scheduler_config
         self.cache_config = cache_config
-        # LoRA配置
+        
         self.lora_config = lora_config
 
         if self.scheduler_config.chunked_prefill_enabled:
@@ -238,53 +238,50 @@ class Scheduler:
             self.prompt_limit = min(
                 self.scheduler_config.max_model_len,
                 self.scheduler_config.max_num_batched_tokens)
-        # 任务池
-        self.RunningPool: Deque[Task] = deque()  # 存储运行态的任务（存储处于decode阶段的任务和chunked prefill）
-        self.ReadyPool: Deque[Task] = deque()  # 存储就绪态任务（存储新来的处于prefill阶段的任务和重计算的任务）waiting队列中的task只包含一个req，即是原始的prompt
-        self.BlockedPool: Deque[Task] = deque() # 存储阻塞态的任务，包含被换出的处于decode阶段的任务，或者chunked prefill开启时存储prefill阶段的任务
+            
+        self._latency_lastFromReadyPool = 0.0 # now - 上一次有从就绪队列中取任务
+        self._last_schedule_formReadyPool = False
+        self._last_schedule_time = 0.0 
+        
+        self.RunningPool: Deque[Task] = deque()  # decode + chunked prefill
+        self.ReadyPool: Deque[Task] = deque()  # new prefill + recompute prefill
+        self.BlockedPool: Deque[Task] = deque() # swapped decode + chunked prefill
 
-        BlockSpaceManagerImpl = SpaceManager.get_block_space_manager()
-        # 创建物理块管理器
-        self.block_manager = BlockSpaceManagerImpl(
+        BlockSpaceManager = SpaceManager.get_block_space_manager()
+        
+        self.block_manager = BlockSpaceManager(
             block_size=self.cache_config.block_size,
             num_mlu_blocks=self.cache_config.num_mlu_blocks,
             num_cpu_blocks=self.cache_config.num_cpu_blocks,
             sliding_window=self.cache_config.sliding_window,
             enable_caching=self.cache_config.enable_prefix_caching)
 
-
-        self.prev_time = 0.0   # 每执行1次推理阶段前，调度器都要做一次调度，这个变量存放的就是上次调度发起的时间点
-        self.prev_prompt = False  # 上一次调度时，调度器有从waiting队列中取出task做推理，即为True，否则为False
-        self.last_prompt_latency = 0.0 # 当前调度时刻（now） - 最后一次有从waiting队列中取数做推理的那个调度时刻
-
-        # 以下字段仅用于测试。它被用来注入人工抢占
+        # for test 它被用来注入人工抢占
         self.enable_artificial_preemption = ENABLE_ARTIFICIAL_PREEMPT
         self.artificial_preempt_cnt = (ARTIFICIAL_PREEMPTION_MAX_CNT
                                        if self.enable_artificial_preemption
                                        else 0)
         
-        # 分析调度器性能
         logger.info(f"SInfer TAScheduler profiling...")
-        
         self.df = pd.DataFrame(
             data={
-                'waiting': [], 'running': [], 'swapped': [], 'finished': [],
+                'ready': [], 'running': [], 'blocked': [], 'finished': [],
                 'batch_utils': [], 'block_utils': [], 'preempt_ratio': []
             },
             dtype=np.float32
         )
-        self.sched_step = 0
-        self.running_seqs = 0
-        self.waiting_seqs = 0
-        self.swapped_seqs = 0
-        self.finished_seqs = 0
-        self.total_seqs = 0
-        self.running_to_waiting_seqs = 0
+        self.ready_tasks = 0
+        self.running_tasks = 0
+        self.blocked_tasks = 0
+        self.finished_tasks = 0
+        self.finished_tasks_list = []
+        self.total_tasks = 0
+        self.schedule_step = 0
+        self.from_running_to_ready_tasks = 0
         self.batch_utils = 0
         self.block_utils = 0
         self.preempt_ratio = 0
 
-        self.finished_tasks = []
 
     @property
     def lora_enabled(self) -> bool:
@@ -304,7 +301,6 @@ class Scheduler:
         中止给定 ID 的序列组
         检查给定 ID 的序列组是否存在于任何状态队列中。
         如果存在，从状态队列中移除该序列组。如果序列组中的任何序列尚未完成，则将该序列的状态设置为 FINISHED_ABORTED 并释放它
-
         参数：
             task_id: 要中止的序列组的 ID
         """
@@ -340,20 +336,17 @@ class Scheduler:
         '''获取未完成的序列组'''
         return len(self.ReadyPool) + len(self.RunningPool) + len(self.BlockedPool)
 
-    def _schedule_running(
+    def _schedule_running_task(
         self,
-        running_queue: deque,
+        running_pool: deque,
         budget: SchedulingBudget,
         curr_loras: Optional[Set[int]],
         policy: Profiler,
         enable_chunking: bool = False,
     ) -> Tuple[deque, SchedulerRunningOutputs]:
-        """调度 running 队列中的SG
-
-        Running queue should include decode and chunked prefill requests.
-
+        """调度 running Pool 中的task
         Args:
-            running_queue: The queue that contains running requests (i.e.,
+            running_pool: contains running requests (i.e.,
                 decodes). The given arguments are NOT in-place modified.
             budget: The scheduling budget. The argument is in-place updated
                 when any decodes are preempted.
@@ -364,12 +357,11 @@ class Scheduler:
                 chunked number of tokens are scheduled  if
                 `budget.num_batched_tokens` has not enough capacity to schedule
                 all tokens.
-    
         Returns:
             A tuple of remaining running queue (should be always 0) after
             scheduling and SchedulerRunningOutputs.
         """
-        init_queue = running_queue
+        init_queue = running_pool
         # 模型执行前需要swap和copy的块
         blocks_to_swap_out: Dict[int, int] = {}
         blocks_to_copy: Dict[int, List[int]] = {}
@@ -380,17 +372,17 @@ class Scheduler:
         swapped_out: List[Task] = []
 
         now = time.time()
-        running_queue = policy.sort_by_score(now, running_queue)
-        while running_queue:
-            task = running_queue[0]
+        running_pool = policy.sort_by_score(now, running_pool)
+        while running_pool:
+            task = running_pool[0]
             num_running_tokens = self._get_num_new_tokens(
                 task, RequestStatus.RUNNING, enable_chunking, budget)
 
             if num_running_tokens == 0:
                 break
 
-            running_queue.popleft()
-            while not self._can_append_slots(task):
+            running_pool.popleft()
+            while not self._MLU_memory_sufficient(task):
                 budget.subtract_num_batched_tokens(task.task_id,
                                                    num_running_tokens)
                 num_running_seqs = task.get_max_num_running_seqs()
@@ -399,9 +391,9 @@ class Scheduler:
                 if curr_loras is not None and task.lora_int_id > 0:
                     curr_loras.remove(task.lora_int_id)
 
-                if running_queue:
+                if running_pool:
                     # Preempt the lowest-priority tasks
-                    victim_seq_group = running_queue.pop()
+                    victim_seq_group = running_pool.pop()
                     preempted_mode = self._preempt(victim_seq_group,
                                                    blocks_to_swap_out)
                     if preempted_mode == PreemptionStrategy.RECOMPUTE:
@@ -443,8 +435,8 @@ class Scheduler:
         # sched_reqs = run_reqs - len(running_queue)
         sched_to_preempt = [s.task_id for s in preempted]
         # sched_to_swap_out = [s.request_id for s in swapped_out]
-        self.running_to_waiting_seqs += len(sched_to_preempt)
-        return running_queue, SchedulerRunningOutputs(
+        self.from_running_to_ready_tasks += len(sched_to_preempt)
+        return running_pool, SchedulerRunningOutputs(
             decode_tasks=decode_seq_groups,
             prefill_tasks=prefill_seq_groups,
             preempted=preempted,
@@ -454,9 +446,9 @@ class Scheduler:
             num_lookahead_slots=self._get_num_lookahead_slots(
                 is_prefill=False))
 
-    def _schedule_swapped(
+    def _schedule_blocked_task(
         self,
-        swapped_queue: deque,
+        blocked_pool: deque,
         budget: SchedulingBudget,
         curr_loras: Optional[Set[int]],
         policy: Profiler,
@@ -469,7 +461,7 @@ class Scheduler:
         `budget` and `curr_loras` are updated based on scheduled seq_groups.
 
         Args:
-            swapped_queue: The queue that contains swapped out requests.
+            blocked_pool: contains swapped out requests.
                 The given arguments are NOT in-place modified.
             budget: The scheduling budget. The argument is in-place updated
                 when any requests are swapped in.
@@ -493,12 +485,12 @@ class Scheduler:
         prefill_seq_groups: List[ScheduledTask] = []
 
         now = time.time()
-        swapped_queue = policy.sort_by_score(now, swapped_queue)
+        blocked_pool = policy.sort_by_score(now, blocked_pool)
         infeasible_tasks: List[Task] = []
 
         leftover_swapped: Deque[Task] = deque()
-        while swapped_queue:
-            task = swapped_queue[0]
+        while blocked_pool:
+            task = blocked_pool[0]
 
             alloc_status = self.block_manager.can_swap_in(task)
             if alloc_status == AllocStatus.LATER:
@@ -511,7 +503,7 @@ class Scheduler:
                 for req in task.get_reqs():
                     req.status = RequestStatus.FINISHED_IGNORED
                 infeasible_tasks.append(task)
-                swapped_queue.popleft()
+                blocked_pool.popleft()
                 continue
 
             lora_int_id = 0
@@ -523,14 +515,14 @@ class Scheduler:
                         and len(curr_loras) >= self.lora_config.max_loras):
                     # We don't have a space for another LoRA, so we ignore
                     leftover_swapped.appendleft(task)
-                    swapped_queue.popleft()
+                    blocked_pool.popleft()
                     continue
 
             # The total number of sequences in the RUNNING state should not
             # exceed the maximum number of sequences.
             num_new_seqs = task.get_max_num_running_seqs()
             num_new_tokens = self._get_num_new_tokens(task,
-                                                      RequestStatus.SWAPPED,
+                                                      RequestStatus.BLOCKED,
                                                       enable_chunking, budget)
 
             if (num_new_tokens == 0
@@ -540,7 +532,7 @@ class Scheduler:
 
             if lora_int_id > 0 and curr_loras is not None:
                 curr_loras.add(lora_int_id)
-            swapped_queue.popleft()
+            blocked_pool.popleft()
             self._swap_in(task, blocks_to_swap_in)
             self._append_slots(task, blocks_to_copy)
             is_prefill = task.is_prefill()
@@ -554,12 +546,12 @@ class Scheduler:
             budget.add_num_batched_tokens(task.task_id, num_new_tokens)
             budget.add_num_seqs(task.task_id, num_new_seqs)
 
-        swapped_queue.extendleft(leftover_swapped)
+        blocked_pool.extendleft(leftover_swapped)
         # add for scheduler profiling
         # swap_reqs = len(swapped_queue)
         # sched_reqs = swap_reqs - len(swapped_queue)
         # sched_to_swap_in = [s.task.task_id for s in decode_seq_groups]
-        return swapped_queue, SchedulerSwappedInOutputs(
+        return blocked_pool, SchedulerSwappedInOutputs(
             decode_tasks=decode_seq_groups,
             prefill_tasks=prefill_seq_groups,
             blocks_to_swap_in=blocks_to_swap_in,
@@ -569,9 +561,9 @@ class Scheduler:
             infeasible_tasks=infeasible_tasks,
         )
 
-    def _schedule_prefills(
+    def _schedule_ready_task(
         self,
-        waiting_queue: deque,
+        ready_pool: deque,
         budget: SchedulingBudget,
         curr_loras: Optional[Set[int]],
         enable_chunking: bool = False,
@@ -598,25 +590,25 @@ class Scheduler:
             A tuple of remaining waiting_queue after scheduling and
             SchedulerSwappedInOutputs.
         """
-        init_queue = waiting_queue
+        init_queue = ready_pool
         ignored_tasks: List[Task] = []
         tasks: List[Task] = []
         # 不对等待队列进行排序，因为假设它已经是有序的
         # 复制该队列以确保输入队列不会被修改
-        waiting_queue = deque([s for s in waiting_queue])
+        ready_pool = deque([s for s in ready_pool])
 
-        leftover_waiting_tasks: Deque[Task] = deque()
-        while self._passed_delay(time.time()) and waiting_queue:
-            task = waiting_queue[0]
+        _remaining_ready_tasks: Deque[Task] = deque()
+        while self._passed_delay(time.time()) and ready_pool:
+            task = ready_pool[0]
 
-            waiting_seqs = task.get_reqs(status=RequestStatus.WAITING)
-            assert len(waiting_seqs) == 1, (
-                "Waiting task should have only one prompt request.")
+            ready_reqs = task.get_reqs(status=RequestStatus.READY)
+            assert len(ready_reqs) == 1, (
+                "Ready task should have only one prompt request.")
             num_new_tokens = self._get_num_new_tokens(task,
-                                                      RequestStatus.WAITING,
+                                                      RequestStatus.READY,
                                                       enable_chunking, budget)
             if not enable_chunking:
-                num_prompt_tokens = waiting_seqs[0].get_len()
+                num_prompt_tokens = ready_reqs[0].get_len()
                 assert num_new_tokens == num_prompt_tokens
 
             if num_new_tokens > self.prompt_limit:
@@ -624,10 +616,10 @@ class Scheduler:
                     "Input prompt (%d tokens) is too long"
                     " and exceeds limit of %d", num_new_tokens,
                     self.prompt_limit)
-                for seq in waiting_seqs:
+                for seq in ready_reqs:
                     seq.status = RequestStatus.FINISHED_IGNORED
                 ignored_tasks.append(task)
-                waiting_queue.popleft()
+                ready_pool.popleft()
                 continue
 
             # 判断能不能给这个SG分配
@@ -639,10 +631,10 @@ class Scheduler:
                     "Input prompt (%d tokens) is too long"
                     " and exceeds the capacity of block_manager",
                     num_new_tokens)
-                for seq in waiting_seqs:
+                for seq in ready_reqs:
                     seq.status = RequestStatus.FINISHED_IGNORED
                 ignored_tasks.append(task)
-                waiting_queue.popleft()
+                ready_pool.popleft()
                 continue
 
             lora_int_id = 0
@@ -655,8 +647,8 @@ class Scheduler:
                         and len(curr_loras) >= self.lora_config.max_loras):
                     # We don't have a space for another LoRA, so
                     # we ignore this task for now.
-                    leftover_waiting_tasks.appendleft(task)
-                    waiting_queue.popleft()
+                    _remaining_ready_tasks.appendleft(task)
+                    ready_pool.popleft()
                     continue
 
             num_new_seqs = task.get_max_num_running_seqs()
@@ -668,7 +660,7 @@ class Scheduler:
             # 可以调度这个序列
             if curr_loras is not None and lora_int_id > 0:
                 curr_loras.add(lora_int_id)
-            waiting_queue.popleft()
+            ready_pool.popleft()
             self._allocate_and_set_running(task) # 实际分配
             tasks.append(
                 ScheduledTask(task=task,
@@ -677,9 +669,9 @@ class Scheduler:
             budget.add_num_seqs(task.task_id, num_new_seqs)
 
         # 将无法被调度的请求重新加入队列中
-        waiting_queue.extendleft(leftover_waiting_tasks)
+        ready_pool.extendleft(_remaining_ready_tasks)
         if len(tasks) > 0:
-            self.prev_prompt = True
+            self._last_schedule_formReadyPool = True
 
         # add for scheduler profiling
         # wait_reqs = len(init_queue)
@@ -687,12 +679,12 @@ class Scheduler:
         # sched_to_run = [s.task.task_id for s in prefills.seq_groups]
         # sched_to_ingore = [s.task.task_id for s in prefills.ignored_seq_groups]
 
-        return waiting_queue, SchedulerPrefillOutputs(
+        return ready_pool, SchedulerPrefillOutputs(
             tasks=tasks,
             ignored_tasks=ignored_tasks,
             num_lookahead_slots=self._get_num_lookahead_slots(is_prefill=True))
 
-    def _schedule_default(self) -> SchedulerOutputs:
+    def _schedule_without_cp(self) -> SchedulerOutputs:
         """
         running队列和blocked队列全是decode阶段(no chunked prefill)
         任务池优先级: ReadyPool > RunningPool > BlockedPool
@@ -713,16 +705,16 @@ class Scheduler:
             task.lora_int_id
             for task in self.RunningPool) if self.lora_enabled else None # 启用了LoRA
 
-        remaining_waiting, prefills = (self.ReadyPool,
+        remaining_ready, prefills = (self.ReadyPool,
                                        SchedulerPrefillOutputs.create_empty())
         remaining_running, running_scheduled = (
             self.RunningPool, SchedulerRunningOutputs.create_empty())
-        remaining_swapped, swapped_in = (
+        remaining_blocked, swapped_in = (
             self.BlockedPool, SchedulerSwappedInOutputs.create_empty())
 
-        # 如果swapped队列为空，调度waiting队列
+        # 如果阻塞池为空，调度就绪池任务
         if not self.BlockedPool:
-            remaining_waiting, prefills = self._schedule_prefills(
+            remaining_ready, prefills = self._schedule_ready_task(
                 self.ReadyPool, budget, curr_loras, enable_chunking=False)
 
         # scheduler_policy = Profilers.get_profiler(_name="fcfs")
@@ -735,7 +727,7 @@ class Scheduler:
         # 如果 _schedule_prefills 未启用分块模式（chunking），
         # 那么self.running 中仅包含解码请求，而不包含分块的预填充请求
         if len(prefills.tasks) == 0: # 没有调度prefill
-            remaining_running, running_scheduled = self._schedule_running(
+            remaining_running, running_scheduled = self._schedule_running_task(
                 self.RunningPool,
                 budget,
                 curr_loras,
@@ -746,7 +738,7 @@ class Scheduler:
             # 因为这意味着没有可用的插槽用于新的运行请求（running_scheduled.preempted存的是重计算的SG,running_scheduled.swapped_out存的是换出的SG）
             if len(running_scheduled.preempted) + len(
                     running_scheduled.swapped_out) == 0:
-                remaining_swapped, swapped_in = self._schedule_swapped(
+                remaining_blocked, swapped_in = self._schedule_blocked_task(
                     self.BlockedPool, budget, curr_loras, scheduler_policy)
         # 确保预算内的token数和序列数没有超出限制
         assert (budget.num_batched_tokens <=
@@ -754,8 +746,8 @@ class Scheduler:
         assert budget.num_curr_seqs <= self.scheduler_config.max_num_seqs
 
         # Update
-        self.ReadyPool = remaining_waiting
-        self.ReadyPool.extendleft(running_scheduled.preempted) # 重计算的SG加入到waiting队列最左侧
+        self.ReadyPool = remaining_ready
+        self.ReadyPool.extendleft(running_scheduled.preempted) # 重计算的task加入到ReadyPool最左侧
         # 
         self.RunningPool = remaining_running
         self.RunningPool.extend([s.task for s in prefills.tasks])
@@ -764,14 +756,14 @@ class Scheduler:
         self.RunningPool.extend(
             [s.task for s in swapped_in.decode_tasks])
         # 
-        self.BlockedPool = remaining_swapped
+        self.BlockedPool = remaining_blocked
         self.BlockedPool.extend(running_scheduled.swapped_out) # 换出的SG加入到swapped队列
 
-        # 没开启chunked prefill时，running队列和swapped队列都不应该包含prefill阶段的SG
+        # 没开启chunked prefill时，running队列和blocked队列都不应该包含prefill阶段的task
         assert len(running_scheduled.prefill_tasks) == 0
         assert len(swapped_in.prefill_tasks) == 0
         # add for scheduler profiling
-        self.sched_step += 1
+        self.schedule_step += 1
         # 包装一下调度结果并返回
         return SchedulerOutputs(
             scheduled_tasks=(prefills.tasks +
@@ -789,7 +781,7 @@ class Scheduler:
             running_queue_size=len(self.RunningPool),
         )
 
-    def _schedule_chunked_prefill(self):
+    def _schedule_with_cp(self):
         """使用chunked prefill时的调度
         
         分块预填充(Chunked Prefill)允许将预填充请求拆分成块,与解码请求一起批量处理:
@@ -807,11 +799,11 @@ class Scheduler:
         )
         curr_loras: Set[int] = set()
 
-        remaining_waiting, prefills = (self.ReadyPool,
+        remaining_ready, prefills = (self.ReadyPool,
                                        SchedulerPrefillOutputs.create_empty())
         remaining_running, running_scheduled = (
             self.RunningPool, SchedulerRunningOutputs.create_empty())
-        remaining_swapped, swapped_in = (
+        remaining_blocked, swapped_in = (
             self.BlockedPool, SchedulerSwappedInOutputs.create_empty())
 
         # scheduler_policy = Profilers.get_profiler(_name="fcfs")
@@ -820,7 +812,7 @@ class Scheduler:
         scheduler_policy = Profilers.get_profiler(_name="tas_v3")
         # scheduler_policy = Profilers.get_profiler(_name="tas_v4")
         # scheduler_policy = Profilers.get_profiler(_name="tas_v5")
-        remaining_running, running_scheduled = self._schedule_running(
+        remaining_running, running_scheduled = self._schedule_running_task(
             self.RunningPool,
             budget,
             curr_loras,
@@ -831,11 +823,11 @@ class Scheduler:
         # If preemption happens, it means we don't have space for swap-in.
         if len(running_scheduled.preempted) + len(
                 running_scheduled.swapped_out) == 0:
-            remaining_swapped, swapped_in = self._schedule_swapped(
+            remaining_blocked, swapped_in = self._schedule_blocked_task(
                 self.BlockedPool, budget, curr_loras, scheduler_policy)
 
         # Schedule new prefills.
-        remaining_waiting, prefills = self._schedule_prefills(
+        remaining_ready, prefills = self._schedule_ready_task(
             self.ReadyPool, budget, curr_loras, enable_chunking=True)
 
         assert (budget.num_batched_tokens <=
@@ -843,7 +835,7 @@ class Scheduler:
         assert budget.num_curr_seqs <= self.scheduler_config.max_num_seqs
 
         # Update waiting requests.
-        self.ReadyPool = remaining_waiting
+        self.ReadyPool = remaining_ready
         self.ReadyPool.extendleft(running_scheduled.preempted)
         # Update new running requests.
         self.RunningPool = remaining_running
@@ -857,7 +849,7 @@ class Scheduler:
         self.RunningPool.extend(
             [s.task for s in swapped_in.prefill_tasks])
         # Update swapped requests.
-        self.BlockedPool = remaining_swapped
+        self.BlockedPool = remaining_blocked
         self.BlockedPool.extend(running_scheduled.swapped_out)
         return SchedulerOutputs(
             scheduled_tasks=(prefills.tasks +
@@ -878,13 +870,13 @@ class Scheduler:
             running_queue_size=len(self.RunningPool),
         )
 
-    def _schedule(self) -> SchedulerOutputs:
+    def _schedule_entrance(self) -> SchedulerOutputs:
         if self.scheduler_config.chunked_prefill_enabled:
-            return self._schedule_chunked_prefill()
+            return self._schedule_with_cp()
         else:
-            return self._schedule_default() # 默认
+            return self._schedule_without_cp()
 
-    def _can_append_slots(self, task: Task) -> bool:
+    def _MLU_memory_sufficient(self, task: Task) -> bool:
         """
         确定KV缓存中是否有足够的空间以继续生成序列组
         """
@@ -898,16 +890,13 @@ class Scheduler:
         # Appending slots only occurs in decoding.
         is_prefill = False
 
-        return self.block_manager.can_append_slots(
+        return self.block_manager.MLU_memory_sufficient(
             task=task,
             num_lookahead_slots=self._get_num_lookahead_slots(is_prefill),
         )
 
-    def schedule(self) -> Tuple[List[TaskMetadata], SchedulerOutputs]:
-        '''
-        调度器的调度入口，会封装调度输出
-        '''
-        scheduler_outputs = self._schedule() # 获取调度输出
+    def schedule_entrance(self) -> Tuple[List[TaskMetadata], SchedulerOutputs]:
+        scheduler_outputs = self._schedule_entrance()
         now = time.time()
 
         task_metadata_list: List[TaskMetadata] = []
@@ -922,7 +911,7 @@ class Scheduler:
             req_data: Dict[int, RequestData] = {}
             # seq_id -> physical block numbers
             block_tables: Dict[int, List[int]] = {}
-            # 依次遍历SG中的所有seq
+            # 依次遍历task中的每一个req
             for req in task.get_reqs(status=RequestStatus.RUNNING):
                 req_id = req.req_id
                 req_data[req_id] = req.data
@@ -935,11 +924,11 @@ class Scheduler:
 
             do_sample = True
             if task.is_prefill():
-                seqs = task.get_reqs()
-                assert len(seqs) == 1  # Prefill 阶段只有一个seq
+                reqs = task.get_reqs()
+                assert len(reqs) == 1  # Prefill 阶段只有一个seq
                 # chunked prefill不需要进行采样。  
-                if (token_chunk_size + seqs[0].data.get_num_computed_tokens() <
-                        seqs[0].data.get_len()):
+                if (token_chunk_size + reqs[0].data.get_num_computed_tokens() <
+                        reqs[0].data.get_len()):
                     do_sample = False
 
             # It assumes the scheduled_seq_groups is ordered by
@@ -977,43 +966,41 @@ class Scheduler:
         self.block_manager.fork(parent_req, child_req)
 
     def free_req(self, req: Request) -> None:
-        """释放一个序列"""
         self.block_manager.free(req)
 
-    # 释放已经完成的序列组
-    def free_finished_tasks(self) -> None:
+    def free_all_finished_tasks(self) -> None:
         finished_tasks_ = [task for task in self.RunningPool
                                         if task.is_finished()]
 
         self.RunningPool = deque(task for task in self.RunningPool
                                 if not task.is_finished())
 
-        self.running_seqs = len(self.RunningPool)
-        self.waiting_seqs = len(self.ReadyPool)
-        self.swapped_seqs = len(self.BlockedPool)
-        self.finished_seqs += len(finished_tasks_)
-        self.finished_tasks += finished_tasks_
+        self.running_tasks = len(self.RunningPool)
+        self.ready_tasks = len(self.ReadyPool)
+        self.blocked_tasks = len(self.BlockedPool)
+        self.finished_tasks += len(finished_tasks_)
+        self.finished_tasks_list += finished_tasks_
 
-        total_seqs_ = self.running_seqs + self.waiting_seqs + self.swapped_seqs + self.finished_seqs
-        if total_seqs_ > self.total_seqs:
-            self.total_seqs = total_seqs_
+        total_seqs_ = self.running_tasks + self.ready_tasks + self.blocked_tasks + self.finished_tasks
+        if total_seqs_ > self.total_tasks:
+            self.total_tasks = total_seqs_
 
-        self.batch_utils = self.running_seqs / self.scheduler_config.max_num_seqs
+        self.batch_utils = self.running_tasks / self.scheduler_config.max_num_seqs
         self.block_utils = (self.block_manager.num_total_mlu_blocks -
                             self.block_manager.get_num_free_gpu_blocks()) / self.block_manager.num_total_mlu_blocks
-        self.preempt_ratio = self.running_to_waiting_seqs / self.total_seqs
+        self.preempt_ratio = self.from_running_to_ready_tasks / self.total_tasks
 
         df_ = pd.DataFrame(
-            [[self.waiting_seqs, self.running_seqs, self.swapped_seqs,
+            [[self.ready_tasks, self.running_tasks, self.blocked_tasks,
             len(finished_tasks_), self.batch_utils, self.block_utils, self.preempt_ratio]],
-            columns=['waiting', 'running', 'swapped',
+            columns=['ready', 'running', 'blocked',
                     'finished','batch_utils', 'block_utils', 'preempt_ratio'],
-            index=[str(self.sched_step)])
+            index=[str(self.schedule_step)])
         self.df = pd.concat([self.df, df_])
 
     def _allocate_and_set_running(self, task: Task) -> None:
         self.block_manager.allocate(task)
-        for req in task.get_reqs(status=RequestStatus.WAITING):
+        for req in task.get_reqs(status=RequestStatus.READY):
             req.status = RequestStatus.RUNNING
 
     def _append_slots(
@@ -1031,7 +1018,7 @@ class Scheduler:
                 indices for the appended slots.
         """
         num_lookahead_slots = self._get_num_lookahead_slots(is_prefill=False)
-        # 遍历这个seq_group中状态为running的所有seq
+        # 遍历这个task中状态为running的所有req
         for req in task.get_reqs(status=RequestStatus.RUNNING):
             cows = self.block_manager.append_slots(req, num_lookahead_slots)
 
@@ -1070,7 +1057,7 @@ class Scheduler:
         reqs = task.get_reqs(status=RequestStatus.RUNNING)  # 获取这个seq_group下正在running的所有seqs
         assert len(reqs) == 1 # 重计算时SG中的seq数量为1才正确
         for req in reqs:
-            req.status = RequestStatus.WAITING 
+            req.status = RequestStatus.READY 
             # 释放这条seq对应的物理块
             # 即将对应物理块的引用-1，如果此时引用数量为0，说明对应物理块完全自由了，需要再将其放入自由物理块列表中
             self.free_req(req)
@@ -1092,26 +1079,26 @@ class Scheduler:
     ) -> None:
         mapping = self.block_manager.swap_in(task)
         blocks_to_swap_in.update(mapping)
-        for req in task.get_reqs(status=RequestStatus.SWAPPED):
+        for req in task.get_reqs(status=RequestStatus.BLOCKED):
             req.status = RequestStatus.RUNNING
 
     def _swap_out(
         self,
-        task: Task,   # 需要被swap到cpu上的seq_group
+        task: Task,   # 需要被swap到cpu上的task
         blocks_to_swap_out: Dict[int, int],
     ) -> None:
         if not self.block_manager.can_swap_out(task):
-            # 检查是否可以将当前seq_group对应的物理块swap到cpu上
-            # 可以的条件：当前seq_group占用的gpu物理块数量 <= cpu上可用的物理块数量
+            # 检查是否可以将当前task对应的物理块swap到cpu上
+            # 可以的条件：当前task占用的物理块数量 <= cpu上可用的物理块数量
             raise RuntimeError(
                 "Aborted due to the lack of CPU swap space. Please increase "
                 "the swap space to avoid this error.")
-        # 释放该seq_group下所有seq的gpu物理块，并为其创建对应的cpu块
-        # mapping：{gpu物理块id：cpu物理块id}
+        # 释放该task下所有req的mlu物理块，并为其创建对应的cpu块
+        # mapping：{mlu物理块id：cpu物理块id}
         mapping = self.block_manager.swap_out(task)
         blocks_to_swap_out.update(mapping)
         for req in task.get_reqs(status=RequestStatus.RUNNING):
-            req.status = RequestStatus.SWAPPED # 修改该seq_group下所有seq的状态：从running改成swapped
+            req.status = RequestStatus.BLOCKED # 修改该task下所有req的状态：从running改成swapped
 
     def _passed_delay(self, now: float) -> bool:
         """
@@ -1121,11 +1108,11 @@ class Scheduler:
         Args:
             now: 当前调度时间点
         """
-        if self.prev_prompt:
-            self.last_prompt_latency = now - self.prev_time
+        if self._last_schedule_formReadyPool:
+            self._latency_lastFromReadyPool = now - self._last_schedule_time
         # 用当前调度时间更新prev_time
         # 由于目前还不知道本次是否会从waiting队列中调度，因此prev_prompt先设为False
-        self.prev_time, self.prev_prompt = now, False
+        self._last_schedule_time, self._last_schedule_formReadyPool = now, False
         # Delay scheduling prompts to let waiting queue fill up
         # delay_factor：用户配置的，用于调整调度间隔阈值的因子。大于0则意味着用户想开启阈值判断
         if self.scheduler_config.delay_factor > 0 and self.ReadyPool:
@@ -1135,7 +1122,7 @@ class Scheduler:
             # 实际等待的时间 > 应该等待时间
             passed_delay = (
                 (now - earliest_arrival_time) >
-                (self.scheduler_config.delay_factor * self.last_prompt_latency)
+                (self.scheduler_config.delay_factor * self._latency_lastFromReadyPool)
                 or not self.RunningPool)
         else:
             passed_delay = True
@@ -1203,15 +1190,15 @@ class Scheduler:
         return df
 
     def __del__(self):
-        logger.info(f"SInfer TAScheduler profiling saving...")
-        figure = self.df.plot(y=['waiting', 'running', 'swapped', 'finished']).get_figure()
-        figure.savefig("sinfer_queue_view.jpg", dpi=300)
+        logger.info(f"TAScheduler profiling saving...")
+        figure = self.df.plot(y=['ready', 'running', 'blocked', 'finished']).get_figure()
+        figure.savefig("TAS_TaskPool.jpg", dpi=300)
         plt.close(figure)
         figure = self.df.plot(y=['batch_utils', 'block_utils', 'preempt_ratio']).get_figure()
-        figure.savefig("sinfer_utilization_view.jpg", dpi=300)
+        figure.savefig("TAS_ResourceUtil_Rate.jpg", dpi=300)
         plt.close(figure)
 
-        time_df = self.summary_finished_tasks(self.finished_tasks)
+        time_df = self.summary_finished_tasks(self.finished_tasks_list)
 
         max_, mean_, min_ = self.df.max(), self.df.mean(), self.df.min()
         self.df.loc["Max"] = max_
@@ -1224,5 +1211,5 @@ class Scheduler:
                             'expand_frame_repr', False):
             logger.info(self.df.loc[["Max", "Mean", "Min"]])
             logger.info(time_df.loc[["Sum", "Max", "Mean", "Min", "P99"]])
-        self.df.astype(str).to_csv("sinfer_scheduler_view.csv", mode="w")
-        time_df.astype(str).to_csv("sinfer_time_view.csv", mode="w")
+        self.df.astype(str).to_csv("tas_infomation.csv", mode="w")
+        time_df.astype(str).to_csv("sinfer_perf.csv", mode="w")

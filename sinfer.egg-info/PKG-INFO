@@ -1,6 +1,6 @@
-Metadata-Version: 2.1
+Metadata-Version: 2.2
 Name: sinfer
-Version: 1.0.0+mlu.0e622d2
+Version: 1.0.0+mlu.fa86829
 Summary: A smart inference framework for LLMs on MLU backend
 Home-page: 
 Author: huafeng
@@ -75,6 +75,16 @@ Requires-Dist: datasets
 Requires-Dist: transformers_stream_generator
 Provides-Extra: tensorizer
 Requires-Dist: tensorizer==2.9.0; extra == "tensorizer"
+Dynamic: author
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: license
+Dynamic: project-url
+Dynamic: provides-extra
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
 
 ## SInfer
 

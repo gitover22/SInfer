@@ -127,7 +127,7 @@ class LLMRuntime:
             self.detokenizer = None
             self.tokenizer = None
 
-        self.req_counter = Counter() # Request对应的id计数器
+        self.req_counter = Counter()
         self.generation_config_fields = _load_generation_config_dict(
             model_config)
 
@@ -140,9 +140,9 @@ class LLMRuntime:
             lora_config=lora_config,
             vision_language_config=vision_language_config,
             load_config=load_config,
-        ) # 实例化Interfacer , 实例化Worker，ModelInference(初始化kv cache时实例化CacheManager),加载模型权重
+        )
 
-        self._initialize_kv_caches() # 初始化kv cache缓存，CacheManager
+        self._preallocate_kv_caches() # 初始化kv cache缓存，CacheManager
 
         # 收集信息
         if is_usage_stats_enabled():
@@ -159,8 +159,8 @@ class LLMRuntime:
                     parallel_config.tensor_parallel_size,
                     "block_size":
                     cache_config.block_size,
-                    "gpu_memory_utilization":
-                    cache_config.gpu_memory_utilization,
+                    "mlu_memory_utilization":
+                    cache_config.mlu_memory_utilization,
 
                     # Quantization
                     "quantization":
@@ -208,7 +208,7 @@ class LLMRuntime:
                 ),
             ))
 
-    def _initialize_kv_caches(self) -> None:
+    def _preallocate_kv_caches(self) -> None:
         num_mlu_blocks, num_cpu_blocks = (
             self._interfacer.determine_num_available_blocks())
 
@@ -233,19 +233,19 @@ class LLMRuntime:
     ) -> "LLMRuntime":
         runtime_config = runtime_args.create_runtime_config()
 
-        # 明确executor_class指向的执行器
+        
         if runtime_config.device_config.device_type == "cpu":
             from sinfer.hil.cpu_Interface import CPUInterface
             interfacer = CPUInterface
         elif runtime_config.parallel_config.worker_use_ray:
             initialize_ray_cluster(runtime_config.parallel_config)
             from sinfer.hil.r_MLUInterface import Ray_MLUInterface
-            interfacer = Ray_MLUInterface # 启用TP时为Ray_MLUExecutor
+            interfacer = Ray_MLUInterface
         else:
             assert runtime_config.parallel_config.world_size == 1, (
                 "Ray is required if parallel_config.world_size > 1.")
             from sinfer.hil.mlu_Interface import MLUInterface
-            interfacer = MLUInterface # 单卡时为MLUExecutor
+            interfacer = MLUInterface
 
         # 运行构造函数创建runtime对象
         runtime = cls(
@@ -438,7 +438,7 @@ class LLMRuntime:
                 self.output_processor.process_outputs(seq_group, outputs)
 
         # Free the finished sequence groups.
-        self.scheduler.free_finished_tasks()
+        self.scheduler.free_all_finished_tasks()
 
         # Create the outputs.
         request_outputs: List[RequestOutput] = []
@@ -456,7 +456,7 @@ class LLMRuntime:
         """
             执行一次iteration
         """
-        seq_group_metadata_list, scheduler_outputs = self.scheduler.schedule() # 获取一次调度输出
+        seq_group_metadata_list, scheduler_outputs = self.scheduler.schedule_entrance() # 获取一次调度输出
 
         if not scheduler_outputs.is_empty():
             execute_model_req = ExecuteModelRequest(
