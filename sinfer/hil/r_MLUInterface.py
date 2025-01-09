@@ -69,7 +69,7 @@ class Ray_MLUInterface(Distributed_MLUInterface):
                           **ray_remote_kwargs):
         if self.parallel_config.tensor_parallel_size == 1:
             # 对于单 MLU 情况，使用一个带有受限内存的 Ray 工作进程
-            num_mlus = self.cache_config.gpu_memory_utilization
+            num_mlus = self.cache_config.mlu_memory_utilization
         else:
             # 对于多 MLU 情况，分配完整的 MLU
             num_mlus = 1 

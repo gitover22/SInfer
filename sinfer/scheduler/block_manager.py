@@ -282,7 +282,7 @@ class _BlockSpaceManager(SpaceManager):
         - AllocStatus.OK 可以分配
         - AllocStatus.LATER 延迟分配
         '''
-        req = task.get_reqs(status=RequestStatus.WAITING)[0] # waiting队列中都是prefill阶段的序列，且只有一个序列
+        req = task.get_reqs(status=RequestStatus.READY)[0] # waiting队列中都是prefill阶段的序列，且只有一个序列
         _required_blocks = len(req.logical_token_blocks) # 这个序列的所有逻辑块数量
 
         if self.block_sliding_window is not None:
@@ -303,7 +303,7 @@ class _BlockSpaceManager(SpaceManager):
         """
         为当前seq_group分配物理块做prefill
         """
-        req = task.get_reqs(status=RequestStatus.WAITING)[0] # waiting队列没做过prefill，只有一条序列
+        req = task.get_reqs(status=RequestStatus.READY)[0] # waiting队列没做过prefill，只有一条序列
 
         # 计算该seq的逻辑块数量
         # （prefill阶段，有多少个逻辑块，就应该分配多少个物理块）
@@ -332,14 +332,14 @@ class _BlockSpaceManager(SpaceManager):
             block_table.append(block)
 
         # prefill阶段，这个seq_group下所有的seq共享一个prompt，也即共享这个prompt代表的物理块
-        for req in task.get_reqs(status=RequestStatus.WAITING):
+        for req in task.get_reqs(status=RequestStatus.READY):
             self.block_tables[req.req_id] = block_table.copy()
 
-    def can_append_slots(self,
+    def MLU_memory_sufficient(self,
                          task: Task,
                          num_lookahead_slots: int = 0) -> bool:
-        '''能否为seq_group分配物理块做decode
-        检查对于SG中的每一个seq, 是否能至少分配一个空闲物理块给它(考虑最坏情况)
+        '''能否为task分配物理块做decode
+        检查对于task中的每一个req, 是否能至少分配一个空闲物理块给它(考虑最坏情况)
         '''
         assert (num_lookahead_slots == 0
             ), "lookahead allocation not supported in BlockManager"
@@ -499,7 +499,7 @@ class _BlockSpaceManager(SpaceManager):
         assert (num_lookahead_slots == 0
                 ), "BlockManager does not support lookahead allocation"
         blocks = self._get_physical_blocks(task)
-        num_swapped_reqs = task.num_reqs(status=RequestStatus.SWAPPED)
+        num_swapped_reqs = task.num_reqs(status=RequestStatus.BLOCKED)
         num_free_blocks = self.mlu_allocator.get_num_free_blocks()
         # NOTE: Conservatively, we assume that every sequence will allocate
         # at least one free block right after the swap-in.
@@ -520,7 +520,7 @@ class _BlockSpaceManager(SpaceManager):
 
         # CPU block -> GPU block.
         mapping: Dict[PhysicalTokenBlock, PhysicalTokenBlock] = {}
-        for req in task.get_reqs(status=RequestStatus.SWAPPED):
+        for req in task.get_reqs(status=RequestStatus.BLOCKED):
             new_block_table: BlockTable = []
             block_table = self.block_tables[req.req_id]
 

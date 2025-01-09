@@ -34,7 +34,7 @@ class SpaceManager(ABC):
         pass
 
     @abstractmethod
-    def can_append_slots(self, seq_group: Task,
+    def MLU_memory_sufficient(self, seq_group: Task,
                          num_lookahead_slots: int) -> bool:
         pass
 

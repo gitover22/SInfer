@@ -316,7 +316,7 @@ class CacheConfig:
 
     Args:
         block_size: Size of a cache block in number of tokens.
-        gpu_memory_utilization: Fraction of GPU memory to use for the
+        mlu_memory_utilization: Fraction of GPU memory to use for the
             SInfer execution.
         swap_space: Size of the CPU swap space per GPU (in GiB).
         cache_dtype: Data type for kv cache storage.
@@ -327,7 +327,7 @@ class CacheConfig:
     def __init__(
         self,
         block_size: int,
-        gpu_memory_utilization: float,
+        mlu_memory_utilization: float,
         swap_space: int,
         cache_dtype: str,
         num_mlu_blocks_override: Optional[int] = None,
@@ -335,7 +335,7 @@ class CacheConfig:
         enable_prefix_caching: bool = False,
     ) -> None:
         self.block_size = block_size
-        self.gpu_memory_utilization = gpu_memory_utilization
+        self.mlu_memory_utilization = mlu_memory_utilization
         self.swap_space_bytes = swap_space * _GB
         self.num_mlu_blocks_override = num_mlu_blocks_override
         self.cache_dtype = cache_dtype
@@ -353,10 +353,10 @@ class CacheConfig:
         return {key: str(value) for key, value in self.__dict__.items()}
 
     def _verify_args(self) -> None:
-        if self.gpu_memory_utilization > 1.0:
+        if self.mlu_memory_utilization > 1.0:
             raise ValueError(
                 "GPU memory utilization must be less than 1.0. Got "
-                f"{self.gpu_memory_utilization}.")
+                f"{self.mlu_memory_utilization}.")
 
     def _verify_cache_dtype(self) -> None:
         if self.cache_dtype == "auto":
@@ -935,7 +935,7 @@ class RuntimeConfig:
 
     def to_dict(self):
         """
-        将 EngineConfig 类的所有配置项以字典的形式返回
+        将 RuntimeConfig 类的所有配置项以字典的形式返回
         """
         return dict(
             (field.name, getattr(self, field.name)) for field in fields(self))

@@ -196,7 +196,7 @@ class _AsyncLLMRuntime(LLMRuntime):
         """异步执行一次解码迭代并返回新生成的结果。
         该函数执行引擎的一次解码迭代。首先，它会调度下一次迭代中需要执行的序列以及需要交换（载入/移出/复制）的 token 块。然后，执行模型推理，并使用模型的输出更新调度器。最后，它对序列进行解码并返回新生成的结果
         """
-        task_metadata_list, scheduler_outputs = self.scheduler.schedule()
+        task_metadata_list, scheduler_outputs = self.scheduler.schedule_entrance()
 
         if not scheduler_outputs.is_empty():
             # Execute the model.

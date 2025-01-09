@@ -32,9 +32,9 @@ SampleLogprobs = List[Dict[int, Logprob]]
 
 class RequestStatus(enum.Enum):
     # 请求的状态
-    WAITING = enum.auto()
+    READY = enum.auto()
     RUNNING = enum.auto()
-    SWAPPED = enum.auto()
+    BLOCKED = enum.auto()
     # 完成状态
     FINISHED_STOPPED = enum.auto()  # 正常完成 eos
     FINISHED_LENGTH_CAPPED = enum.auto() # seq的长度达到最大长度限制，而结束推理
@@ -171,7 +171,6 @@ class Request:
             block size used by the block manager and cache engine.
         lora_request: LoRA request.
     """
-
     def __init__(
         self,
         req_id: int,
@@ -194,7 +193,7 @@ class Request:
         self.logical_token_blocks: List[LogicalTokenBlock] = [] # 每个req都会维护自己的逻辑块列表
         # 使用提示(prompt)的token ID初始化逻辑token块。
         self._append_tokens_to_blocks(prompt_token_ids)
-        self.status = RequestStatus.WAITING
+        self.status = RequestStatus.READY
         self.stop_reason: Union[int, str, None] = None
 
         # Used for incremental detokenization
