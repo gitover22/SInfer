@@ -342,7 +342,7 @@ class _BlockSpaceManager(SpaceManager):
         检查对于SG中的每一个seq, 是否能至少分配一个空闲物理块给它(考虑最坏情况)
         '''
         assert (num_lookahead_slots == 0
-            ), "lookahead allocation not supported in BlockSpaceManagerV1"
+            ), "lookahead allocation not supported in BlockManager"
         # 优化分配策略: unpagged mode 可以返回true
         from sinfer.Intercept.mlu_definitions import USE_PAGED
         if not USE_PAGED:
@@ -497,7 +497,7 @@ class _BlockSpaceManager(SpaceManager):
                     task: Task,
                     num_lookahead_slots: int = 0) -> AllocStatus:
         assert (num_lookahead_slots == 0
-                ), "BlockSpaceManagerV1 does not support lookahead allocation"
+                ), "BlockManager does not support lookahead allocation"
         blocks = self._get_physical_blocks(task)
         num_swapped_reqs = task.num_reqs(status=RequestStatus.SWAPPED)
         num_free_blocks = self.mlu_allocator.get_num_free_blocks()
@@ -516,7 +516,7 @@ class _BlockSpaceManager(SpaceManager):
                 task: Task,
                 num_lookahead_slots: int = 0) -> Dict[int, int]:
         assert (num_lookahead_slots == 0
-                ), "BlockSpaceManagerV1 does not support lookahead allocation"
+                ), "BlockManager does not support lookahead allocation"
 
         # CPU block -> GPU block.
         mapping: Dict[PhysicalTokenBlock, PhysicalTokenBlock] = {}
