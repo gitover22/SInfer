@@ -165,9 +165,9 @@ class Request:
 
     Args:
         req_id: 请求id.
-        prompt: The prompt of the sequence.
+        prompt: The prompt of the request.
         prompt_token_ids: The token IDs of the prompt.
-        block_size: The block size of the sequence. Should be the same as the
+        block_size: The block size of the request. Should be the same as the
             block size used by the block manager and cache engine.
         lora_request: LoRA request.
     """
@@ -344,10 +344,10 @@ class Request:
 
 
 class RequestOutput:
-    """The model output associated with a sequence.
+    """The model output associated with a request.
 
     Args:
-        parent_seq_id: The ID of the parent sequence (for forking in beam search).
+        parent_req_id: The ID of the parent req (for forking in beam search).
         output_token: The output token ID.
         logprobs: The logprobs of the output token.
             (Token id -> logP(x_i+1 | x_0, ..., x_i))
@@ -379,7 +379,7 @@ class RequestOutput:
 
 @dataclass
 class SamplerOutput:
-    """For each sequence group, we generate a list of SequenceOutput object,
+    """For each task, we generate a list of SequenceOutput object,
     each of which contains one possible candidate for the next token.
 
     This datastructure implements methods so it can be used like a list, but
@@ -429,7 +429,7 @@ class ExecuteModelRequest:
     from sinfer.task import TaskMetadata
     """The model execution request."""
     # The sequence group metadata list.
-    seq_group_metadata_list: List[TaskMetadata]
+    task_metadata_list: List[TaskMetadata]
     # Blocks to swap in. Dict of CPU -> GPU block number.
     blocks_to_swap_in: Dict[int, int] = field(default_factory=dict)
     # Blocks to swap out. Dict of GPU -> CPU block number.
@@ -442,11 +442,11 @@ class ExecuteModelRequest:
     running_queue_size: int = 0
 
     def clone(
-        self, seq_group_metadata_list: List[TaskMetadata]
+        self, task_metadata_list: List[TaskMetadata]
     ) -> "ExecuteModelRequest":
-        """Clone the request with a new sequence group metadata list."""
+        """Clone the request with a new task metadata list."""
         return ExecuteModelRequest(
-            seq_group_metadata_list=seq_group_metadata_list,
+            task_metadata_list=task_metadata_list,
             blocks_to_swap_in=self.blocks_to_swap_in.copy(),
             blocks_to_swap_out=self.blocks_to_swap_out.copy(),
             blocks_to_copy=self.blocks_to_copy.copy(),

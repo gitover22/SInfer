@@ -75,7 +75,7 @@ class SingleStepOutputProcessor(SequenceGroupOutputProcessor):
         # Process samples
         samples = outputs.samples
         parent_seqs = seq_group.get_reqs(status=RequestStatus.RUNNING)
-        existing_finished_seqs = seq_group.get_finished_seqs()
+        existing_finished_seqs = seq_group.get_finished_reqs()
         parent_child_dict: Dict[int, List[RequestOutput]] = {
             parent_seq.req_id: []
             for parent_seq in parent_seqs

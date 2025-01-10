@@ -237,8 +237,8 @@ class _BlockSpaceManager(SpaceManager):
         enable_caching: bool = False, # 是否需要做prefix caching
     ) -> None:
         self.block_size = block_size
-        self.num_total_mlu_blocks = num_mlu_blocks
-        self.num_total_cpu_blocks = num_cpu_blocks
+        self._total_mlu_blocks_num = num_mlu_blocks
+        self._total_cpu_blocks_num = num_cpu_blocks
 
         if enable_caching and sliding_window is not None:
             raise NotImplementedError(
@@ -291,7 +291,7 @@ class _BlockSpaceManager(SpaceManager):
         _free_mlu_blocks = self.mlu_allocator.get_num_free_blocks() # 获取所有可用物理块数量
 
         # 设备中所有的物理块数量 - 该seq实际需要的物理块数量 < 水位线block数量，则不分配（说明当前seq太长了）
-        if (self.num_total_mlu_blocks - _required_blocks <
+        if (self._total_mlu_blocks_num - _required_blocks <
                 self.watermark_blocks):
             return AllocStatus.NEVER
         if _free_mlu_blocks - _required_blocks >= self.watermark_blocks:  # 如果设备中可用的物理块数量 - 该seq实际需要的block数量 >= 水位线block数量，则分配
@@ -512,13 +512,13 @@ class _BlockSpaceManager(SpaceManager):
         else:
             return AllocStatus.LATER
 
-    def swap_in(self,
+    def Block_in(self,
                 task: Task,
                 num_lookahead_slots: int = 0) -> Dict[int, int]:
         assert (num_lookahead_slots == 0
                 ), "BlockManager does not support lookahead allocation"
 
-        # CPU block -> GPU block.
+        # CPU block -> MLU block.
         mapping: Dict[PhysicalTokenBlock, PhysicalTokenBlock] = {}
         for req in task.get_reqs(status=RequestStatus.BLOCKED):
             new_block_table: BlockTable = []
@@ -533,7 +533,7 @@ class _BlockSpaceManager(SpaceManager):
                         cpu_block.block_hash, cpu_block.num_hashed_tokens)
                     mapping[cpu_block] = gpu_block
                 new_block_table.append(gpu_block)
-                # Free the CPU block swapped in to GPU.
+                # Free the CPU block block in to MLU.
                 self.cpu_allocator.free(cpu_block)
             self.block_tables[req.req_id] = new_block_table
 
@@ -605,7 +605,7 @@ class _BlockSpaceManager(SpaceManager):
         block_table = self.block_tables[req.req_id]
         return [block.block_number for block in block_table]
 
-    def get_num_free_gpu_blocks(self) -> int:
+    def get_num_free_mlu_blocks(self) -> int:
         return self.mlu_allocator.get_num_free_blocks()
 
     def get_num_free_cpu_blocks(self) -> int:

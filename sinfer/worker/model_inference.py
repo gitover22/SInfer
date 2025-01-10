@@ -184,7 +184,7 @@ class ModelInference:
             assert hasattr(self.model, "embedding_padding_modules"
                            ), "Model does not have embedding_padding_modules"
             self.lora_manager = LRUCacheWorkerLoRAManager(
-                self.scheduler_config.max_num_seqs,
+                self.scheduler_config.max_num_reqs,
                 self.scheduler_config.max_num_batched_tokens, self.vocab_size,
                 self.lora_config, self.device, self.model.embedding_modules,
                 self.model.embedding_padding_modules)
@@ -811,7 +811,7 @@ class ModelInference:
         # Enable top-k sampling to reflect the accurate memory usage.
         sampling_params = SamplingParams(top_p=0.99, top_k=self.vocab_size - 1)
         max_num_batched_tokens = self.scheduler_config.max_num_batched_tokens
-        max_num_seqs = self.scheduler_config.max_num_seqs
+        max_num_seqs = self.scheduler_config.max_num_reqs
 
         # This represents the maximum number of different requests
         # that will have unique loras, an therefore the max amount of memory
@@ -938,7 +938,7 @@ class ModelInference:
         block_tables = torch.from_numpy(self.graph_block_tables).cuda()
         # 获取图捕获的批次大小
         graph_batch_size = _get_graph_batch_size(
-            self.scheduler_config.max_num_seqs)
+            self.scheduler_config.max_num_reqs)
         batch_size_capture_list = [
             bs for bs in _BATCH_SIZES_TO_CAPTURE if bs <= graph_batch_size
         ]

@@ -12,7 +12,6 @@ def create_test_prompts(args:argparse.Namespace) -> List[Tuple[str, SamplingPara
         result.append((prompt, SamplingParams(temperature=0.8, top_p=0.95, max_tokens=random.randint(16, 512))))
     return result
 
-
 def process_requests(runtime: LLMRuntime,
                      test_prompts: List[Tuple[str, SamplingParams]]):
     task_id = 0
@@ -29,17 +28,14 @@ def process_requests(runtime: LLMRuntime,
             if request_output.finished:
                 print(request_output)
 
-
 def initialize_runtime(args: argparse.Namespace) -> LLMRuntime:
     engine_args = RuntimeArgs.from_cli_args(args)
     return LLMRuntime.from_runtime_args(engine_args)
-
 
 def main(args: argparse.Namespace):
     runtime = initialize_runtime(args)
     test_prompts = create_test_prompts(args)
     process_requests(runtime, test_prompts)
-
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(

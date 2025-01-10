@@ -201,7 +201,7 @@ class _AsyncLLMRuntime(LLMRuntime):
         if not scheduler_outputs.is_empty():
             # Execute the model.
             execute_model_req = ExecuteModelRequest(
-                seq_group_metadata_list=task_metadata_list,
+                task_metadata_list=task_metadata_list,
                 blocks_to_swap_in=scheduler_outputs.blocks_to_swap_in,
                 blocks_to_swap_out=scheduler_outputs.blocks_to_swap_out,
                 blocks_to_copy=scheduler_outputs.blocks_to_copy,

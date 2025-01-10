@@ -569,13 +569,10 @@ class SchedulerConfig:
             iteration.
         max_model_len: Maximum length of a sequence (including prompt
             and generated text).
-        use_v2_block_manager: Whether to use the BlockSpaceManagerV2 or not.
         num_lookahead_slots: The number of slots to allocate per sequence per
             step, beyond the known token ids. This is used in speculative
             decoding to store KV activations of tokens which may or may not be
             accepted.
-        delay_factor: Apply a delay (of delay factor multiplied by previous
-            prompt latency) before scheduling next prompt.
         enable_chunked_prefill: If True, prefill requests can be chunked based
             on the remaining max_num_batched_tokens.
     """
@@ -583,32 +580,27 @@ class SchedulerConfig:
     def __init__(
         self,
         max_num_batched_tokens: Optional[int],
-        max_num_seqs: int,
+        max_num_reqs: int,
         max_model_len: int,
-        # use_v2_block_manager: bool = False, # 默认使用v1
         num_lookahead_slots: int = 0,
-        delay_factor: float = 0.0,
-        enable_chunked_prefill: bool = False, # 默认不开启
+        lantency_factor: float = 0.0,
+        enable_chunked_prefill: bool = False,
     ) -> None:
         if max_num_batched_tokens is not None:
             self.max_num_batched_tokens = max_num_batched_tokens
         else:
             if enable_chunked_prefill:
-                # It is the values that have the best balance between ITL
-                # and TTFT on A100. Note it is not optimized for throughput.
                 self.max_num_batched_tokens = 512
             else:
-                # If max_model_len is too short, use 2048 as the default value
-                # for higher throughput.
+                # If max_model_len is too short, use 2048 as the default value for higher throughput.
                 self.max_num_batched_tokens = max(max_model_len, 2048)
         if enable_chunked_prefill:
-            logger.info("Chunked prefill is enabled (EXPERIMENTAL).")
+            logger.info("Chunked prefill is enabled.")
 
-        self.max_num_seqs = max_num_seqs
+        self.max_num_reqs = max_num_reqs
         self.max_model_len = max_model_len
-        # self.use_v2_block_manager = use_v2_block_manager
         self.num_lookahead_slots = num_lookahead_slots
-        self.delay_factor = delay_factor
+        self.latency_factor = lantency_factor
         self.chunked_prefill_enabled = enable_chunked_prefill
 
         self._verify_args()
@@ -624,11 +616,11 @@ class SchedulerConfig:
                 "sequences. Please increase max_num_batched_tokens or "
                 "decrease max_model_len.")
 
-        if self.max_num_batched_tokens < self.max_num_seqs:
+        if self.max_num_batched_tokens < self.max_num_reqs:
             raise ValueError(
                 f"max_num_batched_tokens ({self.max_num_batched_tokens}) must "
                 "be greater than or equal to max_num_seqs "
-                f"({self.max_num_seqs}).")
+                f"({self.max_num_reqs}).")
 
         if self.num_lookahead_slots < 0:
             raise ValueError(

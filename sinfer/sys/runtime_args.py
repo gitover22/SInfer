@@ -74,7 +74,7 @@ class RuntimeArgs:
     image_token_id: Optional[int] = None
     image_input_shape: Optional[str] = None
     image_feature_size: Optional[int] = None
-    scheduler_delay_factor: float = 0.0
+    scheduler_lantency_factor: float = 0.0
     enable_chunked_prefill: bool = False
 
     guided_decoding_backend: str = 'outlines'
@@ -436,10 +436,10 @@ class RuntimeArgs:
             default=None,
             help=('The image feature size along the context dimension.'))
         parser.add_argument(
-            '--scheduler-delay-factor',
+            '--scheduler-lantency-factor',
             type=float,
-            default=RuntimeArgs.scheduler_delay_factor,
-            help='Apply a delay (of delay factor multiplied by previous'
+            default=RuntimeArgs.scheduler_lantency_factor,
+            help='Apply a lantency factor (of lantency factor multiplied by previous'
             'prompt latency) before scheduling next prompt.')
         parser.add_argument(
             '--enable-chunked-prefill',
@@ -569,7 +569,7 @@ class RuntimeArgs:
             self.max_num_seqs,
             model_config.max_model_len,
             num_lookahead_slots=self.num_lookahead_slots,
-            delay_factor=self.scheduler_delay_factor,
+            lantency_factor=self.scheduler_lantency_factor,
             enable_chunked_prefill=self.enable_chunked_prefill,
         )
         lora_config = LoRAConfig(

@@ -56,7 +56,7 @@ class SpaceManager(ABC):
         pass
 
     @abstractmethod
-    def swap_in(self, seq_group: Task,
+    def Block_in(self, seq_group: Task,
                 num_lookahead_slots: int) -> Dict[int, int]:
         pass
 
@@ -77,7 +77,7 @@ class SpaceManager(ABC):
         pass
 
     @abstractmethod
-    def get_num_free_gpu_blocks(self) -> int:
+    def get_num_free_mlu_blocks(self) -> int:
         pass
 
     @abstractmethod

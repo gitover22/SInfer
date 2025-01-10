@@ -15,7 +15,7 @@ from sinfer.sys.metrics import StatLogger, Stats
 from sinfer.sys.output_processor.interfaces import (
     SequenceGroupOutputProcessor)
 from sinfer.sys.output_processor.stop_checker import StopChecker
-from sinfer.sys.output_processor.util import create_output_by_sequence_group
+from sinfer.sys.output_processor.util import create_output_by_task
 from sinfer.hil.InterfaceBase import InterfaceBase
 from sinfer.hil.init_ray import initialize_ray_cluster
 from sinfer.logger import init_logger
@@ -276,7 +276,7 @@ class LLMRuntime:
         init_kwargs = dict(
             tokenizer_id=self.model_config.tokenizer,
             enable_lora=bool(self.lora_config),
-            max_num_seqs=self.scheduler_config.max_num_seqs,
+            max_num_seqs=self.scheduler_config.max_num_reqs,
             max_input_length=None,
             tokenizer_mode=self.model_config.tokenizer_mode,
             trust_remote_code=self.model_config.trust_remote_code,
@@ -413,42 +413,39 @@ class LLMRuntime:
         ignored_tasks: List[Task],
         task_metadata_list: List[TaskMetadata],
     ) -> List[RequestOutput]:
-        """Apply the model output to the sequences in the scheduled seq groups.
-
+        """Apply the model output to the requests in the scheduled tasks.
         Returns RequestOutputs that can be returned to the client.
         """
 
         now = time.time()
 
-        # Organize outputs by [sequence group][step] instead of
-        # [step][sequence group].
-        output_by_sequence_group = create_output_by_sequence_group(
-            sampler_outputs=output, num_seq_groups=len(scheduled_tasks))
+        # Organize outputs by [task][step] instead of [step][task].
+        output_by_task = create_output_by_task(
+            sampler_outputs=output, num_tasks=len(scheduled_tasks))
 
-        # Update the scheduled sequence groups with the model outputs.
-        for scheduled_seq_group, outputs, seq_group_meta in zip(
-                scheduled_tasks, output_by_sequence_group,
-                task_metadata_list):
-            seq_group = scheduled_seq_group.task
-            seq_group.update_num_computed_tokens(
-                scheduled_seq_group.token_chunk_size)
+        # Update the scheduled tasks with the model outputs.
+        for scheduled_task, outputs, task_meta in zip(
+                scheduled_tasks, output_by_task,task_metadata_list):
+            task = scheduled_task.task
+            task.update_num_computed_tokens(
+                scheduled_task.token_chunk_size)
 
-            self.output_processor.process_prompt_logprob(seq_group, outputs)
-            if seq_group_meta.do_sample:
-                self.output_processor.process_outputs(seq_group, outputs)
+            self.output_processor.process_prompt_logprob(task, outputs)
+            if task_meta.do_sample:
+                self.output_processor.process_outputs(task, outputs)
 
-        # Free the finished sequence groups.
+        # Free finished tasks
         self.scheduler.free_all_finished_tasks()
 
         # Create the outputs.
         request_outputs: List[RequestOutput] = []
-        for scheduled_seq_group in scheduled_tasks:
-            seq_group = scheduled_seq_group.task
-            seq_group.maybe_set_first_token_time(now)
-            request_output = RequestOutput.from_task(seq_group)
+        for scheduled_task in scheduled_tasks:
+            task = scheduled_task.task
+            task.maybe_set_first_token_time(now)
+            request_output = RequestOutput.from_task(task)
             request_outputs.append(request_output)
-        for seq_group in ignored_tasks:
-            request_output = RequestOutput.from_task(seq_group)
+        for task in ignored_tasks:
+            request_output = RequestOutput.from_task(task)
             request_outputs.append(request_output)
         return request_outputs
 
@@ -456,11 +453,11 @@ class LLMRuntime:
         """
             执行一次iteration
         """
-        seq_group_metadata_list, scheduler_outputs = self.scheduler.schedule_entrance() # 获取一次调度输出
+        task_metadata_list, scheduler_outputs = self.scheduler.schedule_entrance() # 获取一次调度输出
 
         if not scheduler_outputs.is_empty():
             execute_model_req = ExecuteModelRequest(
-                seq_group_metadata_list=seq_group_metadata_list,
+                task_metadata_list=task_metadata_list,
                 blocks_to_swap_in=scheduler_outputs.blocks_to_swap_in,
                 blocks_to_swap_out=scheduler_outputs.blocks_to_swap_out,
                 blocks_to_copy=scheduler_outputs.blocks_to_copy,
@@ -476,7 +473,7 @@ class LLMRuntime:
                             output, 
                             scheduler_outputs.scheduled_tasks,
                             scheduler_outputs.ignored_tasks, 
-                            seq_group_metadata_list)
+                            task_metadata_list)
 
         # Log stats.
         self.do_log_stats(scheduler_outputs, output)
@@ -513,7 +510,7 @@ class LLMRuntime:
 
         # KV Cache Usage in %
         num_total_gpu = self.cache_config.num_mlu_blocks
-        num_free_gpu = self.scheduler.block_manager.get_num_free_gpu_blocks()
+        num_free_gpu = self.scheduler.block_manager.get_num_free_mlu_blocks()
         gpu_cache_usage_sys = 1.0 - (num_free_gpu / num_total_gpu)
 
         num_total_cpu = self.cache_config.num_cpu_blocks
@@ -539,12 +536,12 @@ class LLMRuntime:
         n_requests: List[int] = []
         finished_reason_requests: List[str] = []
 
-        # NOTE: This loop assumes prefill seq_groups are before
-        # decode seq_groups in scheduled_seq_groups.
+        # NOTE: This loop assumes prefill tasks are before
+        # decode tasks in scheduled_tasks.
         if scheduler_outputs is not None:
             num_generation_tokens_from_prefill_groups = 0.
             # NOTE: if scheduler_outputs.num_prefill_groups > 0 and
-            # the len of scheduler_outputs.scheduled_seq_groups is !=
+            # the len of scheduler_outputs.scheduled_tasks is !=
             # scheduler_outputs.num_prefill_groups, this means that
             # chunked prefills have been detected.
 
@@ -553,15 +550,15 @@ class LLMRuntime:
                 group_was_prefill = idx < scheduler_outputs.num_prefill_tasks
                 task = scheduled_task.task
 
-                # NOTE: a seq_group that completed all of its prefill tokens
-                # in the last iteration will have seq_group.is_prefill() = False
+                # NOTE: a task that completed all of its prefill tokens
+                # in the last iteration will have task.is_prefill() = False
                 # with group_was_prefill = True
                 if group_was_prefill:
                     # Number of prompt tokens.
                     num_prompt_tokens_iter += (
                         scheduled_task.token_chunk_size)
 
-                    # If the seq_group just finished the prefill state
+                    # If the task just finished the prefill state
                     # get TTFT.
                     if not task.is_prefill():
                         latency = task.get_last_latency(now)
@@ -590,13 +587,13 @@ class LLMRuntime:
                         len(task.prompt_token_ids))
                     num_generation_tokens_requests.extend([
                         seq.get_output_len()
-                        for seq in task.get_finished_seqs()
+                        for seq in task.get_finished_reqs()
                     ])
                     best_of_requests.append(task.sampling_params.best_of)
                     n_requests.append(task.sampling_params.n)
                     finished_reason_requests.extend([
                         RequestStatus.get_finished_reason(seq.status)
-                        for seq in task.get_finished_seqs()
+                        for seq in task.get_finished_reqs()
                     ])
 
             # Number of generation tokens.
