@@ -24,7 +24,7 @@ class LLMMetric:
         self.per_token_latency_list = [ [] ]
         self.per_token_latency_device_list = [ [] ]
 
-    # 通过 GPU 同步后返回当前时间，用于测量精确的 GPU 操作时间
+    # 通过 MLU 同步后返回当前时间，用于测量精确的 MLU 操作时间
     def get_mlu_cost_time(self):
         torch.cuda.synchronize()
         return time.time()
@@ -38,7 +38,6 @@ class LLMMetric:
     def update_step_latency_device(self, step_latency):
         self.per_token_latency_device_list[-1].append(step_latency)
 
-    # 将新的批量大小和端到端延迟加入记录列表
     def add_metrics(self,batch_size,e2e_latency)->None:
         self.batch_size_list.append(batch_size)
         self.e2e_latency_list.append(e2e_latency)

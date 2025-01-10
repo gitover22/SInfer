@@ -23,13 +23,11 @@ class BlockSizeInfo :
     BLOCK_SIZE = -1
     @classmethod
     def set_block_size(cls, a : int) :
-        # 设置块大小
         if USE_PAGED :
             if a != -1 and a != 16 :
                 raise ValueError("BLOCKSIZE other than 16 are not supported in paged mode, please check '--block-size' value.")
             cls.BLOCK_SIZE = 16
         else :
-            #必须满足BLOCK_SIZE > input_len + max_tokens （BLOCK_SIZE和模型最大文本长度max_model_len无关）
             cls.BLOCK_SIZE = 1024 if a == -1 else a 
 
 def _check_env_true(env):

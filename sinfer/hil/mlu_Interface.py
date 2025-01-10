@@ -13,7 +13,7 @@ logger = init_logger(__name__)
 
 class MLUInterface(InterfaceBase):
 
-    def _init_executor(self) -> None:
+    def _init_interface(self) -> None:
         self._init_worker()
 
     def _get_worker_kwargs(
@@ -64,7 +64,8 @@ class MLUInterface(InterfaceBase):
         return self.driver_worker.determine_num_available_blocks()
 
     def initialize_cache(self, num_gpu_blocks: int, num_cpu_blocks) -> None:
-        logger.info("MLU kv blocks: %d, CPU kv blocks: %d", num_gpu_blocks, num_cpu_blocks)
+        # logger.info("MLU kv blocks: %d, CPU kv blocks: %d", num_gpu_blocks, num_cpu_blocks)
+        logger.info("MLU kv blocks: %d", num_gpu_blocks)
         self.driver_worker.initialize_cache(num_gpu_blocks, num_cpu_blocks)
 
     def execute_model(

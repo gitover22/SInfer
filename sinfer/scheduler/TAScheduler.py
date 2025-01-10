@@ -21,8 +21,8 @@ from sinfer.utils import merge_dicts
 logger = init_logger(__name__)
 
 class PreemptionStrategy(enum.Enum):
-    SWAP = enum.auto() # 换出 kv cache 从gpu换出到cpu
-    RECOMPUTE = enum.auto() # 重计算
+    BLOCK = enum.auto()
+    RECOMPUTE = enum.auto()
 
 @dataclass
 class SchedulingBudget:
@@ -260,8 +260,7 @@ class Scheduler:
         logger.info(f"SInfer TAScheduler profiling...")
         self.df = pd.DataFrame(
             data={
-                'ready': [], 'running': [], 'blocked': [], 'finished': [],
-                'batch_utils': [], 'block_utils': [], 'preempt_ratio': []
+                'running': [],'ready': [], 'finished': [],'batch_utils': [], 'block_utils': []
             },
             dtype=np.float32
         )
@@ -902,9 +901,9 @@ class Scheduler:
             token_chunk_size = scheduled_task.token_chunk_size
             task.maybe_set_first_scheduled_time(now)
 
-            # seq_id -> SequenceData
+            # req_id -> SequenceData
             req_data: Dict[int, RequestData] = {}
-            # seq_id -> physical block numbers
+            # req_id -> physical block numbers
             block_tables: Dict[int, List[int]] = {}
             # 依次遍历task中的每一个req
             for req in task.get_reqs(status=RequestStatus.RUNNING):
@@ -986,10 +985,9 @@ class Scheduler:
         self.preempt_ratio = self.from_running_to_ready_tasks / self.total_tasks
         # tas_information.csv
         df_ = pd.DataFrame(
-            [[self.ready_tasks, self.running_tasks, self.blocked_tasks,
-            len(finished_tasks_), self.batch_utils, self.block_utils, self.preempt_ratio]],
-            columns=['ready', 'running', 'blocked',
-                    'finished','batch_utils', 'block_utils', 'preempt_ratio'],
+            [[self.running_tasks,self.ready_tasks, 
+            len(finished_tasks_), self.batch_utils, self.block_utils]],
+            columns=['running','ready','finished','batch_utils', 'block_utils'],
             index=[str(self.schedule_step)])
         self.df = pd.concat([self.df, df_])
 
@@ -1025,7 +1023,7 @@ class Scheduler:
     def _preempt(
         self,
         task: Task,
-        blocks_to_swap_out: Dict[int, int],
+        blocks_to_blockout: Dict[int, int],
         preemption_strategy: Optional[PreemptionStrategy] = None,
     ) -> PreemptionStrategy:
         # 如果未指定抢占策略，将根据以下规则确定策略：
@@ -1036,11 +1034,11 @@ class Scheduler:
             if task.get_task_running_reqs() == 1:
                 preemption_strategy = PreemptionStrategy.RECOMPUTE
             else:
-                preemption_strategy = PreemptionStrategy.SWAP
+                preemption_strategy = PreemptionStrategy.BLOCK
         if preemption_strategy == PreemptionStrategy.RECOMPUTE:
             self._preempt_by_recompute(task)
-        elif preemption_strategy == PreemptionStrategy.SWAP:
-            self._preempt_by_swap(task, blocks_to_swap_out)
+        elif preemption_strategy == PreemptionStrategy.BLOCK:
+            self._preempt_by_block(task, blocks_to_blockout)
         else:
             raise AssertionError("Invalid preemption mode.")
         return preemption_strategy
@@ -1058,29 +1056,29 @@ class Scheduler:
             self.free_req(req)
             req.reset_state_for_recompute()
 
-    def _preempt_by_swap(
+    def _preempt_by_block(
         self,
         task: Task,
-        blocks_to_swap_out: Dict[int, int],
+        blocks_to_blockout: Dict[int, int],
     ) -> None:
         # 释放该seq_group下所有seq的物理块，并为其分配对应的cpu物理块，
         # 将seq的状态从running改成swapped
-        self._swap_out(task, blocks_to_swap_out)
+        self._swap_out(task, blocks_to_blockout)
 
     def _BlockIn(
         self,
         task: Task,
-        blocks_to_swap_in: Dict[int, int],
+        blocks_to_blockin: Dict[int, int],
     ) -> None:
         mapping = self.block_manager.Block_in(task)
-        blocks_to_swap_in.update(mapping)
+        blocks_to_blockin.update(mapping)
         for req in task.get_reqs(status=RequestStatus.BLOCKED):
             req.status = RequestStatus.RUNNING
 
     def _swap_out(
         self,
         task: Task,   # 需要被swap到cpu上的task
-        blocks_to_swap_out: Dict[int, int],
+        blocks_to_blockout: Dict[int, int],
     ) -> None:
         if not self.block_manager.can_swap_out(task):
             # 检查是否可以将当前task对应的物理块swap到cpu上
@@ -1091,7 +1089,7 @@ class Scheduler:
         # 释放该task下所有req的mlu物理块，并为其创建对应的cpu块
         # mapping：{mlu物理块id：cpu物理块id}
         mapping = self.block_manager.swap_out(task)
-        blocks_to_swap_out.update(mapping)
+        blocks_to_blockout.update(mapping)
         for req in task.get_reqs(status=RequestStatus.RUNNING):
             req.status = RequestStatus.BLOCKED # 修改该task下所有req的状态：从running改成swapped
 
@@ -1157,54 +1155,60 @@ class Scheduler:
     
     def summary_finished_tasks(self,tasks: List[Task]):
         df = pd.DataFrame(
-        data={
-            'ttft/s': [], 'time_in_queue/s': [], 'context_latency/s': [], 'decoder_latency/s': []
-        },
-        dtype=np.float32
+            data={
+                'TTFT/s': [],  # 首次 token 时间
+                'TPOT/s': [],  # 每个 token 的解码时间
+                'e2e_time/s': [],  # 任务的端到端时间
+                'time_in_pool/s': [],  # 任务在池中的等待时间
+                'context_latency/s': [],  # 上下文延迟
+                'total_decoding_time/s': [],  # 总解码时间
+                'generate_tokens': []  # 生成的 token 数量
+            },
+            dtype=np.float32
         )
         for task in tasks:
             ttft = task.metadata.first_token_time - task.metadata.arrival_time
-            time_in_queue = task.metadata.time_in_queue
-            context_latency = task.metadata.first_token_time - task.metadata.first_scheduled_time
-            decoder_latency = task.metadata.finished_time - task.metadata.first_token_time
-            decoder_token_num = task.get_reqs()[0].get_output_len() - 1
-            per_token_latency = decoder_latency if decoder_token_num == 0 \
-                                                else decoder_latency / decoder_token_num
+            time_in_pool = task.metadata.time_in_pool
+            context_latency = task.metadata.first_token_time - task.metadata.first_scheduled_time # 任务首次调度到首次生成 token 的时间
+            total_decoding_time = task.metadata.finished_time - task.metadata.first_token_time
+            generate_token_num = task.get_reqs()[0].get_output_len() - 1
+            tpot = total_decoding_time if generate_token_num == 0 \
+                                                else total_decoding_time / generate_token_num
+            e2e_time = total_decoding_time + ttft
             df_ = pd.DataFrame(
-                [[ttft, time_in_queue, context_latency, decoder_latency, per_token_latency, decoder_token_num]],
-                columns=['ttft/s', 'time_in_queue/s', 'context_latency/s', 'decoder_latency/s', 'per_token_latency/s', 'decoder_tokens'],
+                [[ttft, tpot, time_in_pool, e2e_time,context_latency, total_decoding_time, generate_token_num]],
+                columns=['TTFT/s', 'TPOT/s', 'e2e_time/s','time_in_pool/s', 'context_latency/s', 'total_decoding_time/s', 'generate_tokens'],
                 index=[str(task.task_id)]
             )
             df = pd.concat([df, df_])
-        sum_, max_, mean_, min_, p99_ = df.sum(), df.max(), df.mean(), df.min(), df.quantile(0.99)
-        df.loc['Sum'] = sum_
+        max_, min_, mean_, p99_ = df.max(), df.min(), df.mean(), df.quantile(0.90)
         df.loc['Max'] = max_
-        df.loc['Mean'] = mean_
         df.loc['Min'] = min_
+        df.loc['Mean'] = mean_
         df.loc['P99'] = p99_
         return df
 
     def __del__(self):
         logger.info(f"TAScheduler profiling saving...")
-        figure = self.df.plot(y=['ready', 'running', 'blocked', 'finished']).get_figure()
+        figure = self.df.plot(y=['ready', 'running', 'finished']).get_figure()
         figure.savefig("TAS_TaskPool.jpg", dpi=300)
         plt.close(figure)
-        figure = self.df.plot(y=['batch_utils', 'block_utils', 'preempt_ratio']).get_figure()
+        figure = self.df.plot(y=['batch_utils', 'block_utils']).get_figure()
         figure.savefig("TAS_ResourceUtil_Rate.jpg", dpi=300)
         plt.close(figure)
 
         time_df = self.summary_finished_tasks(self.finished_tasks_list)
 
-        max_, mean_, min_ = self.df.max(), self.df.mean(), self.df.min()
+        max_, min_ , mean_ = self.df.max(), self.df.min(), self.df.mean()
         self.df.loc["Max"] = max_
-        self.df.loc["Mean"] = mean_
         self.df.loc["Min"] = min_
+        self.df.loc["Mean"] = mean_
         with pd.option_context('display.max_rows', None,
                             'display.max_columns', None,
                             'display.max_colwidth', None,
                             'display.float_format', '{:^6,.2f}'.format,
                             'expand_frame_repr', False):
-            logger.info(self.df.loc[["Max", "Mean", "Min"]])
-            logger.info(time_df.loc[["Sum", "Max", "Mean", "Min", "P99"]])
+            logger.info(self.df.loc[["Max", "Min", "Mean"]])
+            logger.info(time_df.loc[["Max", "Min", "Mean", "P99"]])
         self.df.astype(str).to_csv("tas_infomation.csv", mode="w")
         time_df.astype(str).to_csv("sinfer_perf.csv", mode="w")

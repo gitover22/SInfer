@@ -6,7 +6,7 @@ from itertools import islice, repeat
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 import sinfer.envs as envs
-from sinfer.hil.distributed_mlu_executor import (
+from sinfer.hil.dist_mlu_Interface import (
     Distributed_MLUInterface, Distributed_MLUInterfaceAsync)
 from sinfer.hil.init_ray import RayWorkerDelay, ray
 from sinfer.logger import init_logger
@@ -27,7 +27,7 @@ USE_RAY_COMPILED_DAG = envs.SINFER_USE_RAY_COMPILED_DAG
 
 class Ray_MLUInterface(Distributed_MLUInterface):
 
-    def _init_executor(self) -> None:
+    def _init_interface(self) -> None:
         assert self.parallel_config.worker_use_ray
         placement_group = self.parallel_config.placement_group
 

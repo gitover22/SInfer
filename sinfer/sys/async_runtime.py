@@ -270,9 +270,7 @@ class _AsyncLLMRuntime(LLMRuntime):
 
 
 class AsyncLLMRuntime:
-    """对Runtime的异步包装
-
-    这个类用于封装 LLMRuntime 类，使其支持异步操作。  
+    """
     它使用 asyncio 创建一个后台循环，用于持续处理传入的请求。  
     当等待队列中有请求时，通过调用 generate 方法唤醒 LLMRuntime 
     generate 方法会将 LLMRuntime 的输出逐步传递给调用者。
@@ -337,7 +335,7 @@ class AsyncLLMRuntime:
             interfacer = CPUInterfaceAsync
         elif runtime_config.parallel_config.worker_use_ray:
             initialize_ray_cluster(runtime_config.parallel_config)
-            from sinfer.hil.r_MLUInterface import Ray_MLUInterfaceAsync
+            from sinfer.hil.ray_MLUInterface import Ray_MLUInterfaceAsync
             interfacer = Ray_MLUInterfaceAsync
         else:
             assert runtime_config.parallel_config.world_size == 1, (

@@ -25,3 +25,5 @@ test/TAS_TaskPool.jpg
 test/TAS_ResourceUtil_Rate.jpg
 test/tas_infomation.csv
 test/sinfer_perf.csv
+test/sys_metrics*
+sys_metrics_2025_01_10.csv

@@ -7,7 +7,7 @@ from typing import Dict, List, Optional, Protocol, Union
 import numpy as np
 from prometheus_client import (REGISTRY, Counter, Gauge, Histogram, Info,
                                disable_created_metrics)
-
+import csv
 from sinfer.logger import init_logger
 
 logger = init_logger(__name__)
@@ -134,8 +134,6 @@ class Metrics:
 
 
 # end-metrics-definitions
-
-
 def build_1_2_5_buckets(max_value: int):
     """
     Builds a list of buckets with increasing powers of 10 multiplied by 
@@ -157,7 +155,6 @@ def build_1_2_5_buckets(max_value: int):
                 return buckets
         exponent += 1
 
-
 @dataclass
 class Stats:
     now: float
@@ -165,10 +162,10 @@ class Stats:
     # System stats (should have _sys suffix)
     #   Scheduler State
     num_running_sys: int
-    num_waiting_sys: int
-    num_swapped_sys: int
+    num_ready_sys: int
+    num_blocked_sys: int
     #   KV Cache Usage in %
-    gpu_cache_usage_sys: float
+    mlu_cache_usage_sys: float
     cpu_cache_usage_sys: float
 
     # Iteration stats (should have _iter suffix)
@@ -187,8 +184,6 @@ class Stats:
     n_requests: List[int]
     finished_reason_requests: List[str]
 
-
-
 class SupportsMetricsInfo(Protocol):
 
     def metrics_info(self) -> Dict[str, str]:
@@ -196,8 +191,6 @@ class SupportsMetricsInfo(Protocol):
 
 
 class StatLogger:
-    """StatLogger is used LLMEngine to log to Promethus and Stdout."""
-
     def __init__(self, local_interval: float, labels: Dict[str, str],
                  max_model_len: int) -> None:
         # Metadata for logging locally.
@@ -229,11 +222,11 @@ class StatLogger:
         self._log_gauge(self.metrics.gauge_scheduler_running,
                         stats.num_running_sys)
         self._log_gauge(self.metrics.gauge_scheduler_swapped,
-                        stats.num_swapped_sys)
+                        stats.num_blocked_sys)
         self._log_gauge(self.metrics.gauge_scheduler_waiting,
-                        stats.num_waiting_sys)
+                        stats.num_ready_sys)
         self._log_gauge(self.metrics.gauge_gpu_cache_usage,
-                        stats.gpu_cache_usage_sys)
+                        stats.mlu_cache_usage_sys)
         self._log_gauge(self.metrics.gauge_cpu_cache_usage,
                         stats.cpu_cache_usage_sys)
 
@@ -300,11 +293,76 @@ class StatLogger:
         self.metrics.gauge_avg_generation_throughput.labels(
             **self.labels).set(generation_throughput)
 
-    def log(self, stats: Stats) -> None:
-        """Called by LLMRuntime.
-           Logs to prometheus and tracked stats every iteration.
-           Logs to Stdout every self.local_interval seconds."""
+    # def log(self, stats: Stats) -> None:
+    #     """Called by LLMRuntime.
+    #        Logs to prometheus and tracked stats every iteration.
+    #        Logs to Stdout every self.local_interval seconds."""
 
+    #     # Log to prometheus.
+    #     self._log_prometheus(stats)
+
+    #     # Save tracked stats for token counters.
+    #     self.num_prompt_tokens.append(stats.num_prompt_tokens_iter)
+    #     self.num_generation_tokens.append(stats.num_generation_tokens_iter)
+
+    #     # Log locally every local_interval seconds.
+    #     if self._local_interval_elapsed(stats.now):
+    #         # Compute summary metrics for tracked stats (and log them
+    #         # to promethus if applicable).
+    #         prompt_throughput = self._get_throughput(self.num_prompt_tokens,
+    #                                                  now=stats.now)
+    #         generation_throughput = self._get_throughput(
+    #             self.num_generation_tokens, now=stats.now)
+    #         self._log_prometheus_interval(
+    #             prompt_throughput=prompt_throughput,
+    #             generation_throughput=generation_throughput)
+
+    #         # Log to stdout.
+    #         logger.info(
+    #             "Avg prompt throughput: %.1f tokens/s, "
+    #             "Avg generation throughput: %.1f tokens/s, "
+    #             "Running: %d reqs, Swapped: %d reqs, "
+    #             "Pending: %d reqs, MLU KV cache usage: %.1f%%, "
+    #             "CPU KV cache usage: %.1f%%",
+    #             prompt_throughput,
+    #             generation_throughput,
+    #             stats.num_running_sys,
+    #             stats.num_swapped_sys,
+    #             stats.num_waiting_sys,
+    #             stats.mlu_cache_usage_sys * 100,
+    #             stats.cpu_cache_usage_sys * 100,
+    #         )
+
+    #         # Log to CSV file.
+    #     with open(self.csv_file_path, mode='a', newline='') as file:
+    #         writer = csv.writer(file)
+    #         # Write header if file is empty
+    #         if file.tell() == 0:
+    #             writer.writerow([
+    #                 'timestamp', 'prompt_throughput', 'generation_throughput',
+    #                 'runningPool', 'blockedPool', 'readyPool',
+    #                 'mlu_cache_usage', 'time_e2e_requests',
+    #                 'time_to_first_tokens_iter', 'time_per_output_tokens_iter'
+    #             ])
+    #         # Write data
+    #         writer.writerow([
+    #             stats.now,  # 时间戳
+    #             prompt_throughput,
+    #             generation_throughput,
+    #             stats.num_running_sys,
+    #             stats.num_swapped_sys,
+    #             stats.num_waiting_sys,
+    #             stats.mlu_cache_usage_sys * 100,
+    #             # 将列表转换为字符串以便写入 CSV
+    #             str(stats.time_e2e_requests),
+    #             str(stats.time_to_first_tokens_iter),
+    #             str(stats.time_per_output_tokens_iter)
+    #         ])
+    #         # Reset tracked stats for next interval.
+    #         self.num_prompt_tokens = []
+    #         self.num_generation_tokens = []
+    #         self.last_local_log = stats.now
+    def log(self, stats: Stats) -> None:
         # Log to prometheus.
         self._log_prometheus(stats)
 
@@ -317,9 +375,15 @@ class StatLogger:
             # Compute summary metrics for tracked stats (and log them
             # to promethus if applicable).
             prompt_throughput = self._get_throughput(self.num_prompt_tokens,
-                                                     now=stats.now)
+                                                    now=stats.now)
             generation_throughput = self._get_throughput(
                 self.num_generation_tokens, now=stats.now)
+
+            # Calculate averages for time-related metrics
+            avg_time_e2e_requests = np.mean(stats.time_e2e_requests) if stats.time_e2e_requests else 0
+            avg_time_to_first_tokens_iter = np.mean(stats.time_to_first_tokens_iter) if stats.time_to_first_tokens_iter else 0
+            avg_time_per_output_tokens_iter = np.mean(stats.time_per_output_tokens_iter) if stats.time_per_output_tokens_iter else 0
+
             self._log_prometheus_interval(
                 prompt_throughput=prompt_throughput,
                 generation_throughput=generation_throughput)
@@ -328,19 +392,61 @@ class StatLogger:
             logger.info(
                 "Avg prompt throughput: %.1f tokens/s, "
                 "Avg generation throughput: %.1f tokens/s, "
-                "Running: %d reqs, Swapped: %d reqs, "
-                "Pending: %d reqs, GPU KV cache usage: %.1f%%, "
-                "CPU KV cache usage: %.1f%%",
+                "Running: %d reqs, blocked: %d reqs, "
+                "ready: %d reqs, MLU KV cache usage: %.1f%%, "
+                "CPU KV cache usage: %.1f%%, "
+                "Avg E2E latency: %.3f s, "
+                "Avg time to first token: %.3f s, "
+                "Avg time per output token: %.3f s",
                 prompt_throughput,
                 generation_throughput,
                 stats.num_running_sys,
-                stats.num_swapped_sys,
-                stats.num_waiting_sys,
-                stats.gpu_cache_usage_sys * 100,
+                stats.num_blocked_sys,
+                stats.num_ready_sys,
+                stats.mlu_cache_usage_sys * 100,
                 stats.cpu_cache_usage_sys * 100,
+                avg_time_e2e_requests,
+                avg_time_to_first_tokens_iter,
+                avg_time_per_output_tokens_iter
             )
+
+            from datetime import datetime
+
+            current_time = datetime.now().strftime("%Y_%m_%d")
+            csv_file_path = f'sys_metrics_{current_time}.csv'
+
+            # Log to CSV file
+            with open(csv_file_path, mode='a', newline='') as file:
+                writer = csv.writer(file)
+                # 写入文件头
+                writer.writerow([
+                    'index', 'prompt_throughput', 'generation_throughput',
+                    'runningPool', 'readyPool',
+                    'mlu_cache_usage', 'avg_time_e2e_requests',
+                    'avg_time_to_first_tokens_iter', 'avg_time_per_output_tokens_iter'
+                ])
+                # 写入数据
+                writer.writerow([
+                    self._get_next_index(),  # 序号
+                    prompt_throughput,
+                    generation_throughput,
+                    stats.num_running_sys,
+                    stats.num_ready_sys,
+                    stats.mlu_cache_usage_sys * 100,
+                    avg_time_e2e_requests,
+                    avg_time_to_first_tokens_iter,
+                    avg_time_per_output_tokens_iter
+                ])
 
             # Reset tracked stats for next interval.
             self.num_prompt_tokens = []
             self.num_generation_tokens = []
             self.last_local_log = stats.now
+
+    def _get_next_index(self) -> int:
+        """Get the next index for CSV logging."""
+        if not hasattr(self, '_current_index'):
+            self._current_index = 0  # Initialize index counter
+        else:
+            self._current_index += 1  # Increment index
+        return self._current_index

@@ -38,7 +38,6 @@ class Result(Generic[T]):
     value: Optional[T] = None        # 任务执行的结果值
     exception: Optional[BaseException] = None  # 如果任务出错，则记录异常信息
 
-
 class ResultFuture(threading.Event, Generic[T]):
     def __init__(self):
         super().__init__()
@@ -58,7 +57,6 @@ class ResultFuture(threading.Event, Generic[T]):
             raise self.result.exception
         return self.result.value  # 返回结果值
 
-
 def _set_future_result(future: Union[ResultFuture, asyncio.Future],
                        result: Result):
     if isinstance(future, ResultFuture):
@@ -69,7 +67,6 @@ def _set_future_result(future: Union[ResultFuture, asyncio.Future],
         loop.call_soon_threadsafe(future.set_exception, result.exception)
     else:
         loop.call_soon_threadsafe(future.set_result, result.value)
-
 
 class ResultHandler(threading.Thread):
     """用于处理所有节点返回的结果(后台线程)"""
@@ -93,7 +90,6 @@ class ResultHandler(threading.Thread):
 
     def close(self):
         self.result_queue.put(_TERMINATE)
-
 
 class WorkerMonitor(threading.Thread):
     """监视工作节点的状态(后台线程)"""
@@ -136,9 +132,8 @@ class WorkerMonitor(threading.Thread):
             worker.terminate_worker()
         self.result_handler.close()
 
-
 class ProcessWorkerWrapper:
-    """本地进程的封装类，用于 sinfer.worker.Worker 实现单节点多 GPU 的张量并行"""
+    """本地进程的封装类，用于 sinfer.worker.Worker 实现单节点多MLU的张量并行"""
     def __init__(self, result_handler: ResultHandler,
                  worker_factory: Callable[[], Any]) -> None:
         self._task_queue = mp.Queue() # 任务队列
@@ -189,7 +184,6 @@ class ProcessWorkerWrapper:
         self._task_queue.close()
         self.process.kill()
 
-
 def _run_worker_process(
     worker_factory: Callable[[], Any],
     task_queue: Queue,
@@ -231,10 +225,8 @@ def _run_worker_process(
 
     logger.info("Worker exiting")
 
-
 def _add_prefix(file: TextIO, worker_name: str, pid: int) -> None:
     """为输出流的每行添加进程标识前缀"""
-
     prefix = f"{CYAN}({worker_name} pid={pid}){RESET} "
     file_write = file.write
 

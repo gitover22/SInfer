@@ -25,12 +25,12 @@ def main(args):
         print("\n===========================================================================\n")
         sum += len(output.outputs[0].token_ids)
         print("\n===========================================================================\n")
-    total_time = e - s
-    print("total time: "+str(total_time))
-    tokens_per_second = sum / total_time
-    print(f"Total tokens generated: {sum}")
-    print(f"prompts per seconds: {len(prompts)/total_time:.2f}")
-    print(f"Tokens per second: {tokens_per_second:.2f}")
+    # total_time = e - s
+    # print("total time: "+str(total_time))
+    # tokens_per_second = sum / total_time
+    # print(f"Total tokens generated: {sum}")
+    # print(f"prompts per seconds: {len(prompts)/total_time:.2f}")
+    # print(f"Tokens per second: {tokens_per_second:.2f}")
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(

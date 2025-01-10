@@ -38,7 +38,7 @@ class Metadata:
     last_token_time: float = 0.0
     first_scheduled_time: Optional[float] = None # 请求第一次被调度的时间
     first_token_time: Optional[float] = None # 第一个令牌生成的时间
-    time_in_queue: Optional[float] = None # 请求在队列中等待的时间
+    time_in_pool: Optional[float] = None # 请求在池中等待的时间
     finished_time: Optional[float] = None # 请求完成的时间
     prompt_length: Optional[int] = None # 请求的提示长度
 
@@ -80,7 +80,7 @@ class Task:
                                       last_token_time=arrival_time,
                                       first_scheduled_time=None,
                                       first_token_time=None,
-                                      time_in_queue=None)
+                                      time_in_pool=None)
         self.metadata.prompt_length = max(len(req.prompt) for req in reqs)
         self.lora_request = lora_request
         self.prompt_logprobs: Optional[PromptLogprobs] = None
@@ -131,7 +131,7 @@ class Task:
         level timings."""
         if self.metadata.first_scheduled_time is None:
             self.metadata.first_scheduled_time = time
-            self.metadata.time_in_queue = time - self.metadata.arrival_time
+            self.metadata.time_in_pool = time - self.metadata.arrival_time
 
     def set_finished_time(self, time: Optional[float]) -> None:
         """Sets the finished time for Request level timings."""

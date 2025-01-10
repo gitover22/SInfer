@@ -51,7 +51,7 @@ class Profiler_TAS_v1(Profiler):
 
         arrival_priority = current_time - metadata.arrival_time
 
-        time_in_queue = metadata.time_in_queue or 0.0
+        time_in_queue = metadata.time_in_pool or 0.0
 
         first_scheduled_ = 1.0 if metadata.first_scheduled_time else 0.0
 
@@ -126,7 +126,7 @@ class Profiler_TAS_v2(Profiler):
         metadata = task.metadata
 
         arrival_priority = self._arrival_priority(current_time, metadata.arrival_time)
-        queue_effect = self._queue_time_effect(metadata.time_in_queue or 0.0)
+        queue_effect = self._queue_time_effect(metadata.time_in_pool or 0.0)
         schedule_penalty = self._schedule_penalty(metadata.first_scheduled_time or 0.0)
         progress_effect = self._execution_progress_effect(metadata.first_token_time or 0.0, metadata.last_token_time or 0.0)
 
@@ -195,12 +195,12 @@ class Profiler_TAS_v3(Profiler):
         else:
             metadata.arrival_time = current_time
 
-        if metadata.time_in_queue is not None:
-            time_in_queue = metadata.time_in_queue
+        if metadata.time_in_pool is not None:
+            time_in_queue = metadata.time_in_pool
             queue_score = self.time_in_queue_score(time_in_queue, priority)
             score += queue_score
         else:
-            metadata.time_in_queue = 0.0
+            metadata.time_in_pool = 0.0
 
         if metadata.first_scheduled_time is not None:
             schedule_score = self._schedule_score(metadata.first_scheduled_time)
@@ -250,12 +250,12 @@ class Profiler_TAS_v4(Profiler):
             score += self._arrival_score(current_time, arrival_time, priority)
         else:
             metadata.arrival_time = current_time
-        if metadata.time_in_queue is not None:
-            time_in_queue = metadata.time_in_queue
+        if metadata.time_in_pool is not None:
+            time_in_queue = metadata.time_in_pool
             queue_score = self.time_in_queue_score(time_in_queue, priority)
             score += queue_score
         else:
-            metadata.time_in_queue = 0.0
+            metadata.time_in_pool = 0.0
         if metadata.first_scheduled_time is not None:
             schedule_score = self._schedule_score(metadata.first_scheduled_time)
             score += schedule_score
@@ -337,7 +337,7 @@ class Profiler_TAS_v5(Profiler):
     ) -> float:
         metadata = task.metadata
         arrival_priority = self._arrival_priority(current_time, metadata.arrival_time, metadata.priority)
-        queue_effect = self._queue_time_effect(metadata.time_in_queue, metadata.priority)
+        queue_effect = self._queue_time_effect(metadata.time_in_pool, metadata.priority)
         schedule_bonus = self._schedule_bonus(metadata.first_scheduled_time)
         progress_effect = self._execution_progress_effect(metadata.first_token_time, metadata.last_token_time)
         complexity_penalty = self._complexity_penalty(metadata.request_complexity)

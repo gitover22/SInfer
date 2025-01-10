@@ -32,12 +32,8 @@ class Distributed_MLUInterface(MLUInterface):
 
     def initialize_cache(self, num_mlu_blocks: int,
                          num_cpu_blocks: int) -> None:
-        """在所有节点中初始化 KV 缓存
-        """
-
         logger.info("# MLU kv blocks: %d, # CPU kv blocks: %d", num_mlu_blocks,
                     num_cpu_blocks)
-
 
         self.cache_config.num_mlu_blocks = num_mlu_blocks
         self.cache_config.num_cpu_blocks = num_cpu_blocks
