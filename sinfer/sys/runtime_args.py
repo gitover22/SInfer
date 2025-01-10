@@ -17,7 +17,6 @@ def nullable_str(val: str):
         return None
     return val
 
-
 @dataclass
 class RuntimeArgs:
     model: str

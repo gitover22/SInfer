@@ -183,7 +183,6 @@ class LLMRuntime:
             # Ping the tokenizer to ensure liveness if it runs in a different process.
             self.tokenizer.ping()
 
-        # 创建调度器
         self.scheduler = Scheduler(scheduler_config, cache_config, lora_config)
 
         # Metric Logging.
@@ -239,7 +238,7 @@ class LLMRuntime:
             interfacer = CPUInterface
         elif runtime_config.parallel_config.worker_use_ray:
             initialize_ray_cluster(runtime_config.parallel_config)
-            from sinfer.hil.r_MLUInterface import Ray_MLUInterface
+            from sinfer.hil.ray_MLUInterface import Ray_MLUInterface
             interfacer = Ray_MLUInterface
         else:
             assert runtime_config.parallel_config.world_size == 1, (
@@ -450,10 +449,7 @@ class LLMRuntime:
         return request_outputs
 
     def step(self) -> List[RequestOutput]:
-        """
-            执行一次iteration
-        """
-        task_metadata_list, scheduler_outputs = self.scheduler.schedule_entrance() # 获取一次调度输出
+        task_metadata_list, scheduler_outputs = self.scheduler.schedule_entrance()
 
         if not scheduler_outputs.is_empty():
             execute_model_req = ExecuteModelRequest(
@@ -475,7 +471,7 @@ class LLMRuntime:
                             scheduler_outputs.ignored_tasks, 
                             task_metadata_list)
 
-        # Log stats.
+        
         self.do_log_stats(scheduler_outputs, output)
 
         return request_outputs
@@ -484,7 +480,7 @@ class LLMRuntime:
             self,
             scheduler_outputs: Optional[SchedulerOutputs] = None,
             model_output: Optional[List[SamplerOutput]] = None) -> None:
-        """Forced log when no requests active."""
+        # 当没有请求时强制日志
         if self.log_stats:
             self.stat_logger.log(
                 self._get_stats(scheduler_outputs, model_output))
@@ -493,50 +489,40 @@ class LLMRuntime:
             self,
             scheduler_outputs: Optional[SchedulerOutputs],
             model_output: Optional[List[SamplerOutput]] = None) -> Stats:
-        """Get Stats to be Logged to Prometheus.
-
-        Args:
-            scheduler_outputs: Optional, used to populate metrics related to
-                the scheduled batch,
-            model_output: Optional, used to emit speculative decoding metrics
-                which are created by the workers.
-        """
         now = time.time()
-
-
         num_running_sys = len(self.scheduler.RunningPool)
         num_swapped_sys = len(self.scheduler.BlockedPool)
         num_waiting_sys = len(self.scheduler.ReadyPool)
 
-        # KV Cache Usage in %
-        num_total_gpu = self.cache_config.num_mlu_blocks
-        num_free_gpu = self.scheduler.block_manager.get_num_free_mlu_blocks()
-        gpu_cache_usage_sys = 1.0 - (num_free_gpu / num_total_gpu)
+        # KV Cache Usage
+        _total_mlu_num = self.cache_config.num_mlu_blocks
+        _free_mlu_num = self.scheduler.block_manager.get_num_free_mlu_blocks()
+        mlu_cache_usage_sys = 1.0 - (_free_mlu_num / _total_mlu_num)
 
         num_total_cpu = self.cache_config.num_cpu_blocks
         cpu_cache_usage_sys = 0.
         if num_total_cpu > 0:
-            num_free_cpu = self.scheduler.block_manager.get_num_free_cpu_blocks(
-            )
+            num_free_cpu = self.scheduler.block_manager.get_num_free_cpu_blocks()
+            
             cpu_cache_usage_sys = 1.0 - (num_free_cpu / num_total_cpu)
 
         # Iteration stats
         num_prompt_tokens_iter = 0
         num_generation_tokens_iter = 0
-        time_to_first_tokens_iter: List[float] = []
-        time_per_output_tokens_iter: List[float] = []
+        time_to_first_tokens_iter: List[float] = []   # ttft
+        time_per_output_tokens_iter: List[float] = [] # tpot
 
-        # Request stats
-        #   Latency
-        time_e2e_requests: List[float] = []
-        #   Metadata
-        num_prompt_tokens_requests: List[int] = []
-        num_generation_tokens_requests: List[int] = []
+       
+        
+        time_e2e_requests: List[float] = [] # Latency:e2e
+        
+        _prompt_tokens_num: List[int] = []
+        _generation_tokens_num: List[int] = []
         best_of_requests: List[int] = []
         n_requests: List[int] = []
         finished_reason_requests: List[str] = []
 
-        # NOTE: This loop assumes prefill tasks are before
+        # This loop assumes prefill tasks are before
         # decode tasks in scheduled_tasks.
         if scheduler_outputs is not None:
             num_generation_tokens_from_prefill_groups = 0.
@@ -572,20 +558,19 @@ class LLMRuntime:
                     latency = task.get_last_latency(now)
                     time_per_output_tokens_iter.append(latency)
 
-                # Because of chunked prefill, we can have a single sequence
-                # group that does multiple prompt_runs. To prevent logging
+                # Because of chunked prefill, we can have a single task
+                # that does multiple prompt_runs. To prevent logging
                 # the same metadata more than once per request, we standardize
                 # on logging request level information for finished requests,
                 # which can only happen once.
                 if task.is_finished():
                     # Latency timings
-                    time_e2e_requests.append(now -
-                                             task.metadata.arrival_time)
+                    time_e2e_requests.append(now - task.metadata.arrival_time)
 
                     # Metadata
-                    num_prompt_tokens_requests.append(
+                    _prompt_tokens_num.append(
                         len(task.prompt_token_ids))
-                    num_generation_tokens_requests.extend([
+                    _generation_tokens_num.extend([
                         seq.get_output_len()
                         for seq in task.get_finished_reqs()
                     ])
@@ -613,10 +598,10 @@ class LLMRuntime:
             # System stats
             #   Scheduler State
             num_running_sys=num_running_sys,
-            num_swapped_sys=num_swapped_sys,
-            num_waiting_sys=num_waiting_sys,
+            num_blocked_sys=num_swapped_sys,
+            num_ready_sys=num_waiting_sys,
             #   KV Cache Usage in %
-            gpu_cache_usage_sys=gpu_cache_usage_sys,
+            mlu_cache_usage_sys=mlu_cache_usage_sys,
             cpu_cache_usage_sys=cpu_cache_usage_sys,
 
             # Iteration stats
@@ -629,8 +614,8 @@ class LLMRuntime:
             #   Latency
             time_e2e_requests=time_e2e_requests,
             #   Metadata
-            num_prompt_tokens_requests=num_prompt_tokens_requests,
-            num_generation_tokens_requests=num_generation_tokens_requests,
+            num_prompt_tokens_requests=_prompt_tokens_num,
+            num_generation_tokens_requests=_generation_tokens_num,
             best_of_requests=best_of_requests,
             n_requests=n_requests,
             finished_reason_requests=finished_reason_requests,

@@ -1,7 +1,5 @@
 from typing import List, Set, Tuple
-
 import torch
-
 import sinfer.envs as envs
 from sinfer.config import CacheConfig, ModelConfig, SchedulerConfig
 from sinfer.hil.InterfaceBase import InterfaceAsyncBase, InterfaceBase
@@ -10,28 +8,22 @@ from sinfer.lora.request import LoRARequest
 from sinfer.request import ExecuteModelRequest, SamplerOutput
 from sinfer.utils import (get_distributed_init_method, get_ip, get_open_port,
                         make_async)
-
 logger = init_logger(__name__)
-
-
 class CPUInterface(InterfaceBase):
-
-    def _init_executor(self) -> None:
+    def _init_interface(self) -> None:
         assert self.device_config.device_type == "cpu"
         assert self.lora_config is None, "cpu backend doesn't support LoRA"
         self.model_config = _verify_and_get_model_config(self.model_config)
         self.cache_config = _verify_and_get_cache_config(self.cache_config)
         self.scheduler_config = _verify_and_get_scheduler_config(
             self.scheduler_config)
-
-        # Instantiate the worker and load the model to CPU.
         self._init_worker()
 
     def _init_worker(self):
         from sinfer.worker.cpu_worker import CPUWorker
 
         assert self.parallel_config.world_size == 1, (
-            "CPUExecutor only supports single CPU socket currently.")
+            "CPUInterface only supports single CPU socket currently.")
 
         distributed_init_method = get_distributed_init_method(
             get_ip(), get_open_port())
@@ -54,21 +46,10 @@ class CPUInterface(InterfaceBase):
         self.driver_worker.load_model()
 
     def determine_num_available_blocks(self) -> Tuple[int, int]:
-        """Determine the number of available KV blocks by invoking the
-        underlying worker.
-        """
         return self.driver_worker.determine_num_available_blocks()
 
     def initialize_cache(self, num_mlu_blocks: int,
                          num_cpu_blocks: int) -> None:
-        """Initialize the KV cache by invoking the underlying worker.
-        """
-        # NOTE: We log here to avoid multiple logs when number of workers is
-        # greater than one. We could log in the engine, but not all executors
-        # have GPUs.
-        # NOTE: `cpu block` for CPU backend is located on CPU memory but is
-        # referred as `gpu block`. Because we want to reuse the existing block
-        # management procedure.
         logger.info("# CPU blocks: %d", num_mlu_blocks)
         self.driver_worker.initialize_cache(num_mlu_blocks, num_cpu_blocks)
 
@@ -88,13 +69,9 @@ class CPUInterface(InterfaceBase):
         return self.driver_worker.list_loras()
 
     def check_health(self) -> None:
-        # CPUExecutor will always be healthy as long as
-        # it's running.
         return
 
-
 class CPUInterfaceAsync(CPUInterface, InterfaceAsyncBase):
-
     async def execute_model_async(
             self,
             execute_model_req: ExecuteModelRequest) -> List[SamplerOutput]:
@@ -103,10 +80,7 @@ class CPUInterfaceAsync(CPUInterface, InterfaceAsyncBase):
         return output
 
     async def check_health_async(self) -> None:
-        # CPUExecutor will always be healthy as long as
-        # it's running.
         return
-
 
 def _verify_and_get_model_config(config: ModelConfig) -> ModelConfig:
     if config.dtype == torch.float16:
@@ -119,7 +93,6 @@ def _verify_and_get_model_config(config: ModelConfig) -> ModelConfig:
         config.enforce_eager = True
     return config
 
-
 def _verify_and_get_scheduler_config(
         config: SchedulerConfig) -> SchedulerConfig:
     if config.chunked_prefill_enabled:
@@ -127,7 +100,6 @@ def _verify_and_get_scheduler_config(
         config.chunked_prefill_enabled = False
 
     return config
-
 
 def _verify_and_get_cache_config(config: CacheConfig) -> CacheConfig:
     _GB = 1 << 30
@@ -139,14 +111,13 @@ def _verify_and_get_cache_config(config: CacheConfig) -> CacheConfig:
 
     if kv_cache_space >= 0:
         if kv_cache_space == 0:
-            config.cpu_kvcache_space_bytes = 4 * _GB  # type: ignore
+            config.cpu_kvcache_space_bytes = 4 * _GB
             logger.warning("Environment variable SINFER_CPU_KVCACHE_SPACE (GB) "
                            "for CPU backend is not set, using 4 by default.")
         else:
-            config.cpu_kvcache_space_bytes = kv_cache_space * _GB  # type: ignore
+            config.cpu_kvcache_space_bytes = kv_cache_space * _GB
     else:
         raise RuntimeError(
             "Invalid environment variable SINFER_CPU_KVCACHE_SPACE"
             f" {kv_cache_space}, expect a positive integer value.")
-
     return config

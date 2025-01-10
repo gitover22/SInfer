@@ -28,10 +28,10 @@ class InterfaceBase(ABC):
         self.scheduler_config = scheduler_config
         self.device_config = device_config
         self.vision_language_config = vision_language_config
-        self._init_executor()
+        self._init_interface()
 
     @abstractmethod
-    def _init_executor(self) -> None:
+    def _init_interface(self) -> None:
         pass
 
     @abstractmethod
