@@ -499,7 +499,7 @@ def intercept_ModelInference_capture_model(self, kv_caches: List[torch.Tensor], 
     block_tables = torch.from_numpy(self.graph_block_tables).cuda()
 
     graph_batch_size = _get_graph_batch_size(
-        self.scheduler_config.max_num_seqs)
+        self.scheduler_config.max_num_reqs)
     graph_batch_size = min(graph_batch_size, max_batch_size)
     batch_size_capture_list = [
         bs for bs in _BATCH_SIZES_TO_CAPTURE if bs <= graph_batch_size

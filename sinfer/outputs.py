@@ -94,9 +94,9 @@ class RequestOutput:
 
     @classmethod
     def from_task(cls, task: Task) -> "RequestOutput":
-        seqs = task.get_reqs()
-        if len(seqs) == 1:
-            top_n_seqs = seqs
+        reqs = task.get_reqs()
+        if len(reqs) == 1:
+            top_n_reqs = reqs
         else:
             # Get the top-n sequences.
             n = task.sampling_params.n
@@ -105,26 +105,26 @@ class RequestOutput:
                     task.sampling_params.length_penalty)
             else:
                 sorting_key = lambda seq: seq.get_cumulative_logprob()
-            sorted_seqs = sorted(seqs, key=sorting_key, reverse=True)
-            top_n_seqs = sorted_seqs[:n]
+            sorted_seqs = sorted(reqs, key=sorting_key, reverse=True)
+            top_n_reqs = sorted_seqs[:n]
 
         # Create the outputs.
-        # NOTE: We need omit logprobs here explicitly because the sequence
+        # NOTE: We need omit logprobs here explicitly because the req
         # always has the logprobs of the sampled tokens even if the
         # logprobs are not requested.
         include_logprobs = task.sampling_params.logprobs is not None
         text_buffer_length = task.sampling_params.output_text_buffer_length
         outputs = [
-            CompletionOutput(seqs.index(seq),
-                             seq.get_output_text_to_return(text_buffer_length),
-                             seq.get_output_token_ids(),
-                             seq.get_cumulative_logprob(),
-                             seq.output_logprobs if include_logprobs else None,
-                             RequestStatus.get_finished_reason(seq.status),
-                             seq.stop_reason) for seq in top_n_seqs
+            CompletionOutput(reqs.index(req),
+                             req.get_output_text_to_return(text_buffer_length),
+                             req.get_output_token_ids(),
+                             req.get_cumulative_logprob(),
+                             req.output_logprobs if include_logprobs else None,
+                             RequestStatus.get_finished_reason(req.status),
+                             req.stop_reason) for req in top_n_reqs
         ]
 
-        # Every sequence in the sequence group should have the same prompt.
+        # Every req in the task should have the same prompt.
         prompt = task.prompt
         prompt_token_ids = task.prompt_token_ids
         prompt_logprobs = task.prompt_logprobs

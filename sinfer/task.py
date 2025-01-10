@@ -89,14 +89,14 @@ class Task:
 
     @property
     def prompt(self) -> str:
-        # All sequences in the group should have the same prompt.
-        # We use the prompt of an arbitrary sequence.
+        # All requests in the group should have the same prompt.
+        # We use the prompt of an arbitrary request.
         return next(iter(self.reqs_dict.values())).prompt
 
     @property
     def prompt_token_ids(self) -> List[int]:
-        # All sequences in the group should have the same prompt.
-        # We use the prompt of an arbitrary sequence.
+        # All requests in the group should have the same prompt.
+        # We use the prompt of an arbitrary request.
         return next(iter(self.reqs_dict.values())).data.prompt_token_ids
 
     @property
@@ -108,8 +108,8 @@ class Task:
         # If still in prefill phase, raise Error.
         if self.is_prefill():
             raise ValueError(
-                "seq_group.get_last_latency() should not be called "
-                "if the seq_group is in prefill phase.")
+                "task.get_last_latency() should not be called "
+                "if the task is in prefill phase.")
 
         # Otherwise return token latency.
         latency = now - self.metadata.last_token_time
@@ -118,7 +118,7 @@ class Task:
 
     def maybe_set_first_token_time(self, time: float) -> None:
         """Sets the first token time for Request level timings."""
-        # Note: in a case where a sequence_group is swapped and
+        # Note: in a case where a req_group is swapped and
         #   recomputed, the time between iterations is counted
         #   in TPOT, rather than recalculating TTFT (since from the )
         #   POV of the user, there is simply a long generation delay.
@@ -137,22 +137,22 @@ class Task:
         """Sets the finished time for Request level timings."""
         self.metadata.finished_time = time
 
-    def get_max_num_running_seqs(self) -> int:
+    def get_task_running_reqs(self) -> int:
         """
-        该seq_group在剩余生命周期内并行运行的最大seq数量
-        剩余生命周期指从此刻一直到seq_group中所有的seq都做完推理
-        用于估计若当前对一个seq_group做推理, 它将消耗多少gpu资源
+        该task在剩余生命周期内并行运行的最大req数量
+        剩余生命周期指从此刻一直到task中所有的req都做完推理
+        用于估计若当前对一个task做推理, 它将消耗多少mlu资源
         """
         if self.sampling_params.use_beam_search:
-            # 若采用beam search，每1个推理阶段都是best_of（束宽）个seq在running
+            # 若采用beam search，每1个推理阶段都是best_of（束宽）个req在running
             return self.sampling_params.best_of
         else:
             if self.sampling_params.best_of > self.num_reqs():
                 # 不适用束搜索时，best_of默认和n一致，即1个prompt产出n个outputs
-                # 如果出现best_of > self.num_seqs()的情况，说明该seq_group刚从waiting变成running，准备做推理
+                # 如果出现best_of > self.num_reqs()的情况，说明该task刚从ready变成running，准备做推理
                 return self.sampling_params.best_of
             # 其余情况，返回未完成推理的seq数量
-            return self.num_unfinished_seqs()
+            return self.num_unfinished_reqs()
 
     def get_reqs(
         self,
@@ -162,12 +162,12 @@ class Task:
             req for req in self.reqs_dict.values() if req.status == status
         ]
 
-    def get_unfinished_seqs(self) -> List[Request]:
+    def get_unfinished_reqs(self) -> List[Request]:
         return [
             req for req in self.reqs_dict.values() if not req.is_finished()
         ]
 
-    def get_finished_seqs(self) -> List[Request]:
+    def get_finished_reqs(self) -> List[Request]:
         return [req for req in self.reqs_dict.values() if req.is_finished()]
 
     def update_num_computed_tokens(self, num_new_computed_tokens: int):
@@ -190,36 +190,36 @@ class Task:
 
         return len(self.get_reqs(status))
 
-    def num_unfinished_seqs(self) -> int:
-        return len(self.get_unfinished_seqs())
+    def num_unfinished_reqs(self) -> int:
+        return len(self.get_unfinished_reqs())
 
-    def num_finished_seqs(self) -> int:
-        return len(self.get_finished_seqs())
+    def num_finished_reqs(self) -> int:
+        return len(self.get_finished_reqs())
 
-    def find(self, seq_id: int) -> Request:
-        if seq_id not in self.reqs_dict:
-            raise ValueError(f"Sequence {seq_id} not found.")
-        return self.reqs_dict[seq_id]
+    def find(self, req_id: int) -> Request:
+        if req_id not in self.reqs_dict:
+            raise ValueError(f"Request {req_id} not found.")
+        return self.reqs_dict[req_id]
 
     def add(self, req: Request) -> None:
         if req.req_id in self.reqs_dict:
-            raise ValueError(f"Sequence {req.req_id} already exists.")
+            raise ValueError(f"Request {req.req_id} already exists.")
         self.reqs_dict[req.req_id] = req
 
     def remove(self, seq_id: int) -> None:
         if seq_id not in self.reqs_dict:
-            raise ValueError(f"Sequence {seq_id} not found.")
+            raise ValueError(f"Request {seq_id} not found.")
         del self.reqs_dict[seq_id]
 
     def is_finished(self) -> bool:
         return all(req.is_finished() for req in self.get_reqs())
 
     def is_prefill(self) -> bool:
-        # Every sequences should be in the same stage.
+        # Every Requests should be in the same stage.
         return self.get_reqs()[0].is_prefill()
 
     def __repr__(self) -> str:
-        return (f"SequenceGroup(request_id={self.task_id}, "
+        return (f"Task(request_id={self.task_id}, "
                 f"sampling_params={self.sampling_params}, "
                 f"num_seqs={len(self.reqs_dict)})")
 
@@ -286,7 +286,7 @@ class TaskMetadata:
 
 
 class TaskOutput:
-    """The model output associated with a sequence group."""
+    """The model output associated with a task."""
 
     def __init__(
         self,
@@ -298,7 +298,7 @@ class TaskOutput:
         self.prompt_logprobs = prompt_logprobs
 
     def __repr__(self) -> str:
-        return (f"SequenceGroupOutput(samples={self.samples}, "
+        return (f"TaskOutput(samples={self.samples}, "
                 f"prompt_logprobs={self.prompt_logprobs})")
 
     def __eq__(self, other: object) -> bool:

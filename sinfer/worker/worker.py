@@ -195,7 +195,7 @@ class Worker(WorkerBase):
         if execute_model_req is None:
             task_metadata_list = None
         else:
-            task_metadata_list = execute_model_req.seq_group_metadata_list
+            task_metadata_list = execute_model_req.task_metadata_list
 
         if self.is_driver_worker:
             assert task_metadata_list is not None

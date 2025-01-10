@@ -29,21 +29,21 @@ class SchedulingBudget:
     """
         调度预算
         当前，预算是与`request_id`关联的，这意味着它可以忽略来自相同`request_id`的预算更新。
-        这是因为在正常调度路径中,会提前更新正在运行RUNNING的num_seqs, 这可能导致在调度运行中的请求时多次更新。
-        由于如果仅使用分块预填充调度,这种情况不会发生,因此当分块预填充默认启用时,可以从API中移除该特性。
+        这是因为在正常调度路径中,会提前更新正在运行RUNNING的num_reqs, 这可能导致在调度运行中的请求时多次更新。
+        仅使用分块预填充调度,这种情况不会发生,因此当分块预填充默认启用时,可以从API中移除该特性。
     """
     token_budget: int
-    max_num_seqs: int
+    max_num_reqs: int
     _requeset_ids_num_batched_tokens: Set[str] = field(default_factory=set)
-    _requeset_ids_num_curr_seqs: Set[str] = field(default_factory=set)
+    _requeset_ids_num_curr_reqs: Set[str] = field(default_factory=set)
     _num_batched_tokens: int = 0
-    _num_curr_seqs: int = 0
+    _curr_reqs_num: int = 0
 
-    def can_schedule(self, *, num_new_tokens: int, num_new_seqs: int):
+    def can_schedule(self, *, num_new_tokens: int, num_new_reqs: int):
         assert num_new_tokens != 0
-        assert num_new_seqs != 0
+        assert num_new_reqs != 0
         return (self.num_batched_tokens + num_new_tokens <= self.token_budget
-                and self.num_curr_seqs + num_new_seqs <= self.max_num_seqs)
+                and self.num_curr_reqs + num_new_reqs <= self.max_num_reqs)
 
     def remaining_token_budget(self):
         return self.token_budget - self.num_batched_tokens
@@ -61,25 +61,25 @@ class SchedulingBudget:
             self._requeset_ids_num_batched_tokens.remove(req_id)
             self._num_batched_tokens -= num_batched_tokens
 
-    def add_num_seqs(self, req_id: str, num_curr_seqs: int):
-        if req_id in self._requeset_ids_num_curr_seqs:
+    def add_num_reqs(self, req_id: str, curr_reqs_num: int):
+        if req_id in self._requeset_ids_num_curr_reqs:
             return
 
-        self._requeset_ids_num_curr_seqs.add(req_id)
-        self._num_curr_seqs += num_curr_seqs
+        self._requeset_ids_num_curr_reqs.add(req_id)
+        self._curr_reqs_num += curr_reqs_num
 
-    def subtract_num_seqs(self, req_id: str, num_curr_seqs: int):
-        if req_id in self._requeset_ids_num_curr_seqs:
-            self._requeset_ids_num_curr_seqs.remove(req_id)
-            self._num_curr_seqs -= num_curr_seqs
+    def subtract_num_reqs(self, req_id: str, curr_reqs_num: int):
+        if req_id in self._requeset_ids_num_curr_reqs:
+            self._requeset_ids_num_curr_reqs.remove(req_id)
+            self._curr_reqs_num -= curr_reqs_num
 
     @property
     def num_batched_tokens(self):
         return self._num_batched_tokens
 
     @property
-    def num_curr_seqs(self):
-        return self._num_curr_seqs
+    def num_curr_reqs(self):
+        return self._curr_reqs_num
 
 
 @dataclass
@@ -165,17 +165,16 @@ class SchedulerRunningOutputs:
 
 
 @dataclass
-class SchedulerSwappedInOutputs:
-    """从 swap 队列调度的task
+class SchedulerBlockInOutputs:
+    """从阻塞池调度的task
 
     可能包含prefill (chunked prefill) 和 decodes阶段的序列组.
     """
-    # Selected tasks that are going to be swapped in and is in decoding phase.
+    # Selected tasks that are going to be BlockIn and is in decoding phase.
     decode_tasks: List[Task]
-    # Selected tasks that are going to be swapped in and in a prefill
-    # phase. （意味着chunked prefill开启）
+    # Selected tasks that are going to be BlockIn and in a prefill phase(cp open
     prefill_tasks: List[Task]
-    blocks_to_swap_in: Dict[int, int]
+    blocks_to_blockIn: Dict[int, int]
     blocks_to_copy: Dict[int, List[int]]
     # The number of slots for lookahead decoding.
     num_lookahead_slots: int
@@ -183,11 +182,11 @@ class SchedulerSwappedInOutputs:
     infeasible_tasks: List[Task]
 
     @classmethod
-    def create_empty(cls) -> "SchedulerSwappedInOutputs":
-        return SchedulerSwappedInOutputs(
+    def create_empty(cls) -> "SchedulerBlockInOutputs":
+        return SchedulerBlockInOutputs(
             decode_tasks=[],
             prefill_tasks=[],
-            blocks_to_swap_in={},
+            blocks_to_blockIn={},
             blocks_to_copy={},
             num_lookahead_slots=0,
             infeasible_tasks=[],
@@ -196,21 +195,17 @@ class SchedulerSwappedInOutputs:
 
 @dataclass
 class SchedulerPrefillOutputs:
-    """从就绪池调度的任务
-    新的预填充请求或被抢占的请求(抢占策略为重计算)
-    """
-    # Selected tasks for prefill.
+    # 从就绪池调度的任务：新的预填充请求或被重计算的请求
     tasks: List[Task]
-    # Ignored tasks
     ignored_tasks: List[Task]
-    num_lookahead_slots: int
+    _lookahead_slots_num: int
     # 创建一个对象
     @classmethod
     def create_empty(cls) -> "SchedulerPrefillOutputs":
         return SchedulerPrefillOutputs(
             tasks=[],
             ignored_tasks=[],
-            num_lookahead_slots=0,
+            _lookahead_slots_num=0,
         )
 
 # Test-only. If configured, decode is preempted with
@@ -344,7 +339,7 @@ class Scheduler:
         policy: Profiler,
         enable_chunking: bool = False,
     ) -> Tuple[deque, SchedulerRunningOutputs]:
-        """调度 running Pool 中的task
+        """调度运行池中的task
         Args:
             running_pool: contains running requests (i.e.,
                 decodes). The given arguments are NOT in-place modified.
@@ -362,12 +357,12 @@ class Scheduler:
             scheduling and SchedulerRunningOutputs.
         """
         init_queue = running_pool
-        # 模型执行前需要swap和copy的块
-        blocks_to_swap_out: Dict[int, int] = {}
+        # 模型执行前需要blockout和copy的块
+        blocks_to_BlockOut: Dict[int, int] = {}
         blocks_to_copy: Dict[int, List[int]] = {}
 
-        decode_seq_groups: List[ScheduledTask] = []
-        prefill_seq_groups: List[ScheduledTask] = []
+        decode_tasks: List[ScheduledTask] = []
+        prefill_tasks: List[ScheduledTask] = []
         preempted: List[Task] = []
         swapped_out: List[Task] = []
 
@@ -386,7 +381,7 @@ class Scheduler:
                 budget.subtract_num_batched_tokens(task.task_id,
                                                    num_running_tokens)
                 num_running_seqs = task.get_max_num_running_seqs()
-                budget.subtract_num_seqs(task.task_id,
+                budget.subtract_num_reqs(task.task_id,
                                          num_running_seqs)
                 if curr_loras is not None and task.lora_int_id > 0:
                     curr_loras.remove(task.lora_int_id)
@@ -395,7 +390,7 @@ class Scheduler:
                     # Preempt the lowest-priority tasks
                     victim_seq_group = running_pool.pop()
                     preempted_mode = self._preempt(victim_seq_group,
-                                                   blocks_to_swap_out)
+                                                   blocks_to_BlockOut)
                     if preempted_mode == PreemptionStrategy.RECOMPUTE:
                         preempted.append(victim_seq_group)
                     else:
@@ -403,7 +398,7 @@ class Scheduler:
                 else:
                     # No other tasks can be preempted. Preempt the current task.
                     preempted_mode = self._preempt(task,
-                                                   blocks_to_swap_out)
+                                                   blocks_to_BlockOut)
                     if preempted_mode == PreemptionStrategy.RECOMPUTE:
                         preempted.append(task)
                     else:
@@ -413,12 +408,12 @@ class Scheduler:
                 self._append_slots(task, blocks_to_copy)
                 is_prefill = task.is_prefill()
                 if is_prefill:
-                    prefill_seq_groups.append(
+                    prefill_tasks.append(
                         ScheduledTask(
                             task=task,
                             token_chunk_size=num_running_tokens))
                 else:
-                    decode_seq_groups.append(
+                    decode_tasks.append(
                         ScheduledTask(task=task,
                                                token_chunk_size=1))
                 budget.add_num_batched_tokens(task.task_id,
@@ -427,7 +422,7 @@ class Scheduler:
                 # num_seqs会在运行此方法之前更新，因此我们在这里不需要再次更新它。
                 if enable_chunking:
                     num_running_seqs = task.get_max_num_running_seqs()
-                    budget.add_num_seqs(task.task_id, num_running_seqs)
+                    budget.add_num_reqs(task.task_id, num_running_seqs)
                 if curr_loras is not None and task.lora_int_id > 0:
                     curr_loras.add(task.lora_int_id)
         # add for scheduler profiling
@@ -437,11 +432,11 @@ class Scheduler:
         # sched_to_swap_out = [s.request_id for s in swapped_out]
         self.from_running_to_ready_tasks += len(sched_to_preempt)
         return running_pool, SchedulerRunningOutputs(
-            decode_tasks=decode_seq_groups,
-            prefill_tasks=prefill_seq_groups,
+            decode_tasks=decode_tasks,
+            prefill_tasks=prefill_tasks,
             preempted=preempted,
             swapped_out=swapped_out,
-            blocks_to_swap_out=blocks_to_swap_out,
+            blocks_to_swap_out=blocks_to_BlockOut,
             blocks_to_copy=blocks_to_copy,
             num_lookahead_slots=self._get_num_lookahead_slots(
                 is_prefill=False))
@@ -453,7 +448,7 @@ class Scheduler:
         curr_loras: Optional[Set[int]],
         policy: Profiler,
         enable_chunking: bool = False,
-    ) -> Tuple[deque, SchedulerSwappedInOutputs]:
+    ) -> Tuple[deque, SchedulerBlockInOutputs]:
         """调度被swap out的序列组
 
         It schedules swapped requests as long as it fits `budget` and
@@ -478,11 +473,11 @@ class Scheduler:
             SchedulerSwappedInOutputs.
         """
         # 模型执行前需要swap和copy的块
-        blocks_to_swap_in: Dict[int, int] = {}
+        blocks_to_BlockIn: Dict[int, int] = {}
         blocks_to_copy: Dict[int, List[int]] = {}
 
-        decode_seq_groups: List[ScheduledTask] = []
-        prefill_seq_groups: List[ScheduledTask] = []
+        decode_tasks: List[ScheduledTask] = []
+        prefill_tasks: List[ScheduledTask] = []
 
         now = time.time()
         blocked_pool = policy.sort_by_score(now, blocked_pool)
@@ -518,8 +513,8 @@ class Scheduler:
                     blocked_pool.popleft()
                     continue
 
-            # The total number of sequences in the RUNNING state should not
-            # exceed the maximum number of sequences.
+            # The total number of reqs in the RUNNING state should not
+            # exceed the maximum number of reqs.
             num_new_seqs = task.get_max_num_running_seqs()
             num_new_tokens = self._get_num_new_tokens(task,
                                                       RequestStatus.BLOCKED,
@@ -527,34 +522,34 @@ class Scheduler:
 
             if (num_new_tokens == 0
                     or not budget.can_schedule(num_new_tokens=num_new_tokens,
-                                               num_new_seqs=num_new_seqs)):
+                                               num_new_reqs=num_new_seqs)):
                 break
 
             if lora_int_id > 0 and curr_loras is not None:
                 curr_loras.add(lora_int_id)
             blocked_pool.popleft()
-            self._swap_in(task, blocks_to_swap_in)
+            self._BlockIn(task, blocks_to_BlockIn)
             self._append_slots(task, blocks_to_copy)
             is_prefill = task.is_prefill()
             if is_prefill:
-                prefill_seq_groups.append(
+                prefill_tasks.append(
                     ScheduledTask(task,
                                            token_chunk_size=num_new_tokens))
             else:
-                decode_seq_groups.append(
+                decode_tasks.append(
                     ScheduledTask(task, token_chunk_size=1))
             budget.add_num_batched_tokens(task.task_id, num_new_tokens)
-            budget.add_num_seqs(task.task_id, num_new_seqs)
+            budget.add_num_reqs(task.task_id, num_new_seqs)
 
         blocked_pool.extendleft(leftover_swapped)
         # add for scheduler profiling
         # swap_reqs = len(swapped_queue)
         # sched_reqs = swap_reqs - len(swapped_queue)
         # sched_to_swap_in = [s.task.task_id for s in decode_seq_groups]
-        return blocked_pool, SchedulerSwappedInOutputs(
-            decode_tasks=decode_seq_groups,
-            prefill_tasks=prefill_seq_groups,
-            blocks_to_swap_in=blocks_to_swap_in,
+        return blocked_pool, SchedulerBlockInOutputs(
+            decode_tasks=decode_tasks,
+            prefill_tasks=prefill_tasks,
+            blocks_to_blockIn=blocks_to_BlockIn,
             blocks_to_copy=blocks_to_copy,
             num_lookahead_slots=self._get_num_lookahead_slots(
                 is_prefill=False),
@@ -568,27 +563,27 @@ class Scheduler:
         curr_loras: Optional[Set[int]],
         enable_chunking: bool = False,
     ) -> Tuple[deque, SchedulerPrefillOutputs]:
-        """调度prefill 阶段的序列组
+        """调度就绪池中(prefill 阶段)的任务
 
         It schedules waiting requests as long as it fits `budget` and
         curr_loras <= max_lora from the scheduling config. The input arguments
-        `budget` and `curr_loras` are updated based on scheduled seq_groups.
+        `budget` and `curr_loras` are updated based on scheduled tasks.
 
         Args:
-            waiting_queue: The queue that contains prefill requests.
+            ready_pool: contains prefill requests.
                 The given arguments are NOT in-place modified.
             budget: The scheduling budget. The argument is in-place updated
                 when any requests are scheduled.
             curr_loras: Currently batched lora request ids. The argument is
                 in-place updated when any requests are scheduled.
-            enable_chunking: If True, seq group can be chunked and only a
+            enable_chunking: If True, task can be chunked and only a
                 chunked number of tokens are scheduled  if
                 `budget.num_batched_tokens` has not enough capacity to schedule
                 all tokens.
 
         Returns:
-            A tuple of remaining waiting_queue after scheduling and
-            SchedulerSwappedInOutputs.
+            A tuple of remaining ReadyPool after scheduling and
+            SchedulerBlockInOutputs.
         """
         init_queue = ready_pool
         ignored_tasks: List[Task] = []
@@ -598,7 +593,7 @@ class Scheduler:
         ready_pool = deque([s for s in ready_pool])
 
         _remaining_ready_tasks: Deque[Task] = deque()
-        while self._passed_delay(time.time()) and ready_pool:
+        while self._can_schedule_form_readyPool(time.time()) and ready_pool:
             task = ready_pool[0]
 
             ready_reqs = task.get_reqs(status=RequestStatus.READY)
@@ -651,10 +646,10 @@ class Scheduler:
                     ready_pool.popleft()
                     continue
 
-            num_new_seqs = task.get_max_num_running_seqs()
+            num_new_seqs = task.get_task_running_reqs()
             if (num_new_tokens == 0
                     or not budget.can_schedule(num_new_tokens=num_new_tokens,
-                                               num_new_seqs=num_new_seqs)):
+                                               num_new_reqs=num_new_seqs)):
                 break
 
             # 可以调度这个序列
@@ -666,7 +661,7 @@ class Scheduler:
                 ScheduledTask(task=task,
                                        token_chunk_size=num_new_tokens))
             budget.add_num_batched_tokens(task.task_id, num_new_tokens)
-            budget.add_num_seqs(task.task_id, num_new_seqs)
+            budget.add_num_reqs(task.task_id, num_new_seqs)
 
         # 将无法被调度的请求重新加入队列中
         ready_pool.extendleft(_remaining_ready_tasks)
@@ -682,7 +677,7 @@ class Scheduler:
         return ready_pool, SchedulerPrefillOutputs(
             tasks=tasks,
             ignored_tasks=ignored_tasks,
-            num_lookahead_slots=self._get_num_lookahead_slots(is_prefill=True))
+            _lookahead_slots_num=self._get_num_lookahead_slots(is_prefill=True))
 
     def _schedule_without_cp(self) -> SchedulerOutputs:
         """
@@ -694,27 +689,27 @@ class Scheduler:
         # 调度预算：主要关注tokens总数和seq总数
         budget = SchedulingBudget(
             token_budget=self.scheduler_config.max_num_batched_tokens, # 最大：2048
-            max_num_seqs=self.scheduler_config.max_num_seqs,
+            max_num_reqs=self.scheduler_config.max_num_reqs,
         )
         # 确保在调度prefill请求之前包含当前运行中的序列数，  
         # 以避免预填充的调度超出 `max_num_seqs` 的限制。
         for task in self.RunningPool:
-            budget.add_num_seqs(task.task_id,
-                                task.get_max_num_running_seqs())
+            budget.add_num_reqs(task.task_id,
+                                task.get_task_running_reqs())
         curr_loras = set(
             task.lora_int_id
             for task in self.RunningPool) if self.lora_enabled else None # 启用了LoRA
 
-        remaining_ready, prefills = (self.ReadyPool,
+        remaining_ready, scheduler_prefill = (self.ReadyPool,
                                        SchedulerPrefillOutputs.create_empty())
-        remaining_running, running_scheduled = (
+        remaining_running, scheduler_running = (
             self.RunningPool, SchedulerRunningOutputs.create_empty())
-        remaining_blocked, swapped_in = (
-            self.BlockedPool, SchedulerSwappedInOutputs.create_empty())
+        remaining_blocked, scheduler_blockIn = (
+            self.BlockedPool, SchedulerBlockInOutputs.create_empty())
 
         # 如果阻塞池为空，调度就绪池任务
         if not self.BlockedPool:
-            remaining_ready, prefills = self._schedule_ready_task(
+            remaining_ready, scheduler_prefill = self._schedule_ready_task(
                 self.ReadyPool, budget, curr_loras, enable_chunking=False)
 
         # scheduler_policy = Profilers.get_profiler(_name="fcfs")
@@ -726,8 +721,8 @@ class Scheduler:
         # 如果已经调度了预填充请求，则不要再调度解码请求
         # 如果 _schedule_prefills 未启用分块模式（chunking），
         # 那么self.running 中仅包含解码请求，而不包含分块的预填充请求
-        if len(prefills.tasks) == 0: # 没有调度prefill
-            remaining_running, running_scheduled = self._schedule_running_task(
+        if len(scheduler_prefill.tasks) == 0: # 没有调度就绪池的任务
+            remaining_running, scheduler_running = self._schedule_running_task(
                 self.RunningPool,
                 budget,
                 curr_loras,
@@ -736,48 +731,48 @@ class Scheduler:
 
             # 如果有任何序列组被抢占或换出，则不要swap in任何序列组，  
             # 因为这意味着没有可用的插槽用于新的运行请求（running_scheduled.preempted存的是重计算的SG,running_scheduled.swapped_out存的是换出的SG）
-            if len(running_scheduled.preempted) + len(
-                    running_scheduled.swapped_out) == 0:
-                remaining_blocked, swapped_in = self._schedule_blocked_task(
+            if len(scheduler_running.preempted) + len(
+                    scheduler_running.swapped_out) == 0:
+                remaining_blocked, scheduler_blockIn = self._schedule_blocked_task(
                     self.BlockedPool, budget, curr_loras, scheduler_policy)
         # 确保预算内的token数和序列数没有超出限制
         assert (budget.num_batched_tokens <=
                 self.scheduler_config.max_num_batched_tokens)
-        assert budget.num_curr_seqs <= self.scheduler_config.max_num_seqs
+        assert budget.num_curr_reqs <= self.scheduler_config.max_num_reqs
 
         # Update
         self.ReadyPool = remaining_ready
-        self.ReadyPool.extendleft(running_scheduled.preempted) # 重计算的task加入到ReadyPool最左侧
+        self.ReadyPool.extendleft(scheduler_running.preempted) # 重计算的task加入到ReadyPool最左侧
         # 
         self.RunningPool = remaining_running
-        self.RunningPool.extend([s.task for s in prefills.tasks])
+        self.RunningPool.extend([s.task for s in scheduler_prefill.tasks])
         self.RunningPool.extend(
-            [s.task for s in running_scheduled.decode_tasks])
+            [s.task for s in scheduler_running.decode_tasks])
         self.RunningPool.extend(
-            [s.task for s in swapped_in.decode_tasks])
+            [s.task for s in scheduler_blockIn.decode_tasks])
         # 
         self.BlockedPool = remaining_blocked
-        self.BlockedPool.extend(running_scheduled.swapped_out) # 换出的SG加入到swapped队列
+        self.BlockedPool.extend(scheduler_running.swapped_out) # 换出的SG加入到swapped队列
 
         # 没开启chunked prefill时，running队列和blocked队列都不应该包含prefill阶段的task
-        assert len(running_scheduled.prefill_tasks) == 0
-        assert len(swapped_in.prefill_tasks) == 0
+        assert len(scheduler_running.prefill_tasks) == 0
+        assert len(scheduler_blockIn.prefill_tasks) == 0
         # add for scheduler profiling
         self.schedule_step += 1
         # 包装一下调度结果并返回
         return SchedulerOutputs(
-            scheduled_tasks=(prefills.tasks +
-                                  running_scheduled.decode_tasks +
-                                  swapped_in.decode_tasks),
-            num_prefill_tasks=len(prefills.tasks),
+            scheduled_tasks=(scheduler_prefill.tasks +
+                                  scheduler_running.decode_tasks +
+                                  scheduler_blockIn.decode_tasks),
+            num_prefill_tasks=len(scheduler_prefill.tasks),
             num_batched_tokens=budget.num_batched_tokens,
-            blocks_to_swap_in=swapped_in.blocks_to_swap_in,
-            blocks_to_swap_out=running_scheduled.blocks_to_swap_out,
-            blocks_to_copy=merge_dicts(running_scheduled.blocks_to_copy,
-                                       swapped_in.blocks_to_copy),
-            ignored_tasks=prefills.ignored_tasks +
-            swapped_in.infeasible_tasks,
-            num_lookahead_slots=running_scheduled.num_lookahead_slots,
+            blocks_to_swap_in=scheduler_blockIn.blocks_to_blockIn,
+            blocks_to_swap_out=scheduler_running.blocks_to_swap_out,
+            blocks_to_copy=merge_dicts(scheduler_running.blocks_to_copy,
+                                       scheduler_blockIn.blocks_to_copy),
+            ignored_tasks=scheduler_prefill.ignored_tasks +
+            scheduler_blockIn.infeasible_tasks,
+            num_lookahead_slots=scheduler_running.num_lookahead_slots,
             running_queue_size=len(self.RunningPool),
         )
 
@@ -795,7 +790,7 @@ class Scheduler:
         """
         budget = SchedulingBudget(
             token_budget=self.scheduler_config.max_num_batched_tokens,
-            max_num_seqs=self.scheduler_config.max_num_seqs,
+            max_num_reqs=self.scheduler_config.max_num_reqs,
         )
         curr_loras: Set[int] = set()
 
@@ -804,7 +799,7 @@ class Scheduler:
         remaining_running, running_scheduled = (
             self.RunningPool, SchedulerRunningOutputs.create_empty())
         remaining_blocked, swapped_in = (
-            self.BlockedPool, SchedulerSwappedInOutputs.create_empty())
+            self.BlockedPool, SchedulerBlockInOutputs.create_empty())
 
         # scheduler_policy = Profilers.get_profiler(_name="fcfs")
         # scheduler_policy = Profilers.get_profiler(_name="tas_v1")
@@ -832,7 +827,7 @@ class Scheduler:
 
         assert (budget.num_batched_tokens <=
                 self.scheduler_config.max_num_batched_tokens)
-        assert budget.num_curr_seqs <= self.scheduler_config.max_num_seqs
+        assert budget.num_curr_reqs <= self.scheduler_config.max_num_reqs
 
         # Update waiting requests.
         self.ReadyPool = remaining_ready
@@ -861,7 +856,7 @@ class Scheduler:
                                 len(swapped_in.prefill_tasks) +
                                 len(running_scheduled.prefill_tasks)),
             num_batched_tokens=budget.num_batched_tokens,
-            blocks_to_swap_in=swapped_in.blocks_to_swap_in,
+            blocks_to_swap_in=swapped_in.blocks_to_blockIn,
             blocks_to_swap_out=running_scheduled.blocks_to_swap_out,
             blocks_to_copy=merge_dicts(running_scheduled.blocks_to_copy,
                                        swapped_in.blocks_to_copy),
@@ -985,11 +980,11 @@ class Scheduler:
         if total_seqs_ > self.total_tasks:
             self.total_tasks = total_seqs_
 
-        self.batch_utils = self.running_tasks / self.scheduler_config.max_num_seqs
-        self.block_utils = (self.block_manager.num_total_mlu_blocks -
-                            self.block_manager.get_num_free_gpu_blocks()) / self.block_manager.num_total_mlu_blocks
+        self.batch_utils = self.running_tasks / self.scheduler_config.max_num_reqs
+        self.block_utils = (self.block_manager._total_mlu_blocks_num -
+                            self.block_manager.get_num_free_mlu_blocks()) / self.block_manager._total_mlu_blocks_num
         self.preempt_ratio = self.from_running_to_ready_tasks / self.total_tasks
-
+        # tas_information.csv
         df_ = pd.DataFrame(
             [[self.ready_tasks, self.running_tasks, self.blocked_tasks,
             len(finished_tasks_), self.batch_utils, self.block_utils, self.preempt_ratio]],
@@ -1038,7 +1033,7 @@ class Scheduler:
         # 缺陷：被交换的序列优先于等待的序列，所以包含多个序列的序列组隐式地优先于仅包含单个序列的序列组。
         # 为包含多个序列的序列组支持重计算。这需要更复杂的CUDA内核支持
         if preemption_strategy is None:
-            if task.get_max_num_running_seqs() == 1:
+            if task.get_task_running_reqs() == 1:
                 preemption_strategy = PreemptionStrategy.RECOMPUTE
             else:
                 preemption_strategy = PreemptionStrategy.SWAP
@@ -1072,12 +1067,12 @@ class Scheduler:
         # 将seq的状态从running改成swapped
         self._swap_out(task, blocks_to_swap_out)
 
-    def _swap_in(
+    def _BlockIn(
         self,
         task: Task,
         blocks_to_swap_in: Dict[int, int],
     ) -> None:
-        mapping = self.block_manager.swap_in(task)
+        mapping = self.block_manager.Block_in(task)
         blocks_to_swap_in.update(mapping)
         for req in task.get_reqs(status=RequestStatus.BLOCKED):
             req.status = RequestStatus.RUNNING
@@ -1100,10 +1095,10 @@ class Scheduler:
         for req in task.get_reqs(status=RequestStatus.RUNNING):
             req.status = RequestStatus.BLOCKED # 修改该task下所有req的状态：从running改成swapped
 
-    def _passed_delay(self, now: float) -> bool:
+    def _can_schedule_form_readyPool(self, now: float) -> bool:
         """
-        判断当下是否可以从waiting队列中调度新请求
-        这个函数确保了在调度过程中不会频繁地处理新来的seq_group
+        判断当下是否可以从就绪池中调度
+        确保在调度过程中不会频繁地处理新来的task
         
         Args:
             now: 当前调度时间点
@@ -1111,22 +1106,22 @@ class Scheduler:
         if self._last_schedule_formReadyPool:
             self._latency_lastFromReadyPool = now - self._last_schedule_time
         # 用当前调度时间更新prev_time
-        # 由于目前还不知道本次是否会从waiting队列中调度，因此prev_prompt先设为False
+        # 由于目前还不知道本次是否会从就绪池中调度，因此_last_schedule_formReadyPool先设为False
         self._last_schedule_time, self._last_schedule_formReadyPool = now, False
-        # Delay scheduling prompts to let waiting queue fill up
+        # Delay scheduling prompts to let readyPool fill up
         # delay_factor：用户配置的，用于调整调度间隔阈值的因子。大于0则意味着用户想开启阈值判断
-        if self.scheduler_config.delay_factor > 0 and self.ReadyPool:
-            # 计算在waiting队列中，最早到达的seq_group的到达时间
+        if self.scheduler_config.latency_factor > 0 and self.ReadyPool:
+            # 计算在就绪池中最早到达的task的到达时间
             earliest_arrival_time = min(
                 [e.metadata.arrival_time for e in self.ReadyPool])
             # 实际等待的时间 > 应该等待时间
-            passed_delay = (
+            _can_sche = (
                 (now - earliest_arrival_time) >
-                (self.scheduler_config.delay_factor * self._latency_lastFromReadyPool)
+                (self.scheduler_config.latency_factor * self._latency_lastFromReadyPool)
                 or not self.RunningPool)
         else:
-            passed_delay = True
-        return passed_delay
+            _can_sche = True
+        return _can_sche
 
     def _get_num_lookahead_slots(self, is_prefill: bool) -> int:
         """

@@ -4,17 +4,15 @@ from sinfer.request import SamplerOutput
 from sinfer.task import TaskOutput
 
 
-def create_output_by_sequence_group(
+def create_output_by_task(
         sampler_outputs: List[SamplerOutput],
-        num_seq_groups: int) -> List[List[TaskOutput]]:
-    """Helper method which transforms a 2d list organized by
-    [step][sequence group] into [sequence group][step].
-    """
-    output_by_sequence_group: List[List[SamplerOutput]] = [
-        [] for _ in range(num_seq_groups)
+        num_tasks: int) -> List[List[TaskOutput]]:
+    # transforms [step][task] into [task][step].
+    output_by_task: List[List[SamplerOutput]] = [
+        [] for _ in range(num_tasks)
     ]
     for step in sampler_outputs:
-        for i, sequence_group_output in enumerate(step):
-            output_by_sequence_group[i].append(sequence_group_output)
+        for i, task_output in enumerate(step):
+            output_by_task[i].append(task_output)
 
-    return output_by_sequence_group
+    return output_by_task
