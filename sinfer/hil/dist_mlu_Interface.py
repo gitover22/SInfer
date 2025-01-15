@@ -10,7 +10,6 @@ from sinfer.request import SamplerOutput
 logger = init_logger(__name__)
 
 class Distributed_MLUInterface(MLUInterface):
-    """多 MLU 执行器实现的抽象父类"""
     def determine_num_available_blocks(self) -> Tuple[int, int]:
         """ 确定可用的 KV 缓存块数量
 
@@ -32,8 +31,7 @@ class Distributed_MLUInterface(MLUInterface):
 
     def initialize_cache(self, num_mlu_blocks: int,
                          num_cpu_blocks: int) -> None:
-        logger.info("# MLU kv blocks: %d, # CPU kv blocks: %d", num_mlu_blocks,
-                    num_cpu_blocks)
+        logger.info("# MLU kv blocks: %d", num_mlu_blocks)
 
         self.cache_config.num_mlu_blocks = num_mlu_blocks
         self.cache_config.num_cpu_blocks = num_cpu_blocks

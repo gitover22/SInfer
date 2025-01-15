@@ -1,23 +1,14 @@
-"""Autotune max_num_seqs paramter."""
-# pylint: skip-file
 import argparse
 import random
 from typing import Dict, Any
 from tqdm import tqdm
-
-
 def run_sinfer(config: Dict[str, Any]) -> float:
-    """Initialize and run an instance of a language model (LLM) using the
-    `sinfer` library."""
     print(f'Evaluate with max_num_seqs: {config["max_num_seqs"]}')
     from sinfer import LLM
     llm = LLM(**config)
-    print(f'The num of gpu blocks is: {llm.llm_runtime.cache_config.num_mlu_blocks}')
+    print(f'The num of mlu blocks is: {llm.llm_runtime.cache_config.num_mlu_blocks}')
     return llm.llm_runtime.cache_config.num_mlu_blocks
-
-
 def main(args: argparse.Namespace):
-    """The entry function to tune max_num_seqs."""
     print(args)
     random.seed(args.seed)
     config = {
@@ -40,16 +31,12 @@ def main(args: argparse.Namespace):
         'download_dir': args.download_dir,
         'block_size': args.block_size
     }
-
     import multiprocessing
     def worker_wrapper(config, output_queue):
-        """Here we get the num_gpu_blocks by instantiate a llm object."""
+        """Here we get the num_mlu_blocks by instantiate a llm object."""
         result = run_sinfer(config)
         output_queue.put(result)
-
-
-    def get_num_gpu_blocks(cache, num_seqs) -> int:
-        """Get the number of GPU blocks with parameter num_seqs."""
+    def get_num_mlu_blocks(cache, num_seqs) -> int:
         if num_seqs in cache:
             return cache[num_seqs]
         # Here since we cannot manually release the resources hold by Ray and NCCL,
@@ -63,22 +50,16 @@ def main(args: argparse.Namespace):
         result = output_queue.get()
         cache[num_seqs] = result
         return result
-
-
     def find_optimal_max_num_seqs(init=256) -> int:
-        """Search th optimal max_num_seqs which maximizes
-        min(max_num_seqs, num_gpu_blocks)."""
-        # Use cache to avoid repeated evaluations.
         cache = {}
-
         # Initialization seach range.
-        num_blocks = get_num_gpu_blocks(cache, init)
+        num_blocks = get_num_mlu_blocks(cache, init)
         left, right = min(num_blocks, init), max(num_blocks, init)
 
         # Binary search.
         while 0 < left < right:
             mid = (left + right) // 2
-            num_blocks = get_num_gpu_blocks(cache, mid)
+            num_blocks = get_num_mlu_blocks(cache, mid)
 
             if num_blocks == mid:
                 return mid
@@ -90,14 +71,11 @@ def main(args: argparse.Namespace):
             right = min(max(mid, num_blocks), right)
 
         left, right = max(1, left), max(1, right)
-        final_left = min(left, get_num_gpu_blocks(cache, left))
-        final_right = min(right, get_num_gpu_blocks(cache, right))
+        final_left = min(left, get_num_mlu_blocks(cache, left))
+        final_right = min(right, get_num_mlu_blocks(cache, right))
         return right if final_right > final_left else left
-
     max_num_seqs = find_optimal_max_num_seqs()
     print(f'The optimal max_num_seqs is {max_num_seqs}.')
-
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Tune max_num_seqs.")
     parser.add_argument("--backend", type=str, choices=["sinfer"], default="sinfer")
@@ -122,7 +100,6 @@ if __name__ == "__main__":
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--hf-max-batch-size", type=int, default=None,
                         help="Maximum batch size for HF backend.")
-
     parser.add_argument("--block-size", type=int, default=-1)
     parser.add_argument('--trust-remote-code', action='store_true',
                         help='trust remote code from huggingface')

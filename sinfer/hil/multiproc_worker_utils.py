@@ -19,7 +19,7 @@ logger = init_logger(__name__)
 
 T = TypeVar('T')
 
-_TERMINATE = "TERMINATE"  # sentinel
+_TERMINATE = "TERMINATE"
 
 # ANSI颜色代码，用于输出带颜色的日志信息
 CYAN = '\033[1;36m'
@@ -93,7 +93,6 @@ class ResultHandler(threading.Thread):
 
 class WorkerMonitor(threading.Thread):
     """监视工作节点的状态(后台线程)"""
-
     def __init__(self, workers: List['ProcessWorkerWrapper'],
                  result_handler: ResultHandler):
         super().__init__(daemon=True)

@@ -79,7 +79,7 @@ class LLM:
                 model=model, trust_remote_code=kwargs.get('trust_remote_code', 'default_value'))
         
         if "disable_log_stats" not in kwargs:
-            kwargs["disable_log_stats"] = True
+            kwargs["disable_log_stats"] = False
         runtime_args = RuntimeArgs(
             model=model,
             tokenizer=tokenizer,

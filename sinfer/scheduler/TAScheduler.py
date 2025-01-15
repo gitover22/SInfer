@@ -379,7 +379,7 @@ class Scheduler:
             while not self._MLU_memory_sufficient(task):
                 budget.subtract_num_batched_tokens(task.task_id,
                                                    num_running_tokens)
-                num_running_seqs = task.get_max_num_running_seqs()
+                num_running_seqs = task.get_task_running_reqs()
                 budget.subtract_num_reqs(task.task_id,
                                          num_running_seqs)
                 if curr_loras is not None and task.lora_int_id > 0:
@@ -417,10 +417,10 @@ class Scheduler:
                                                token_chunk_size=1))
                 budget.add_num_batched_tokens(task.task_id,
                                               num_running_tokens)
-                # 注意，get_max_num_running_seqs开销较大。在默认的调度策略中，当 enable_chunking为 False 时，
+                # 注意，get_task_running_reqs开销较大。在默认的调度策略中，当 enable_chunking为 False 时，
                 # num_seqs会在运行此方法之前更新，因此我们在这里不需要再次更新它。
                 if enable_chunking:
-                    num_running_seqs = task.get_max_num_running_seqs()
+                    num_running_seqs = task.get_task_running_reqs()
                     budget.add_num_reqs(task.task_id, num_running_seqs)
                 if curr_loras is not None and task.lora_int_id > 0:
                     curr_loras.add(task.lora_int_id)
@@ -514,7 +514,7 @@ class Scheduler:
 
             # The total number of reqs in the RUNNING state should not
             # exceed the maximum number of reqs.
-            num_new_seqs = task.get_max_num_running_seqs()
+            num_new_seqs = task.get_task_running_reqs()
             num_new_tokens = self._get_num_new_tokens(task,
                                                       RequestStatus.BLOCKED,
                                                       enable_chunking, budget)
@@ -1156,13 +1156,13 @@ class Scheduler:
     def summary_finished_tasks(self,tasks: List[Task]):
         df = pd.DataFrame(
             data={
-                'TTFT/s': [],  # 首次 token 时间
-                'TPOT/s': [],  # 每个 token 的解码时间
-                'e2e_time/s': [],  # 任务的端到端时间
-                'time_in_pool/s': [],  # 任务在池中的等待时间
+                'TTFT/s': [],
+                'TPOT/s': [], 
+                'e2e_time/s': [],
+                'time_in_pool/s': [],
                 'context_latency/s': [],  # 上下文延迟
-                'total_decoding_time/s': [],  # 总解码时间
-                'generate_tokens': []  # 生成的 token 数量
+                'total_decoding_time/s': [],
+                'generate_tokens': []
             },
             dtype=np.float32
         )
@@ -1174,18 +1174,19 @@ class Scheduler:
             generate_token_num = task.get_reqs()[0].get_output_len() - 1
             tpot = total_decoding_time if generate_token_num == 0 \
                                                 else total_decoding_time / generate_token_num
-            e2e_time = total_decoding_time + ttft
+            e2e_time = task.metadata.finished_time -task.metadata.arrival_time
+            
             df_ = pd.DataFrame(
-                [[ttft, tpot, time_in_pool, e2e_time,context_latency, total_decoding_time, generate_token_num]],
+                [[ttft, tpot,e2e_time, time_in_pool, context_latency, total_decoding_time, generate_token_num]],
                 columns=['TTFT/s', 'TPOT/s', 'e2e_time/s','time_in_pool/s', 'context_latency/s', 'total_decoding_time/s', 'generate_tokens'],
                 index=[str(task.task_id)]
             )
             df = pd.concat([df, df_])
-        max_, min_, mean_, p99_ = df.max(), df.min(), df.mean(), df.quantile(0.90)
-        df.loc['Max'] = max_
-        df.loc['Min'] = min_
-        df.loc['Mean'] = mean_
-        df.loc['P99'] = p99_
+        _max, _min, _mean, _p90 = df.max(), df.min(), df.mean(), df.quantile(0.90)
+        df.loc['Max'] = _max
+        df.loc['Min'] = _min
+        df.loc['Mean'] = _mean
+        df.loc['P90'] = _p90
         return df
 
     def __del__(self):
@@ -1209,6 +1210,6 @@ class Scheduler:
                             'display.float_format', '{:^6,.2f}'.format,
                             'expand_frame_repr', False):
             logger.info(self.df.loc[["Max", "Min", "Mean"]])
-            logger.info(time_df.loc[["Max", "Min", "Mean", "P99"]])
+            logger.info(time_df.loc[["Max", "Min", "Mean", "P90"]])
         self.df.astype(str).to_csv("tas_infomation.csv", mode="w")
         time_df.astype(str).to_csv("sinfer_perf.csv", mode="w")

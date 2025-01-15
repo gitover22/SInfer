@@ -4,7 +4,7 @@
 - 用法示例
 搜索固定配置下，使吞吐量最大`max_num_seqs`值，其中参数部分保持与`benchmark_latency.py`/`benchmark_throughput.py`一致。
 ```bash
-python tools/utils/tune_max_num_seqs.py --backend sinfer --input-len 1024 --output-len 1024 --model /Path/to/Llama-2-70b-chat-hf/ -tp 1 --max-model-len 4096 --dtype float16 --num-prompts 10
+python tools/utils/tune_max_num_seqs.py --backend sinfer --input-len 1024 --output-len 1024 --model test/Meta-Llama-3-8B-Instruct -tp 8 --max-model-len 4096 --dtype float16 --num-prompts 10
 ```
 通过执行上述命令，可以搜索得到最优`max_num_seqs`配置，在构建LLM对象时，作为参数传入使用。
 

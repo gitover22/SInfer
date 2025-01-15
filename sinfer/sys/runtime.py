@@ -76,38 +76,38 @@ class LLMRuntime:
         log_stats: bool,
         usage_context: UsageContext = UsageContext.ENGINE_CONTEXT,
     ) -> None:
-        logger.info(
-            "Initializing an LLM runtime (v%s) with config: model=%r, tokenizer=%r,"
-            "skip_tokenizer_init=%s, tokenizer_mode=%s, revision=%s, "
-            "tokenizer_revision=%s, trust_remote_code=%s, dtype=%s, "
-            "max_seq_len=%d, download_dir=%r, load_format=%s, "
-            "tensor_parallel_size=%d, disable_custom_all_reduce=%s, "
-            "quantization=%s, enforce_eager=%s, kv_cache_dtype=%s, "
-            "quantization_param_path=%s, device_config=%s, "
-            "decoding_config=%r, seed=%d, served_model_name=%s)",
-            sinfer.__version__,
-            model_config.model,
-            model_config.tokenizer,
-            model_config.skip_tokenizer_init,
-            model_config.tokenizer_mode,
-            model_config.revision,
-            model_config.tokenizer_revision,
-            model_config.trust_remote_code,
-            model_config.dtype,
-            model_config.max_model_len,
-            load_config.download_dir,
-            load_config.load_format,
-            parallel_config.tensor_parallel_size,
-            parallel_config.disable_custom_all_reduce,
-            model_config.quantization,
-            model_config.enforce_eager,
-            cache_config.cache_dtype,
-            model_config.quantization_param_path,
-            device_config.device,
-            decoding_config,
-            model_config.seed,
-            model_config.served_model_name,
-        )
+        # logger.info(
+        #     "Initializing an LLM runtime (v%s) with config: model=%r, tokenizer=%r,"
+        #     "skip_tokenizer_init=%s, tokenizer_mode=%s, revision=%s, "
+        #     "tokenizer_revision=%s, trust_remote_code=%s, dtype=%s, "
+        #     "max_seq_len=%d, download_dir=%r, load_format=%s, "
+        #     "tensor_parallel_size=%d, disable_custom_all_reduce=%s, "
+        #     "quantization=%s, enforce_eager=%s, kv_cache_dtype=%s, "
+        #     "quantization_param_path=%s, device_config=%s, "
+        #     "decoding_config=%r, seed=%d, served_model_name=%s)",
+        #     sinfer.__version__,
+        #     model_config.model,
+        #     model_config.tokenizer,
+        #     model_config.skip_tokenizer_init,
+        #     model_config.tokenizer_mode,
+        #     model_config.revision,
+        #     model_config.tokenizer_revision,
+        #     model_config.trust_remote_code,
+        #     model_config.dtype,
+        #     model_config.max_model_len,
+        #     load_config.download_dir,
+        #     load_config.load_format,
+        #     parallel_config.tensor_parallel_size,
+        #     parallel_config.disable_custom_all_reduce,
+        #     model_config.quantization,
+        #     model_config.enforce_eager,
+        #     cache_config.cache_dtype,
+        #     model_config.quantization_param_path,
+        #     device_config.device,
+        #     decoding_config,
+        #     model_config.seed,
+        #     model_config.served_model_name,
+        # )
         self.model_config = model_config
         self.cache_config = cache_config
         self.lora_config = lora_config
@@ -231,8 +231,6 @@ class LLMRuntime:
         usage_context: UsageContext = UsageContext.ENGINE_CONTEXT,
     ) -> "LLMRuntime":
         runtime_config = runtime_args.create_runtime_config()
-
-        
         if runtime_config.device_config.device_type == "cpu":
             from sinfer.hil.cpu_Interface import CPUInterface
             interfacer = CPUInterface
@@ -246,7 +244,6 @@ class LLMRuntime:
             from sinfer.hil.mlu_Interface import MLUInterface
             interfacer = MLUInterface
 
-        # 运行构造函数创建runtime对象
         runtime = cls(
             **runtime_config.to_dict(),
             interfacer=interfacer,
@@ -514,7 +511,7 @@ class LLMRuntime:
 
        
         
-        time_e2e_requests: List[float] = [] # Latency:e2e
+        time_e2e_requests: List[float] = []         # Latency:e2e
         
         _prompt_tokens_num: List[int] = []
         _generation_tokens_num: List[int] = []
@@ -568,17 +565,17 @@ class LLMRuntime:
                     time_e2e_requests.append(now - task.metadata.arrival_time)
 
                     # Metadata
-                    _prompt_tokens_num.append(
-                        len(task.prompt_token_ids))
+                    _prompt_tokens_num.append(len(task.prompt_token_ids))
+
                     _generation_tokens_num.extend([
-                        seq.get_output_len()
-                        for seq in task.get_finished_reqs()
+                        req.get_output_len()
+                        for req in task.get_finished_reqs()
                     ])
                     best_of_requests.append(task.sampling_params.best_of)
                     n_requests.append(task.sampling_params.n)
                     finished_reason_requests.extend([
-                        RequestStatus.get_finished_reason(seq.status)
-                        for seq in task.get_finished_reqs()
+                        RequestStatus.get_finished_reason(req.status)
+                        for req in task.get_finished_reqs()
                     ])
 
             # Number of generation tokens.

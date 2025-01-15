@@ -41,7 +41,7 @@ class RuntimeArgs:
     swap_space: int = 2  # GiB
     gpu_memory_utilization: float = 0.95
     max_num_batched_tokens: Optional[int] = None
-    max_num_seqs: int = 1024     # batch size
+    max_num_seqs: int = 512     # batch size
     max_logprobs: int = 5  # OpenAI default value
     disable_log_stats: bool = False
     revision: Optional[str] = None
@@ -605,7 +605,7 @@ class RuntimeArgs:
         decoding_config = DecodingConfig(
             guided_decoding_backend=self.guided_decoding_backend)
 
-        cache_config.block_size = BlockSizeInfo.BLOCK_SIZE # 重新设置 block_size 以支持分页和非分页模式
+        cache_config.block_size = BlockSizeInfo.BLOCK_SIZE
         return RuntimeConfig(model_config=model_config,
                             cache_config=cache_config,
                             parallel_config=parallel_config,

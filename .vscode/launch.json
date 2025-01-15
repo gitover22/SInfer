@@ -19,6 +19,7 @@
             "program": "${workspaceFolder}/test/offline_infer.py",
             "console": "integratedTerminal",
             "justMyCode": false,
+            "purpose": ["debug-in-terminal"],
             "cwd": "${workspaceFolder}/test"
         },
         {
