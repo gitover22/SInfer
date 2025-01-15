@@ -11,7 +11,7 @@ sampling_params = SamplingParams(
 def main(args):
     # 实例化LLM对象
     prompts = read_prompts_from_csv("prompts.csv",args.num)
-    llm = LLM(model="./Meta-Llama-3-8B-Instruct",trust_remote_code=True,dtype="float16",tensor_parallel_size =1,gpu_memory_utilization=0.95)
+    llm = LLM(model="./Meta-Llama-3-8B-Instruct",trust_remote_code=True,dtype="float16",tensor_parallel_size =8,gpu_memory_utilization=0.95)
 
     # s = time.time()
     outputs = llm.generate(prompts, sampling_params)
@@ -31,7 +31,7 @@ def main(args):
     # print(f"Total tokens generated: {sum}")
     # print(f"prompts per seconds: {len(prompts)/total_time:.2f}")
     # print(f"Tokens per second: {tokens_per_second:.2f}")
-    print("all done")
+    print("========================================================  all done  ========================================================")
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(
