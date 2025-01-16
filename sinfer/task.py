@@ -81,7 +81,7 @@ class Task:
                                       first_scheduled_time=None,
                                       first_token_time=None,
                                       time_in_pool=None)
-        self.metadata.prompt_length = max(len(req.prompt) for req in reqs)
+        self.metadata.prompt_length = max(len(req.prompt) if req.prompt is not None else 0 for req in reqs)
         self.lora_request = lora_request
         self.prompt_logprobs: Optional[PromptLogprobs] = None
         self.state = Task_State()

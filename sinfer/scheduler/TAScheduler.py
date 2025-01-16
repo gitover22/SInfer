@@ -322,12 +322,12 @@ class Scheduler:
                     self.free_req(seq)
 
     def has_unfinished_tasks(self) -> bool:
-        '''是否还有没完成的序列'''
+        
         return len(self.ReadyPool) != 0 or len(self.RunningPool) != 0 or len(
             self.BlockedPool) != 0
 
     def get_num_unfinished_tasks(self) -> int:
-        '''获取未完成的序列组'''
+        
         return len(self.ReadyPool) + len(self.RunningPool) + len(self.BlockedPool)
 
     def _schedule_running_task(
@@ -1207,7 +1207,7 @@ class Scheduler:
         with pd.option_context('display.max_rows', None,
                             'display.max_columns', None,
                             'display.max_colwidth', None,
-                            'display.float_format', '{:^6,.2f}'.format,
+                            'display.float_format', '{:^6,.3f}'.format,
                             'expand_frame_repr', False):
             logger.info(self.df.loc[["Max", "Min", "Mean"]])
             logger.info(time_df.loc[["Max", "Min", "Mean", "P90"]])

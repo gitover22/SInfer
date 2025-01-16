@@ -11,35 +11,17 @@ from sinfer.request import Request
 from sinfer.transformers_utils.detokenizer import Detokenizer
 from sinfer.utils import Counter
 
-
-class SequenceGroupOutputProcessor(ABC):
-    """Interface for logic that processes new token ids in sequence groups,
-    managing detokenization, stop checking, and freeing/forking sequences with
-    the scheduler.
-
-    This is highly coupled with the LLMEngine and should be seen as an extension
-    of it. The logic is separated to simplify the LLMEngine class and allow
-    separate implementations for single-step decoding (which supports beam
-    search sequence forking) and multi-step decoding (which does not support
-    beam search, but does support speculative decoding).
-    """
-
+class TaskOutputProcessor(ABC):
     @staticmethod
     def create_output_processor(
         scheduler_config: SchedulerConfig,
         detokenizer: Detokenizer,
         scheduler: Scheduler,
         seq_counter: Counter,
-        get_tokenizer_for_seq: Callable[[Request], PreTrainedTokenizer],
+        get_req_tokenizer: Callable[[Request], PreTrainedTokenizer],
         stop_checker: "StopChecker",
     ):
-        """Create an output processor.
-
-        This returns a single-step output processor if num_lookahead_slots is
-        zero, else returns a multi-step output processor.
-        """
         if scheduler_config.num_lookahead_slots == 0:
-            # Importing here to avoid cycle.
             from sinfer.sys.output_processor.single_step import (
                 SingleStepOutputProcessor)
             return SingleStepOutputProcessor(
@@ -50,28 +32,22 @@ class SequenceGroupOutputProcessor(ABC):
                 stop_checker,
             )
         else:
-            # Importing here to avoid cycle.
             from sinfer.sys.output_processor.multi_step import (
                 MultiStepOutputProcessor)
             return MultiStepOutputProcessor(
                 detokenizer,
                 scheduler,
                 seq_counter,
-                get_tokenizer_for_seq,
+                get_req_tokenizer,
                 stop_checker,
             )
 
     @abstractmethod
-    def process_outputs(self, sequence_group: Task,
+    def process_outputs(self, task: Task,
                         outputs: List[TaskOutput]) -> None:
-        """Process new token ids for the sequence group. Handles logic such as
-        detokenization, stop checking, and freeing/forking sequences in the
-        scheduler.
-        """
         pass
 
     @abstractmethod
-    def process_prompt_logprob(self, seq_group: Task,
+    def process_prompt_logprob(self, task: Task,
                                outputs: List[TaskOutput]) -> None:
-        """Update prompt logprobs received from outputs to seq_group."""
         pass

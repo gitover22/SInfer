@@ -124,17 +124,17 @@ if __name__ == '__main__':
                         '-q',
                         choices=[*QUANTIZATION_METHODS, None],
                         default=None)
-    parser.add_argument('--tensor-parallel-size', '-tp', type=int, default=4)
-    parser.add_argument('--input-len', type=int, default=32)  # 假数据的prompt长度
-    parser.add_argument('--output-len', type=int, default=512) # max_tokens            128
-    parser.add_argument('--batch-size', type=int, default=900) # batch-size(模拟并发数)  8
-    parser.add_argument('--max-num-seqs',                       # 
+    parser.add_argument('--tensor-parallel-size', '-tp', type=int, default=8)
+    parser.add_argument('--input-len', type=int, default=32)  # prompt长度
+    parser.add_argument('--output-len', type=int, default=128) # max_tokens            128
+    parser.add_argument('--batch-size', type=int, default=200) #   8
+    parser.add_argument('--max-num-seqs',                       
                         type=int,
-                        default=1024,   # 256                     
+                        default=512,   # 256                     
                         help='Maximum number of sequences per iteration.')
     parser.add_argument('--num-iters-warmup',
                         type=int,
-                        default=1,     # 10
+                        default=10,     # 10
                         help='Number of iterations to run for warmup.')
     parser.add_argument('--n',
                         type=int,
@@ -168,8 +168,7 @@ if __name__ == '__main__':
         help=
         'Data type for kv cache storage. If "auto", will use model data type. '
         'FP8_E5M2 (without scaling) is only supported on cuda version greater '
-        'than 11.8. On ROCm (AMD GPU), FP8_E4M3 is instead supported for '
-        'common inference criteria.')
+        'than 11.8. ')
     parser.add_argument(
         '--quantization-param-path',
         type=str,

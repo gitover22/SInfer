@@ -318,7 +318,6 @@ class StatLogger:
                 prompt_throughput=prompt_throughput,
                 generation_throughput=generation_throughput)
 
-            # Log to stdout.
             logger.info(
                 "Avg prompt throughput: %.1f tokens/s, "
                 "Avg generation throughput: %.1f tokens/s, "

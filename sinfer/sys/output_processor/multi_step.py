@@ -6,7 +6,7 @@ from transformers import PreTrainedTokenizer
 from sinfer.task import Task, TaskOutput
 from sinfer.scheduler.TAScheduler import Scheduler
 from sinfer.sys.output_processor.interfaces import (
-    SequenceGroupOutputProcessor)
+    TaskOutputProcessor)
 from sinfer.sys.output_processor.stop_checker import StopChecker
 from sinfer.logger import init_logger
 from sinfer.sampling_params import SamplingParams
@@ -17,18 +17,13 @@ from sinfer.utils import Counter
 logger = init_logger(__name__)
 
 
-class MultiStepOutputProcessor(SequenceGroupOutputProcessor):
-    """SequenceGroupOutputProcessor which handles logic related to
-    detokenization and stopping conditions. It specializes to "multi-step
-    decoding", where SInfer's worker may generate multiple tokens per invocation.
-    This is currently mutually exclusive with advanced sampling techniques like
-    beam search, which motivates the separation of this logic from the single
-    step output processor.
+class MultiStepOutputProcessor(TaskOutputProcessor):
+    """TaskOutputProcessor 处理与去标记化和停止条件相关的逻辑。它专门用于“多步解码”，
+    在这种解码方式中，SInfer的工作者可能每次调用生成多个tokens。
+    目前，这与束搜索等高级采样技术是互斥的，这也促使将该逻辑与单步输出处理器分离。
 
-    This class is responsible for things such as correctly appending all new
-    token ids to their sequence, detokenizing new token ids, truncating new
-    output tokens after an eos token, and correctly handling the case where the
-    number of new output tokens per sequence differs in a single batch.
+    该类负责处理一些任务，例如正确地将所有新token ids附加到它们的序列中，去标记化新token ids，
+    在生成eos token后截断新的输出tokens，以及正确处理在单个批次中每个序列生成的新输出token数量不同的情况。
     """
 
     def __init__(
@@ -36,19 +31,17 @@ class MultiStepOutputProcessor(SequenceGroupOutputProcessor):
         detokenizer: Detokenizer,
         scheduler: Scheduler,
         seq_counter: Counter,
-        get_tokenizer_for_seq: Callable[[Request], PreTrainedTokenizer],
+        get_req_tokenizer: Callable[[Request], PreTrainedTokenizer],
         stop_checker: StopChecker,
     ):
         self.detokenizer = detokenizer
         self.scheduler = scheduler
         self.seq_counter = seq_counter
-        self.get_tokenizer_for_seq = get_tokenizer_for_seq
+        self.get_req_tokenizer = get_req_tokenizer
         self.stop_checker = stop_checker
 
-    def process_prompt_logprob(self, seq_group: Task,
+    def process_prompt_logprob(self, task: Task,
                                outputs: List[TaskOutput]) -> None:
-        # TODO(sang): Prompt logprob currently not implemented in multi step
-        # workers.
         self._log_prompt_logprob_unsupported_warning_once()
 
     @staticmethod
@@ -58,70 +51,63 @@ class MultiStepOutputProcessor(SequenceGroupOutputProcessor):
             "Prompt logprob is not supported by multi step workers. "
             "(e.g., speculative decode uses multi step workers).")
 
-    def process_outputs(self, sequence_group: Task,
+    def process_outputs(self, task: Task,
                         outputs: List[TaskOutput]) -> None:
-        """Append new tokens in the outputs to sequences in the sequence group.
+        """将输出中的新tokens附加到任务中的请求。
 
-        This only supports sequence groups of size 1. It supports greater than
-        one new token per sequence.
+        这仅支持大小为1的任务。它支持每个请求生成多个新token。
 
-        This applies logic like stop condition checking and detokenization,
-        including freeing finished sequences. It also handles cases where there
-        are tokens emitted after the EOS token.
+        该过程应用了诸如停止条件检查和去标记化的逻辑，
+        包括释放已完成的请求。它还处理在eos token后生成tokens的情况。
         """
-        reqs = sequence_group.get_reqs(status=RequestStatus.RUNNING)
+        reqs = task.get_reqs(status=RequestStatus.RUNNING)
 
-        assert reqs, "expected running sequences"
+        assert reqs, "expected running requests"
         assert len(reqs) == 1, (
             "Beam search not supported in multi-step decoding.")
-        seq = reqs[0]
+        req = reqs[0]
 
-        # Since there's only one sequence per sequence group, we can take the
-        # first sample.
+        # 由于每个任务只有一个请求，我们可以获取第一个样本
         samples = [outputs[step].samples[0] for step in range(len(outputs))]
 
-        # -1 means the output token is not valid (eg. due to spec decode
-        # rejecting tokens).
+        # -1表示输出token无效（例如，由于推测解码拒绝tokens）
         valid_samples = [
             sample for sample in samples if sample.output_token != -1
         ]
         assert valid_samples
 
-        self._process_seq_outputs(seq, valid_samples,
-                                  sequence_group.sampling_params)
+        self._process_req_outputs(req, valid_samples,
+                                  task.sampling_params)
 
-    def _process_seq_outputs(self, seq: Request,
+    def _process_req_outputs(self, req: Request,
                              valid_samples: List[RequestOutput],
                              sampling_params: SamplingParams) -> None:
         output_token_ids = [sample.output_token for sample in valid_samples]
         output_logprobs = [sample.logprobs for sample in valid_samples]
 
-        # Truncate to max_tokens if necessary.
-        remaining_tokens = sampling_params.max_tokens - (seq.get_output_len() +
+        # 如有必要，截断至max_tokens
+        remaining_tokens = sampling_params.max_tokens - (req.get_output_len() +
                                                          len(output_token_ids))
         if remaining_tokens < 0:
             valid_samples = valid_samples[:remaining_tokens]
             output_token_ids = output_token_ids[:remaining_tokens]
 
-        # Truncate any tokens after EOS. This is required as spec decode
-        # generates a fixed number of tokens without evaluating stopping
-        # conditions within the block. This can cause an eos token to be
-        # unintentionally ignored.
+        # 截断eos后的任何token。由于推测解码
+        # 会生成固定数量的tokens，而不在块内评估停止条件
+        # 这可能导致eos token被无意忽略
         if not sampling_params.ignore_eos:
-            eos_token_id = self.get_tokenizer_for_seq(seq).eos_token_id
-            # Avoiding .index calls as exception throwing in the happy path
-            # is expensive.
+            eos_token_id = self.get_req_tokenizer(req).eos_token_id
+            # 避免在正常路径中调用.index，因异常处理开销较大
             for i in range(len(output_token_ids)):
                 if output_token_ids[i] == eos_token_id:
                     output_token_ids = output_token_ids[:i + 1]
                     valid_samples = valid_samples[:i + 1]
                     break
 
-        # Incrementally append tokens to the sequence, as if we had only one new
-        # token.
+        # 逐步将token附加到请求中，就像我们每次只生成一个新token一样
         for output_token_id, output_logprob in zip(output_token_ids,
                                                    output_logprobs):
-            seq.append_token_id(
+            req.append_token_id(
                 token_id=output_token_id,
                 logprobs=output_logprob,
             )
@@ -129,14 +115,14 @@ class MultiStepOutputProcessor(SequenceGroupOutputProcessor):
             new_char_count = 0
             if sampling_params.detokenize:
                 new_char_count = self.detokenizer.decode_sequence_inplace(
-                    seq, sampling_params)
+                    req, sampling_params)
 
-            self.stop_checker.maybe_stop_sequence(
-                seq,
+            self.stop_checker.maybe_stop_request(
+                req,
                 new_char_count=new_char_count,
                 sampling_params=sampling_params)
-            if seq.is_finished():
+            if req.is_finished():
                 break
 
-        if seq.is_finished():
-            self.scheduler.free_req(seq)
+        if req.is_finished():
+            self.scheduler.free_req(req)

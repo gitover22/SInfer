@@ -13,7 +13,7 @@ from sinfer.scheduler.TAScheduler import (ScheduledTask, Scheduler,
 from sinfer.sys.runtime_args import RuntimeArgs
 from sinfer.sys.metrics import StatLogger, Stats
 from sinfer.sys.output_processor.interfaces import (
-    SequenceGroupOutputProcessor)
+    TaskOutputProcessor)
 from sinfer.sys.output_processor.stop_checker import StopChecker
 from sinfer.sys.output_processor.util import create_output_by_task
 from sinfer.hil.InterfaceBase import InterfaceBase
@@ -48,11 +48,11 @@ def _load_generation_config_dict(model_config: ModelConfig):
 class LLMRuntime:
     """
     参数:
-        model_config: LLM model 配置.
-        cache_config: KV cache内存管理配置.
-        parallel_config: distributed execution配置.
-        scheduler_config: request scheduler配置.
-        device_config: device配置.
+        
+        
+        
+        
+        
         lora_config (Optional): serving multi-LoRA配置.
         vision_language_config (Optional): vision language models配置
         speculative_config (Optional): speculative decoding配置.
@@ -141,10 +141,8 @@ class LLMRuntime:
             vision_language_config=vision_language_config,
             load_config=load_config,
         )
+        self._preallocate_kv_caches()
 
-        self._preallocate_kv_caches() # 初始化kv cache缓存，CacheManager
-
-        # 收集信息
         if is_usage_stats_enabled():
             from sinfer.model_executor.model_loader import (
                 get_architecture_class_name)
@@ -193,17 +191,16 @@ class LLMRuntime:
                 max_model_len=self.model_config.max_model_len)
             self.stat_logger.info("cache_config", self.cache_config)
 
-        # 创建序列输出处理器
         self.output_processor = (
-            SequenceGroupOutputProcessor.create_output_processor(
+            TaskOutputProcessor.create_output_processor(
                 self.scheduler_config,
                 self.detokenizer,
                 self.scheduler,
                 self.req_counter,
-                self.get_tokenizer_for_seq,
+                self.get_req_tokenizer,
                 stop_checker=StopChecker(
                     self.scheduler_config.max_model_len,
-                    self.get_tokenizer_for_seq,
+                    self.get_req_tokenizer,
                 ),
             ))
 
@@ -253,20 +250,18 @@ class LLMRuntime:
         return runtime
 
     def __reduce__(self):
-        # 确保 LLMRuntime 对象不会被序列化
         raise RuntimeError("LLMRuntime should not be pickled!")
 
     def __del__(self):
-        # 当引擎被垃圾回收时关闭model executor
-        if model_executor := getattr(self, "model_executor", None):
-            model_executor.shutdown()
+        if interfacer := getattr(self, "_interfacer", None):
+            interfacer.shutdown()
 
     def get_tokenizer(self) -> "PreTrainedTokenizer":
         return self.tokenizer.get_lora_tokenizer(None)
 
-    def get_tokenizer_for_seq(self,
-                              sequence: Request) -> "PreTrainedTokenizer":
-        return self.tokenizer.get_lora_tokenizer(sequence.lora_request)
+    def get_req_tokenizer(self,
+                              req: Request) -> "PreTrainedTokenizer":
+        return self.tokenizer.get_lora_tokenizer(req.lora_request)
 
     def _init_tokenizer(self, **tokenizer_init_kwargs):
         init_kwargs = dict(
@@ -281,15 +276,7 @@ class LLMRuntime:
         self.tokenizer = get_tokenizer_group(
             self.parallel_config.tokenizer_pool_config, **init_kwargs)
 
-    def _verify_args(self) -> None:
-        self.model_config.verify_with_parallel_config(self.parallel_config)
-        self.cache_config.verify_with_parallel_config(self.parallel_config)
-        if self.lora_config:
-            self.lora_config.verify_with_model_config(self.model_config)
-            self.lora_config.verify_with_scheduler_config(
-                self.scheduler_config)
-
-    def encode_request(
+    def encode_(
         self,
         request_id: str,
         prompt: Optional[str],
@@ -303,6 +290,14 @@ class LLMRuntime:
                                                      lora_request=lora_request)
         return prompt_token_ids
 
+    def _verify_args(self) -> None:
+        self.model_config.verify_with_parallel_config(self.parallel_config)
+        self.cache_config.verify_with_parallel_config(self.parallel_config)
+        if self.lora_config:
+            self.lora_config.verify_with_model_config(self.model_config)
+            self.lora_config.verify_with_scheduler_config(
+                self.scheduler_config)
+            
     def add_task(
         self,
         task_id: str,
@@ -314,12 +309,9 @@ class LLMRuntime:
         multi_modal_data: Optional[MultiModalData] = None,
     ) -> None:
         """
-        将一个request添加给LLMRuntime
         Args:
-            task_id: task的id
-            prompt: prompt( str )
             sampling_params: 采样参数(温度、topk等)
-            prompt_token_ids: prompt(token_id版), 没有提供的话会调用tokenizer来做
+            prompt_token_ids: 没有提供的话会调用tokenizer来做
             arrival_time: 请求到达的时间。如果是None,则用当前系统时间
             lora_request: 如果是用lora模型做推理,相关的lora请求
             multi_modal_data: 多模态数据
@@ -336,15 +328,12 @@ class LLMRuntime:
                              f"{max_logprobs} logprobs.")
         if arrival_time is None:
             arrival_time = time.time()
-        prompt_token_ids = self.encode_request(
+        prompt_token_ids = self.encode_(
             request_id=task_id,
             prompt=prompt,
             prompt_token_ids=prompt_token_ids,
             lora_request=lora_request)
-
-        # 将用户prompt包装为Request
-        block_size = self.cache_config.block_size
-        req_id = next(self.req_counter) # 获取Request对应的id
+        # prompt -> Request
         eos_token_id = None
         if self.tokenizer:
             eos_token_id = self.tokenizer.get_lora_tokenizer(
@@ -352,54 +341,40 @@ class LLMRuntime:
         else:
             logger.warning("Use None for EOS token id because tokenizer is "
                            "not initialized")
+        req_id = next(self.req_counter)
+        block_size = self.cache_config.block_size
         req = Request(req_id, prompt, prompt_token_ids, block_size,
                        eos_token_id, lora_request)
-
-        # 对SamplingParams进行防御性拷贝，这些参数由采样器使用，但不会对LogitsProcessor对象进行深拷贝
         sampling_params = sampling_params.clone()
-        
+        # add eos 
         if req.eos_token_id is not None:
-            sampling_params.all_stop_token_ids.add(req.eos_token_id)  # 将eos token ID添加到sampling_params中，以支持min_tokens的处理
+            sampling_params.all_stop_token_ids.add(req.eos_token_id)
         sampling_params.update_from_generation_config(
             self.generation_config_fields)
-
-        # 检查 input_len + output_len <= block_size(非分页模式下，缓存的块大小需要能够容纳输入和输出的token)
+        # check blocksize
         num_prompt_tokens = 0
-        out_len = sampling_params.max_tokens # 生成的最大token数量
-
+        out_len = sampling_params.max_tokens 
         from sinfer.Intercept.mlu_definitions import BlockSizeInfo, USE_PAGED
         if (USE_PAGED == False and BlockSizeInfo.BLOCK_SIZE < out_len + req.get_len()):
             raise ValueError("BLOCK_SIZE(" + str(BlockSizeInfo.BLOCK_SIZE) +
                 ") can't smaller than input_len(" + str(req.get_len()) + ") + output_len(" + str(out_len) + ").")
-
-        # 使用req包装为Task,每个prompt被包装成一个Task实例
         task = Task(task_id, [req], sampling_params,
                                   arrival_time, lora_request, multi_modal_data)
-
-        # 向调度器添加序列组, 添加进scheduler的self.waiting队列中
         self.scheduler.add_task(task)
 
     def abort_task(self, task_id: Union[str, Iterable[str]]) -> None:
-        """中止给定 ID 的请求
-        Args:
-            task_id: The ID(s) of the task to abort.
-        """
         self.scheduler.abort_task(task_id)
 
     def get_model_config(self) -> ModelConfig:
-        """Gets the model configuration."""
         return self.model_config
 
     def get_decoding_config(self) -> DecodingConfig:
-        """Gets the decoding configuration."""
         return self.decoding_config
 
     def get_num_unfinished_requests(self) -> int:
-        """Gets the number of unfinished requests."""
         return self.scheduler.get_num_unfinished_tasks()
 
     def has_unfinished_requests(self) -> bool:
-        """Returns True if there are unfinished requests."""
         return self.scheduler.has_unfinished_tasks()
 
     def _process_model_outputs(
@@ -409,17 +384,13 @@ class LLMRuntime:
         ignored_tasks: List[Task],
         task_metadata_list: List[TaskMetadata],
     ) -> List[RequestOutput]:
-        """Apply the model output to the requests in the scheduled tasks.
-        Returns RequestOutputs that can be returned to the client.
-        """
-
         now = time.time()
 
-        # Organize outputs by [task][step] instead of [step][task].
+        # Organize outputs by [task][step]
         output_by_task = create_output_by_task(
             sampler_outputs=output, num_tasks=len(scheduled_tasks))
 
-        # Update the scheduled tasks with the model outputs.
+        # 根据模型输出更新task的状态
         for scheduled_task, outputs, task_meta in zip(
                 scheduled_tasks, output_by_task,task_metadata_list):
             task = scheduled_task.task
@@ -430,10 +401,9 @@ class LLMRuntime:
             if task_meta.do_sample:
                 self.output_processor.process_outputs(task, outputs)
 
-        # Free finished tasks
         self.scheduler.free_all_finished_tasks()
 
-        # Create the outputs.
+        # 创建输出
         request_outputs: List[RequestOutput] = []
         for scheduled_task in scheduled_tasks:
             task = scheduled_task.task
@@ -477,7 +447,7 @@ class LLMRuntime:
             self,
             scheduler_outputs: Optional[SchedulerOutputs] = None,
             model_output: Optional[List[SamplerOutput]] = None) -> None:
-        # 当没有请求时强制日志
+        # 
         if self.log_stats:
             self.stat_logger.log(
                 self._get_stats(scheduler_outputs, model_output))
@@ -588,7 +558,6 @@ class LLMRuntime:
                 scheduler_outputs.num_batched_tokens - num_prompt_tokens_iter +
                 num_generation_tokens_from_prefill_groups)
 
-
         return Stats(
             now=now,
 
@@ -618,6 +587,9 @@ class LLMRuntime:
             finished_reason_requests=finished_reason_requests,
         )
 
+    def check_health(self) -> None:
+        self._interfacer.check_health()
+
     def add_lora(self, lora_request: LoRARequest) -> bool:
         return self._interfacer.add_lora(lora_request)
 
@@ -626,9 +598,6 @@ class LLMRuntime:
 
     def list_loras(self) -> List[int]:
         return self._interfacer.list_loras()
-
-    def check_health(self) -> None:
-        self._interfacer.check_health()
 
     def intercept_get_latency(self):
         latency = self._interfacer.get_latency()

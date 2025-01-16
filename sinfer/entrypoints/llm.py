@@ -127,11 +127,9 @@ class LLM:
     ) -> List[RequestOutput]:
         """
         Args:
-            prompts: 提示
             sampling_params: 为 None ,将使用默认的采样参数, 
                 当采样参数为单个值时,它将应用于每个提示(prompt)
                 当采样参数为列表时, 该列表的长度必须与提示的数量相同, 并且会与提示逐一配对使用
-            prompt_token_ids: 提示的token IDs列表. 如果为None, 将使用tokenizer将提示转换为token IDs
         """
         if prompts is None and prompt_token_ids is None:
             raise ValueError("Either prompts or prompt_token_ids must be "
@@ -153,7 +151,7 @@ class LLM:
             num_requests = len(prompt_token_ids)
 
         if sampling_params is None:
-            sampling_params = SamplingParams()  # 使用默认采样参数
+            sampling_params = SamplingParams()
 
         elif isinstance(sampling_params,list) and len(sampling_params) != num_requests:
             raise ValueError("The lengths of prompts and sampling_params "
@@ -161,7 +159,7 @@ class LLM:
         if multi_modal_data:
             multi_modal_data.data = multi_modal_data.data.to(torch.float16)
 
-        # 给推理引擎添加Task
+        # add Task
         for i in range(num_requests):
             prompt = prompts[i] if prompts is not None else None
             token_ids = None if prompt_token_ids is None else prompt_token_ids[i]
@@ -185,7 +183,7 @@ class LLM:
         lora_request: Optional[LoRARequest] = None,
         multi_modal_data: Optional[MultiModalData] = None,
     ) -> None:
-        task_id = str(next(self.task_counter)) # task id 从 0 开始计数
+        task_id = str(next(self.task_counter)) # task_id from 0 start
         self.llm_runtime.add_task(task_id,
                                     prompt,
                                     sampling_params,
@@ -201,11 +199,11 @@ class LLM:
                         dynamic_ncols=True)
         from sinfer.Intercept.mlu_definitions import check_latency_debug
         is_latency_debug = check_latency_debug()
-        # 记录开始时间 
+        # record start time
         if is_latency_debug:
             self.dump_info.capture_cpu_info()
             e2e_start_time = self.metric.get_mlu_cost_time()
-        # 运行引擎
+        # start run
         outputs: List[RequestOutput] = []
         while self.llm_runtime.has_unfinished_requests():
             if is_latency_debug :
@@ -227,7 +225,7 @@ class LLM:
                     outputs.append(output)
                     if use_tqdm:
                         pbar.update(1)
-        # 计算延迟
+        # calculate lantency
         if is_latency_debug:
             e2e_end_time = self.metric.get_mlu_cost_time()
             e2e_latency = e2e_end_time - e2e_start_time
@@ -248,7 +246,7 @@ class LLM:
         dump_info=None
     ) -> None:
         '''
-        @brief:该函数用来打印SInfer调用generate接口过程中代码统计的各项性能指标数据
+        打印各项性能指标数据
         @params: 
             metrics_idx_start: 考虑存在调用generate接口为warmup过程的情况，
             因此设置该参数可忽略统计[0,metrics_idx_start)之间的数据,默认为0,即所有性能数据有效。
