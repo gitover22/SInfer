@@ -1,2 +1,0 @@
-datetime,model,weight dtype,batch size,input len,output len,tp,context latency(ms),per token latency(ms)
-2025-01-16 08:18:37,./Meta-Llama-3-8B-Instruct,float16,64,32,128,4,460.47,197.91
