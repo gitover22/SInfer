@@ -11,20 +11,20 @@ sampling_params = SamplingParams(
 def main(args):
     # 实例化LLM对象
     prompts = read_prompts_from_csv("prompts.csv",args.num)
-    llm = LLM(model="./Meta-Llama-3-8B-Instruct",trust_remote_code=True,dtype="float16",tensor_parallel_size =8,gpu_memory_utilization=0.95)
+    llm = LLM(model="./Meta-Llama-3-8B-Instruct",trust_remote_code=True,dtype="float16",tensor_parallel_size =4,gpu_memory_utilization=0.95)
 
-    s = time.time()
+    # s = time.time()
     outputs = llm.generate(prompts, sampling_params)
-    e = time.time()
-    sum:int =0
+    # e = time.time()
+    # sum:int =0
     # 输出
-    for output in outputs:
-        prompt = output.prompt
-        generated_text = output.outputs[0].text
-        print(f"Prompt: {prompt!r}, Generated text: {generated_text!r}")
-        print("\n===========================================================================\n")
-        sum += len(output.outputs[0].token_ids)
-        print("\n===========================================================================\n")
+    # for output in outputs:
+    #     prompt = output.prompt
+    #     generated_text = output.outputs[0].text
+    #     print(f"Prompt: {prompt!r}, Generated text: {generated_text!r}")
+    #     print("\n===========================================================================\n")
+    #     sum += len(output.outputs[0].token_ids)
+    #     print("\n===========================================================================\n")
     # total_time = e - s
     # print("total time: "+str(total_time))
     # tokens_per_second = sum / total_time
