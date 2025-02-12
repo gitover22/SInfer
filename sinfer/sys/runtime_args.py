@@ -39,9 +39,9 @@ class RuntimeArgs:
     block_size: int = -1
     enable_prefix_caching: bool = False
     swap_space: int = 2  # GiB
-    gpu_memory_utilization: float = 0.95
+    gpu_memory_utilization: float = 0.9
     max_num_batched_tokens: Optional[int] = None
-    max_num_seqs: int = 1024     # batch size
+    max_num_seqs: int = 1000     # batch size
     max_logprobs: int = 5  # OpenAI default value
     disable_log_stats: bool = False
     revision: Optional[str] = None

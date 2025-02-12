@@ -763,12 +763,12 @@ class ModelInference:
     @torch.inference_mode()
     def infer_model(
         self,
-        seq_group_metadata_list: List[TaskMetadata],
+        task_metadata_list: List[TaskMetadata],
         kv_caches: List[torch.Tensor],
     ) -> Optional[SamplerOutput]:
         (input_tokens, input_positions, attn_metadata, sampling_metadata,
          lora_requests, lora_mapping, multi_modal_input
-         ) = self.prepare_input_tensors(seq_group_metadata_list)
+         ) = self.prepare_input_tensors(task_metadata_list)
 
         if self.lora_config:
             self.set_active_loras(lora_requests, lora_mapping)
@@ -809,7 +809,11 @@ class ModelInference:
     @torch.inference_mode()
     def profile_run(self) -> None:
         # Enable top-k sampling to reflect the accurate memory usage.
-        sampling_params = SamplingParams(top_p=0.99, top_k=self.vocab_size - 1)
+        # sampling_params = SamplingParams(top_p=0.99, top_k=self.vocab_size - 1)
+        sampling_params = SamplingParams(
+                                            temperature = 0, 
+                                            max_tokens=128
+                                        )
         max_num_batched_tokens = self.scheduler_config.max_num_batched_tokens
         max_num_seqs = self.scheduler_config.max_num_reqs
 

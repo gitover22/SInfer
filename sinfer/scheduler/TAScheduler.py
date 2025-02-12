@@ -1208,7 +1208,7 @@ class Scheduler:
                             'display.max_colwidth', None,
                             'display.float_format', '{:^6,.2f}'.format,
                             'expand_frame_repr', False):
-            logger.info(self.df.loc[["Max", "Min", "Mean"]])
+            # logger.info(self.df.loc[["Max", "Min", "Mean"]])
             logger.info(time_df.loc[["Max", "Min", "Mean", "P99"]])
         self.df.astype(str).to_csv("tas_infomation.csv", mode="w")
         time_df.astype(str).to_csv("sinfer_perf.csv", mode="w")

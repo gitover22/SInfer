@@ -293,11 +293,11 @@ if __name__ == "__main__":
                         type=int,
                         default=900,                    # 1000
                         help="Number of prompts to process.")
-    parser.add_argument("--tensor-parallel-size", "-tp", type=int, default=1)           # 1
+    parser.add_argument("--tensor-parallel-size", "-tp", type=int, default=4)           # 1
     parser.add_argument("--model", type=str, default="./Meta-Llama-3-8B-Instruct")
     parser.add_argument('--gpu-memory-utilization',
                         type=float,
-                        default=1,                            # 0.9
+                        default=0.9,                            # 0.9
                         help='the fraction of GPU memory to be used for '
                         'the model executor, which can range from 0 to 1.'
                         'If unspecified, will use the default value of 0.9.')

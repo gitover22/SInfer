@@ -64,7 +64,6 @@ class MLUInterface(InterfaceBase):
         return self.driver_worker.determine_num_available_blocks()
 
     def initialize_cache(self, num_gpu_blocks: int, num_cpu_blocks) -> None:
-        # logger.info("MLU kv blocks: %d, CPU kv blocks: %d", num_gpu_blocks, num_cpu_blocks)
         logger.info("MLU kv blocks: %d", num_gpu_blocks)
         self.driver_worker.initialize_cache(num_gpu_blocks, num_cpu_blocks)
 

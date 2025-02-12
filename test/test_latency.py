@@ -47,9 +47,9 @@ def main(args: argparse.Namespace):
 
     sampling_params = SamplingParams(
         n=args.n,
-        temperature=0.0 if args.use_beam_search else 1.0,
-        top_p=1.0,
-        use_beam_search=args.use_beam_search,
+        # temperature=0.0 if args.use_beam_search else 1.0,
+        # top_p=1.0,
+        # use_beam_search=args.use_beam_search,
         ignore_eos=True,
         max_tokens=args.output_len, # 128
     )
@@ -125,16 +125,16 @@ if __name__ == '__main__':
                         choices=[*QUANTIZATION_METHODS, None],
                         default=None)
     parser.add_argument('--tensor-parallel-size', '-tp', type=int, default=4)
-    parser.add_argument('--input-len', type=int, default=32)  # 假数据的prompt长度
-    parser.add_argument('--output-len', type=int, default=512) # max_tokens            128
-    parser.add_argument('--batch-size', type=int, default=900) # batch-size(模拟并发数)  8
-    parser.add_argument('--max-num-seqs',                       # 
+    parser.add_argument('--input-len', type=int, default=32) 
+    parser.add_argument('--output-len', type=int, default=128) # max_tokens      
+    parser.add_argument('--batch-size', type=int, default=500) # (并发数  
+    parser.add_argument('--max-num-seqs',                      
                         type=int,
-                        default=1024,   # 256                     
+                        default=512,                   
                         help='Maximum number of sequences per iteration.')
     parser.add_argument('--num-iters-warmup',
                         type=int,
-                        default=1,     # 10
+                        default=1,    
                         help='Number of iterations to run for warmup.')
     parser.add_argument('--n',
                         type=int,

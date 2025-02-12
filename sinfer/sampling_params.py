@@ -257,7 +257,6 @@ class SamplingParams:
         """
             深度copy 除了 LogitsProcessor对象 之外的所有
         """
-
         logit_processor_refs = None if self.logits_processors is None else {
             id(lp): lp
             for lp in self.logits_processors

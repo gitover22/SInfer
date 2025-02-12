@@ -566,12 +566,12 @@ def intercept_ModelInference_capture_model(self, kv_caches: List[torch.Tensor], 
 @torch.inference_mode()
 def intercept_ModelInference_execute_model(
     self,
-    seq_group_metadata_list: List[TaskMetadata],
+    task_metadata_list: List[TaskMetadata],
     kv_caches: List[torch.Tensor],
 ) -> Optional[SamplerOutput]:
     (input_tokens, input_positions, attn_metadata, sampling_metadata,
         lora_requests, lora_mapping, multi_modal_input
-        ) = self.prepare_input_tensors(seq_group_metadata_list) # 准备输入张量
+        ) = self.prepare_input_tensors(task_metadata_list) # 准备输入张量
 
     if self.lora_config:
         self.set_active_loras(lora_requests, lora_mapping)

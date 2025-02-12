@@ -53,7 +53,7 @@ class LLM:
         revision: Optional[str] = None,
         tokenizer_revision: Optional[str] = None,
         seed: int = 0,
-        gpu_memory_utilization: float = 0.95,
+        gpu_memory_utilization: float = 0.9,
         swap_space: int = 2,
         enforce_eager: bool = False,
         max_context_len_to_capture: Optional[int] = None,
@@ -61,9 +61,6 @@ class LLM:
         disable_custom_all_reduce: bool = False,
         **kwargs,
     ) -> None:
-        '''
-        支持用户定义最大捕获batch大小, 并初始化LLMDumpInfo
-        '''
         from sinfer.Intercept.mlu_metric import LLMMetric
         from sinfer.Intercept.dump_info import LLMDumpInfo
         self.metric = LLMMetric()

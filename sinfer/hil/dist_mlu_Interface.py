@@ -32,8 +32,9 @@ class Distributed_MLUInterface(MLUInterface):
 
     def initialize_cache(self, num_mlu_blocks: int,
                          num_cpu_blocks: int) -> None:
-        logger.info("# MLU kv blocks: %d, # CPU kv blocks: %d", num_mlu_blocks,
-                    num_cpu_blocks)
+        logger.info("# MLU kv blocks: %d ", num_mlu_blocks)
+        # logger.info("# MLU kv blocks: %d, # CPU kv blocks: %d", num_mlu_blocks,
+        #             num_cpu_blocks)
 
         self.cache_config.num_mlu_blocks = num_mlu_blocks
         self.cache_config.num_cpu_blocks = num_cpu_blocks
