@@ -268,7 +268,7 @@ if __name__ == "__main__":
                         default="sinfer")
     parser.add_argument("--hf-max-batch-size",
                         type=int,
-                        default=None,  # None
+                        default=None,
                         help="Maximum batch size for HF backend.")
     parser.add_argument("--dataset",
                         type=str,
@@ -291,7 +291,7 @@ if __name__ == "__main__":
                         help='Maximum number of sequences per iteration.')
     parser.add_argument("--num-prompts",
                         type=int,
-                        default=900,                    # 1000
+                        default=800,                    # 1000
                         help="Number of prompts to process.")
     parser.add_argument("--tensor-parallel-size", "-tp", type=int, default=4)           # 1
     parser.add_argument("--model", type=str, default="./Meta-Llama-3-8B-Instruct")
