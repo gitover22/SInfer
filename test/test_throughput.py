@@ -147,9 +147,9 @@ def run_sinfer(
         sampling_params.append(
             SamplingParams(
                 n=n,
-                temperature=0.0 if use_beam_search else 1.0,
-                top_p=1.0,
-                use_beam_search=use_beam_search,
+                # temperature=0.0 if use_beam_search else 1.0,
+                # top_p=1.0,
+                # use_beam_search=use_beam_search,
                 ignore_eos=True, # 这样每个prompts都会生成output_len长度的输出
                 max_tokens=output_len,
             ))
