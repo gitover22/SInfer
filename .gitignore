@@ -1,4 +1,5 @@
 test/Meta-Llama-3-8B-Instruct
+test/DeepSeek-R1-Distill-Llama-8B
 test/llama-3-chinese-8b-lora
 test/llava-1.5-7b-hf
 test/proxy_timeout
@@ -26,3 +27,6 @@ test/TAS_ResourceUtil_Rate.jpg
 test/tas_infomation.csv
 test/sinfer_perf.csv
 test/sys_metrics*
+ray_mlu/**/__pycache__/
+test/__pycache__/tool.cpython-310.pyc
+sys_metrics_2025_02_21.csv

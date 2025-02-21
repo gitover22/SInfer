@@ -113,7 +113,6 @@ sinfer/entrypoints/openai/serving_completion.py
 sinfer/entrypoints/openai/serving_engine.py
 sinfer/hil/InterfaceBase.py
 sinfer/hil/__init__.py
-sinfer/hil/cpu_Interface.py
 sinfer/hil/dist_mlu_Interface.py
 sinfer/hil/init_ray.py
 sinfer/hil/mlu_Interface.py

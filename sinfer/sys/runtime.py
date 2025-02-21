@@ -232,11 +232,7 @@ class LLMRuntime:
     ) -> "LLMRuntime":
         runtime_config = runtime_args.create_runtime_config()
 
-        
-        if runtime_config.device_config.device_type == "cpu":
-            from sinfer.hil.cpu_Interface import CPUInterface
-            interfacer = CPUInterface
-        elif runtime_config.parallel_config.worker_use_ray:
+        if runtime_config.parallel_config.worker_use_ray:
             initialize_ray_cluster(runtime_config.parallel_config)
             from sinfer.hil.ray_MLUInterface import Ray_MLUInterface
             interfacer = Ray_MLUInterface
@@ -245,6 +241,18 @@ class LLMRuntime:
                 "Ray is required if parallel_config.world_size > 1.")
             from sinfer.hil.mlu_Interface import MLUInterface
             interfacer = MLUInterface
+        # if runtime_config.device_config.device_type == "cpu":
+        #     from sinfer.hil.cpu_Interface import CPUInterface
+        #     interfacer = CPUInterface
+        # elif runtime_config.parallel_config.worker_use_ray:
+        #     initialize_ray_cluster(runtime_config.parallel_config)
+        #     from sinfer.hil.ray_MLUInterface import Ray_MLUInterface
+        #     interfacer = Ray_MLUInterface
+        # else:
+        #     assert runtime_config.parallel_config.world_size == 1, (
+        #         "Ray is required if parallel_config.world_size > 1.")
+        #     from sinfer.hil.mlu_Interface import MLUInterface
+        #     interfacer = MLUInterface
 
         # 运行构造函数创建runtime对象
         runtime = cls(
