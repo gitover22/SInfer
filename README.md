@@ -1,9 +1,8 @@
 ## SInfer
 
-A smart inference framework for LLMs on MLU backend
+A smart inference framework for LLMs on MLU370
 
 ### system-level optimizations:
-- chunked-prefill
 - Continuous batching
 - parallel sampling, beam search
 - support distributed inference: Tensor parallelism
@@ -11,10 +10,9 @@ A smart inference framework for LLMs on MLU backend
 - OpenAI-compatible API server
 - Support mutil cards: MLUs
 - PagedAttention
-- support CUDA/HIP graph
+- support MLUGraph
 - Quantization: GPTQ, AWQ and SqueezeLLM,
 - FP8 KV Cache
-- Optimized CUDA kernels
 
 ### supports the following architectures:
 

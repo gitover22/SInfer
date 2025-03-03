@@ -17,6 +17,7 @@ sinfer/**/__pycache__/
 benchmarks/**/__pycache__/
 examples/**/__pycache__/
 tools/**/__pycache__/
+proxy_timeout
 .proxy_timeout
 .pytest_cache
 # .vscode

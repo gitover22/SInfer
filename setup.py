@@ -1,17 +1,12 @@
 import importlib.util
-import io
 import logging
+import io
 import os
-import re
-import subprocess
 import sys
-from shutil import which
-from typing import Dict, List
-
-from packaging.version import Version, parse
+import subprocess
+from typing import List
 from setuptools import Extension, find_packages, setup
 from setuptools.command.build_ext import build_ext
-
 
 def load_module_from_path(module_name, path):
     spec = importlib.util.spec_from_file_location(module_name, path)
@@ -20,23 +15,19 @@ def load_module_from_path(module_name, path):
     spec.loader.exec_module(module)
     return module
 
-
 ROOT_DIR = os.path.dirname(__file__) 
 logger = logging.getLogger(__name__)
-
 
 envs = load_module_from_path('envs', os.path.join(ROOT_DIR, 'sinfer', 'envs.py'))
 
 SINFER_TARGET_DEVICE = envs.SINFER_TARGET_DEVICE
 
-# 只支持linux
 assert sys.platform.startswith("linux"), "SInfer only supports Linux platform (including WSL)."
 
 def get_path(*filepath) -> str:
     return os.path.join(ROOT_DIR, *filepath)
 
 def find_version(filepath: str) -> str:
-    # 从给定的文件路径中提取版本信息
     with open(filepath, 'r') as file:
         lines = file.readlines()
     for line in lines:
@@ -45,7 +36,6 @@ def find_version(filepath: str) -> str:
             return version
 
     raise RuntimeError("Unable to find version string.")
-
 
 def get_commit_id() -> str:
     git_short_hash = subprocess.run(
@@ -63,14 +53,12 @@ def get_sinfer_version() -> str:
         version += "." + get_commit_id()
     return version
 
-
 def read_readme() -> str:
     p = get_path("README.md")
     if os.path.isfile(p):
         return io.open(get_path("README.md"), "r", encoding="utf-8").read()
     else:
         return ""
-
 
 def get_requirements() -> List[str]:
     def _read_requirements(filename: str) -> List[str]:
@@ -117,14 +105,12 @@ def _find_device_info_file() -> bool:
         return True
     return False
 
-
 if _find_device_info_file():
     ext_modules=[
            Extension(
                 'get_device_info',
                 sources=['device_info/get_device_info.cpp'],)
             ]
-
     cmdclass={"build_ext": cmake_build_ext}
 else:
     ext_modules = []
@@ -135,7 +121,7 @@ setup(
     version=get_sinfer_version(),
     author="huafeng",
     license="Apache 2.0",
-    description=("A smart inference framework for LLMs on MLU backend"),
+    description=("A smart inference framework for LLMs on MLU370"),
     long_description=read_readme(),
     long_description_content_type="text/markdown",
     url="",

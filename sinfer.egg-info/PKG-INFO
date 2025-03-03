@@ -1,7 +1,7 @@
 Metadata-Version: 2.2
 Name: sinfer
-Version: 1.0.0+mlu.e704b16
-Summary: A smart inference framework for LLMs on MLU backend
+Version: 1.0.0+mlu.70fa181
+Summary: A smart inference framework for LLMs on MLU370
 Home-page: 
 Author: huafeng
 License: Apache 2.0
@@ -88,10 +88,9 @@ Dynamic: summary
 
 ## SInfer
 
-A smart inference framework for LLMs on MLU backend
+A smart inference framework for LLMs on MLU370
 
 ### system-level optimizations:
-- chunked-prefill
 - Continuous batching
 - parallel sampling, beam search
 - support distributed inference: Tensor parallelism
@@ -99,10 +98,9 @@ A smart inference framework for LLMs on MLU backend
 - OpenAI-compatible API server
 - Support mutil cards: MLUs
 - PagedAttention
-- support CUDA/HIP graph
+- support MLUGraph
 - Quantization: GPTQ, AWQ and SqueezeLLM,
 - FP8 KV Cache
-- Optimized CUDA kernels
 
 ### supports the following architectures:
 

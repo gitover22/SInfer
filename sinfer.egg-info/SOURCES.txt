@@ -272,3 +272,4 @@ test/test_latency.py
 test/test_python.py
 test/test_runtime.py
 test/test_throughput.py
+test/test_throughput_view.py
