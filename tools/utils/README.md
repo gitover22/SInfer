@@ -1,6 +1,6 @@
 ### 1. 非page模式max_num_seqs自动调优工具
 
-对于MLU370X8平台，在unpage模式下，可以通过调整`max_num_seqs`来提升性能。`tune_max_num_seqs.py`通过自动调参来搜索最佳`max_num_seqs`值。
+对于MLU370X4平台，可以通过调整`max_num_seqs`来提升性能。`tune_max_num_seqs.py`通过自动调参来搜索最佳`max_num_seqs`值。
 - 用法示例
 搜索固定配置下，使吞吐量最大`max_num_seqs`值，其中参数部分保持与`benchmark_latency.py`/`benchmark_throughput.py`一致。
 ```bash

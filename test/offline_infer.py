@@ -35,6 +35,6 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(
         description='Demo on using the LLMRuntime class directly')
-    parser.add_argument("--num", type=int, default=100)
+    parser.add_argument("--num", type=int, default=8)
     args = parser.parse_args()
     main(args)

@@ -1,5 +1,4 @@
 [build-system]
-# 项目的构建依赖和后端工具
 requires = [
     "cmake>=3.21",
     "ninja",

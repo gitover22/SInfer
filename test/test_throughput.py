@@ -256,8 +256,17 @@ def main(args: argparse.Namespace):
         raise ValueError(f"Unknown backend: {args.backend}")
     total_num_tokens = sum(prompt_len + output_len
                            for _, prompt_len, output_len in requests)
+    total_output_tokens = sum(output_len for _, _, output_len in requests)
+    # if is_multi_modal:
+    #     print("\033[91mWARNING\033[0m: Multi-modal request detected. The "
+    #           "following metrics are not accurate because image tokens are not"
+    #           " counted. See vllm-project/vllm/issues/9778 for details.")
+    #     # TODO(vllm-project/vllm/issues/9778): Count molti-modal token length.
     print(f"Throughput: {len(requests) / elapsed_time:.2f} requests/s, "
-          f"{total_num_tokens / elapsed_time:.2f} tokens/s")
+          f"{total_num_tokens / elapsed_time:.2f} total tokens/s, "
+          f"{total_output_tokens / elapsed_time:.2f} output tokens/s")
+    # print(f"Throughput: {len(requests) / elapsed_time:.2f} requests/s, "
+    #       f"{total_num_tokens / elapsed_time:.2f} tokens/s")
 
 
 if __name__ == "__main__":
@@ -278,7 +287,7 @@ if __name__ == "__main__":
     parser.add_argument("--input-len",
                         type=int,
                         # default=None,
-                        default=32,
+                        default=16,
                         help="Input prompt length for each request")
     parser.add_argument("--output-len",
                         type=int,
@@ -291,7 +300,7 @@ if __name__ == "__main__":
                         help='Maximum number of sequences per iteration.')
     parser.add_argument("--num-prompts",
                         type=int,
-                        default=800,                    # 1000
+                        default=64,                    # 1000
                         help="Number of prompts to process.")
     parser.add_argument("--tensor-parallel-size", "-tp", type=int, default=4)           # 1
     parser.add_argument("--model", type=str, default="./Meta-Llama-3-8B-Instruct")

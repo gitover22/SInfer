@@ -711,10 +711,13 @@ class Scheduler:
             remaining_ready, scheduler_prefill = self._schedule_ready_task(
                 self.ReadyPool, budget, curr_loras, enable_chunking=False)
 
-        # scheduler_policy = Profilers.get_profiler(_name="fcfs")
         # scheduler_policy = Profilers.get_profiler(_name="tas_v1")
         # scheduler_policy = Profilers.get_profiler(_name="tas_v2")
-        scheduler_policy = Profilers.get_profiler(_name="tas_v3")
+        scheduler_policy = Profilers.get_profiler(_name="fcfs")
+        # print("*"*100)
+        # print("schdule_policy:", scheduler_policy)
+        # print("*"*100)
+        # scheduler_policy = Profilers.get_profiler(_name="tas_v3")
         # scheduler_policy = Profilers.get_profiler(_name="tas_v4")
         # scheduler_policy = Profilers.get_profiler(_name="tas_v5")
         # 如果已经调度了预填充请求，则不要再调度解码请求
@@ -800,9 +803,9 @@ class Scheduler:
         remaining_blocked, swapped_in = (
             self.BlockedPool, SchedulerBlockInOutputs.create_empty())
 
-        # scheduler_policy = Profilers.get_profiler(_name="fcfs")
         # scheduler_policy = Profilers.get_profiler(_name="tas_v1")
         # scheduler_policy = Profilers.get_profiler(_name="tas_v2")
+        # scheduler_policy = Profilers.get_profiler(_name="fcfs")
         scheduler_policy = Profilers.get_profiler(_name="tas_v3")
         # scheduler_policy = Profilers.get_profiler(_name="tas_v4")
         # scheduler_policy = Profilers.get_profiler(_name="tas_v5")
@@ -1176,16 +1179,16 @@ class Scheduler:
                                                 else total_decoding_time / generate_token_num
             e2e_time = total_decoding_time + ttft
             df_ = pd.DataFrame(
-                [[ttft, tpot, time_in_pool, e2e_time,context_latency, total_decoding_time, generate_token_num]],
+                [[ttft, tpot,e2e_time,time_in_pool,context_latency, total_decoding_time, generate_token_num]],
                 columns=['TTFT/s', 'TPOT/s', 'e2e_time/s','time_in_pool/s', 'context_latency/s', 'total_decoding_time/s', 'generate_tokens'],
                 index=[str(task.task_id)]
             )
             df = pd.concat([df, df_])
-        max_, min_, mean_, p99_ = df.max(), df.min(), df.mean(), df.quantile(0.90)
+        max_, min_, mean_, p90_ = df.max(), df.min(), df.mean(), df.quantile(0.90)
         df.loc['Max'] = max_
         df.loc['Min'] = min_
         df.loc['Mean'] = mean_
-        df.loc['P99'] = p99_
+        df.loc['P90'] = p90_
         return df
 
     def __del__(self):
@@ -1209,6 +1212,6 @@ class Scheduler:
                             'display.float_format', '{:^6,.2f}'.format,
                             'expand_frame_repr', False):
             # logger.info(self.df.loc[["Max", "Min", "Mean"]])
-            logger.info(time_df.loc[["Max", "Min", "Mean", "P99"]])
+            logger.info(time_df.loc[["Max", "Min", "Mean", "P90"]])
         self.df.astype(str).to_csv("tas_infomation.csv", mode="w")
         time_df.astype(str).to_csv("sinfer_perf.csv", mode="w")
