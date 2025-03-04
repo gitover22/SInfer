@@ -3,8 +3,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 # 读取 CSV 文件
-sinfer_data = pd.read_csv('sinfer_tas_high.csv')
-vllm_data = pd.read_csv('vllm_fcfs_high.csv')
+sinfer_data = pd.read_csv('sinfer_tas_low.csv')
+vllm_data = pd.read_csv('vllm_fcfs_low.csv')
 
 # 设置绘图风格
 plt.style.use('default')
@@ -39,7 +39,7 @@ plt.xticks(x_indices, x)  # 设置横坐标标签
 # plt.grid(axis='y', linestyle='--', alpha=0.6)
 plt.legend(fontsize=12)
 plt.tight_layout()
-plt.savefig('high_view_TTFT_bar.png', dpi=300)  # 保存 TTFT 图表
+plt.savefig('low_view_TTFT_bar.png', dpi=300)  # 保存 TTFT 图表
 plt.show()
 
 # 绘制 TPOT 图
@@ -67,5 +67,5 @@ plt.xticks(x_indices, x)  # 设置横坐标标签
 # plt.grid(axis='y', linestyle='--', alpha=0.6)
 plt.legend(fontsize=12)
 plt.tight_layout()
-plt.savefig('high_view_TPOT_bar.png', dpi=300)  # 保存 TPOT 图表
+plt.savefig('low_view_TPOT_bar.png', dpi=300)  # 保存 TPOT 图表
 plt.show()

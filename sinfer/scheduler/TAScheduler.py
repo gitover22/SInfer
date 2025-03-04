@@ -1162,8 +1162,8 @@ class Scheduler:
                 'TTFT/s': [],  # 首次 token 时间
                 'TPOT/s': [],  # 每个 token 的解码时间
                 'e2e_time/s': [],  # 任务的端到端时间
-                'time_in_pool/s': [],  # 任务在池中的等待时间
-                'context_latency/s': [],  # 上下文延迟
+                # 'time_in_pool/s': [],  # 任务在池中的等待时间
+                # 'context_latency/s': [],  # 上下文延迟
                 'total_decoding_time/s': [],  # 总解码时间
                 'generate_tokens': []  # 生成的 token 数量
             },
@@ -1171,18 +1171,26 @@ class Scheduler:
         )
         for task in tasks:
             ttft = task.metadata.first_token_time - task.metadata.arrival_time
-            time_in_pool = task.metadata.time_in_pool
-            context_latency = task.metadata.first_token_time - task.metadata.first_scheduled_time # 任务首次调度到首次生成 token 的时间
+            # print(ttft)
+            # time_in_pool = task.metadata.time_in_pool
+            # context_latency = task.metadata.first_token_time - task.metadata.first_scheduled_time # 任务首次调度到首次生成 token 的时间
             total_decoding_time = task.metadata.finished_time - task.metadata.first_token_time
+            # print(total_decoding_time)
             generate_token_num = task.get_reqs()[0].get_output_len() - 1
             tpot = total_decoding_time if generate_token_num == 0 \
                                                 else total_decoding_time / generate_token_num
+            # print(tpot)
             e2e_time = total_decoding_time + ttft
             df_ = pd.DataFrame(
-                [[ttft, tpot,e2e_time,time_in_pool,context_latency, total_decoding_time, generate_token_num]],
-                columns=['TTFT/s', 'TPOT/s', 'e2e_time/s','time_in_pool/s', 'context_latency/s', 'total_decoding_time/s', 'generate_tokens'],
+                [[ttft, tpot,e2e_time, total_decoding_time, generate_token_num]],
+                columns=['TTFT/s', 'TPOT/s', 'e2e_time/s','total_decoding_time/s', 'generate_tokens'],
                 index=[str(task.task_id)]
             )
+            # df_ = pd.DataFrame(
+            #     [[ttft, tpot,e2e_time,time_in_pool,context_latency, total_decoding_time, generate_token_num]],
+            #     columns=['TTFT/s', 'TPOT/s', 'e2e_time/s','time_in_pool/s', 'context_latency/s', 'total_decoding_time/s', 'generate_tokens'],
+            #     index=[str(task.task_id)]
+            # )
             df = pd.concat([df, df_])
         max_, min_, mean_, p90_ = df.max(), df.min(), df.mean(), df.quantile(0.90)
         df.loc['Max'] = max_
@@ -1194,10 +1202,8 @@ class Scheduler:
     def __del__(self):
         logger.info(f"TAScheduler profiling saving...")
         figure = self.df.plot(y=['ready', 'running', 'finished']).get_figure()
-        figure.savefig("TAS_TaskPool.jpg", dpi=300)
         plt.close(figure)
         figure = self.df.plot(y=['batch_utils', 'block_utils']).get_figure()
-        figure.savefig("TAS_ResourceUtil_Rate.jpg", dpi=300)
         plt.close(figure)
 
         time_df = self.summary_finished_tasks(self.finished_tasks_list)
@@ -1209,9 +1215,8 @@ class Scheduler:
         with pd.option_context('display.max_rows', None,
                             'display.max_columns', None,
                             'display.max_colwidth', None,
-                            'display.float_format', '{:^6,.2f}'.format,
+                            'display.float_format', '{:^6,.3f}'.format,
                             'expand_frame_repr', False):
-            # logger.info(self.df.loc[["Max", "Min", "Mean"]])
             logger.info(time_df.loc[["Max", "Min", "Mean", "P90"]])
         self.df.astype(str).to_csv("tas_infomation.csv", mode="w")
         time_df.astype(str).to_csv("sinfer_perf.csv", mode="w")

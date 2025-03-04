@@ -41,6 +41,7 @@ class Metadata:
     time_in_pool: Optional[float] = None # 请求在池中等待的时间
     finished_time: Optional[float] = None # 请求完成的时间
     prompt_length: Optional[int] = None # 请求的提示长度
+    predict_length: Optional[int] = None # 预测长度
 
 @dataclass
 class Task_State:

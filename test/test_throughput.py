@@ -300,9 +300,9 @@ if __name__ == "__main__":
                         help='Maximum number of sequences per iteration.')
     parser.add_argument("--num-prompts",
                         type=int,
-                        default=64,                    # 1000
+                        default=512,                    # 1000
                         help="Number of prompts to process.")
-    parser.add_argument("--tensor-parallel-size", "-tp", type=int, default=4)           # 1
+    parser.add_argument("--tensor-parallel-size", "-tp", type=int, default=2)           # 1
     parser.add_argument("--model", type=str, default="./Meta-Llama-3-8B-Instruct")
     parser.add_argument('--gpu-memory-utilization',
                         type=float,
