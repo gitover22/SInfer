@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import TYPE_CHECKING,Dict, List, Optional
 import enum
-
+import os 
 from sinfer.lora.request import LoRARequest
 from sinfer.request import PromptLogprobs, Request, RequestData, RequestOutput, RequestStatus
 from sinfer.sampling_params import SamplingParams
@@ -83,6 +83,11 @@ class Task:
                                       first_token_time=None,
                                       time_in_pool=None)
         self.metadata.prompt_length = max((len(req.prompt) for req in reqs if req.prompt is not None), default=0)
+        # predictor
+        if os.getenv("PREDICTOR", "False").lower() == "true":
+            from sinfer.predictor.predictor import LengthPredictor
+            predictor = LengthPredictor(model_path='/home/huafeng/SInfer/sinfer/predictor/distilbert-based-uncased-finetuned')
+            self.metadata.predict_length = predictor.predict_length(reqs[0].prompt)
         self.lora_request = lora_request
         self.prompt_logprobs: Optional[PromptLogprobs] = None
         self.state = Task_State()

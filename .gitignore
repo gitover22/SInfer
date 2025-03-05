@@ -31,3 +31,9 @@ test/sys_metrics*
 ray_mlu/**/__pycache__/
 test/__pycache__/tool.cpython-310.pyc
 sys_metrics_2025_02_21.csv
+
+# predictor
+sinfer/predictor/distilbert-based-uncased
+sinfer/predictor/distilbert-based-uncased-finetuned
+sinfer/predictor/alpaca_data_postprocess.json
+sinfer/predictor/alpaca_data.json

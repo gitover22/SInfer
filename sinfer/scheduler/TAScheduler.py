@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 from sinfer.task import Task, TaskMetadata
 from sinfer.config import CacheConfig, LoRAConfig, SchedulerConfig
 from sinfer.scheduler.interfaces import AllocStatus, SpaceManager
-from sinfer.scheduler.factory import Profiler, Profilers
+from sinfer.scheduler.TASfactory import Profiler, Profilers
 from sinfer.logger import init_logger
 from sinfer.lora.request import LoRARequest
 from sinfer.request import (Request, RequestData, RequestStatus)
@@ -257,7 +257,7 @@ class Scheduler:
                                        if self.enable_artificial_preemption
                                        else 0)
         
-        logger.info(f"SInfer TAScheduler profiling...")
+        logger.info(f"TAS profiling...")
         self.df = pd.DataFrame(
             data={
                 'running': [],'ready': [], 'finished': [],'batch_utils': [], 'block_utils': []
@@ -713,11 +713,11 @@ class Scheduler:
 
         # scheduler_policy = Profilers.get_profiler(_name="tas_v1")
         # scheduler_policy = Profilers.get_profiler(_name="tas_v2")
-        scheduler_policy = Profilers.get_profiler(_name="fcfs")
+        # scheduler_policy = Profilers.get_profiler(_name="fcfs")
         # print("*"*100)
         # print("schdule_policy:", scheduler_policy)
         # print("*"*100)
-        # scheduler_policy = Profilers.get_profiler(_name="tas_v3")
+        scheduler_policy = Profilers.get_profiler(_name="tas_v3")
         # scheduler_policy = Profilers.get_profiler(_name="tas_v4")
         # scheduler_policy = Profilers.get_profiler(_name="tas_v5")
         # 如果已经调度了预填充请求，则不要再调度解码请求

@@ -4,6 +4,13 @@ import math
 
 from sinfer.task import Task
 
+PRIORITY_FACTOR = 0.2
+ALPHA_DEFAULT = 1.0
+BETA_DEFAULT = 2.0
+GAMMA_DEFAULT = 1.0
+SCALE_DEFAULT = 100
+DEGREE_DEFAULT = 3
+
 class Profiler:
     def sort_by_score(
         self,
@@ -34,7 +41,6 @@ class Profiler_FCFS(Profiler):
 
 class Profiler_TAS_v1(Profiler):
     def __init__(self, alpha: float = 1.0, beta: float = 2.0, gamma: float = 5.0, delta: float = 1.0, epsilon: float = 2.0):
-
         self.alpha = alpha
         self.beta = beta
         self.gamma = gamma
@@ -48,17 +54,11 @@ class Profiler_TAS_v1(Profiler):
         task: Task,
     ) -> float:
         metadata = task.metadata
-
         arrival_priority = current_time - metadata.arrival_time
-
         time_in_queue = metadata.time_in_pool or 0.0
-
         first_scheduled_ = 1.0 if metadata.first_scheduled_time else 0.0
-
         execution_progress = (metadata.last_token_time or 0.0) - (metadata.first_token_time or 0.0)
-
         length_score = self.promptLen_score(metadata.prompt_length)
-
         score = (
             self.alpha * arrival_priority +
             self.beta * time_in_queue +
@@ -76,11 +76,11 @@ class Profiler_TAS_v2(Profiler):
         self.delta = delta
 
     def _arrival_priority(self, current_time: float, arrival_time: float) -> float:
-        wait_time = max(current_time - arrival_time, 0)  # 确保非负
+        wait_time = max(current_time - arrival_time, 0)
         return self.alpha * (wait_time ** 0.5)
 
     def _queue_time_effect(self, time_in_queue: float) -> float:
-        time_in_queue = max(time_in_queue, 0)  # 确保非负
+        time_in_queue = max(time_in_queue, 0) 
         if time_in_queue < 10:
             return self.beta * (time_in_queue ** 2)
         else:
@@ -93,24 +93,21 @@ class Profiler_TAS_v2(Profiler):
 
     def _execution_progress_effect(self, first_token_time: float, last_token_time: float) -> float:
         if first_token_time and last_token_time:
-            progress = max(last_token_time - first_token_time, 0)  # 确保非负
+            progress = max(last_token_time - first_token_time, 0)
             return self.delta * (progress ** 0.7)
         return 0.0
 
     def _complex_weighting(self, arrival_priority: float, queue_effect: float, penalty: float, progress_effect: float) -> float:
-        # 检查输入是否包含复数
         if any(isinstance(x, complex) for x in [arrival_priority, queue_effect, penalty, progress_effect]):
             raise ValueError(f"Complex number detected in weighting inputs: {arrival_priority}, {queue_effect}, {penalty}, {progress_effect}")
         
         total_weight = abs(arrival_priority) + abs(queue_effect) + abs(penalty) + abs(progress_effect)
         if total_weight == 0:
             return 0.0
-        
         normalized_arrival = arrival_priority / total_weight
         normalized_queue = queue_effect / total_weight
         normalized_penalty = penalty / total_weight
         normalized_progress = progress_effect / total_weight
-
         return (
             (self.alpha + normalized_arrival) * arrival_priority +
             (self.beta + normalized_queue) * queue_effect -
@@ -124,24 +121,21 @@ class Profiler_TAS_v2(Profiler):
         task: Task,
     ) -> float:
         metadata = task.metadata
-
         arrival_priority = self._arrival_priority(current_time, metadata.arrival_time)
         queue_effect = self._queue_time_effect(metadata.time_in_pool or 0.0)
         schedule_penalty = self._schedule_penalty(metadata.first_scheduled_time or 0.0)
         progress_effect = self._execution_progress_effect(metadata.first_token_time or 0.0, metadata.last_token_time or 0.0)
-
         score = self._complex_weighting(arrival_priority, queue_effect, schedule_penalty, progress_effect)
-
         return score
 
 class Profiler_TAS_v3(Profiler):
-    def __init__(self, alpha: float = 1.0, alpha2: float = 3.0, 
-                 beta: float = 0.1,scale:int =100, degree: int = 3):
-        self.alpha = alpha # a1
-        self.alpha2 = alpha2 # a2
-        self.beta = beta # b
-        self.scale = scale
-        self.degree = degree
+    def __init__(self, alpha: float = ALPHA_DEFAULT, beta: float = BETA_DEFAULT, 
+                 gamma: float = GAMMA_DEFAULT,scale:int =SCALE_DEFAULT, degree: int = DEGREE_DEFAULT):
+        self.alpha = alpha
+        self.beta = beta
+        self.gamma = gamma 
+        self.scale = scale 
+        self.degree = degree 
 
     def _polynomial_sum(self, x: float, degree: int = 1) -> float:
         return sum([(math.pow(x, i)) / math.factorial(i) for i in range(1, degree + 1)])
@@ -151,33 +145,25 @@ class Profiler_TAS_v3(Profiler):
             return 0.0
         wait_time = current_time - arrival_time
         poly_sum = self._polynomial_sum(wait_time, self.degree)
-        priority_factor = math.exp(0.2 * priority)
+        priority_factor = math.exp(PRIORITY_FACTOR * priority)
         return self.alpha * poly_sum * priority_factor
 
-    def time_in_queue_score(self, time_in_queue: float, priority: int) -> float:
-        if time_in_queue is None or time_in_queue == 0.0:
-            return 0.0
-        poly_sum = self._polynomial_sum(time_in_queue, self.degree)
-        priority_factor = math.exp(priority)
-        return self.alpha2 * poly_sum * priority_factor
-    def _schedule_score(self, first_scheduled_time: float) -> float:
+    def _schedule_score(self, current_time: float, first_scheduled_time: float) -> float:
         if first_scheduled_time is None:
             return 0.0
-        else:
-            schedule_scale = math.log(self.scale)
-        poly_sum = self._polynomial_sum(schedule_scale)
-        bonus = math.log(poly_sum)
-        return self.beta * bonus
+        schedule_time = current_time - first_scheduled_time
+        poly_sum = self._polynomial_sum(schedule_time, self.degree)
+        return self.beta * poly_sum
 
-    def promptLen_score(self, promptLen: int) -> float:
-        if promptLen is None or promptLen == 0:
+    def length_score(self, length: int) -> float:
+        if length is None or length == 0:
             return 0.0
-        poly_sum = self._polynomial_sum(promptLen/self.scale, self.degree)
+        poly_sum = self._polynomial_sum(length/self.scale, self.degree)
         if poly_sum < 1:
             penalty = math.log(poly_sum + 1)
         else:
-            penalty = math.log(poly_sum)
-        return self.beta*penalty
+            penalty = math.log(poly_sum) # 0.89 2.15 3.02
+        return self.gamma*penalty
 
     def total_score(
         self,
@@ -187,27 +173,17 @@ class Profiler_TAS_v3(Profiler):
         metadata = task.metadata
         priority = metadata.priority
         score = 0.0
-
         if metadata.arrival_time != 0:
             arrival_time = metadata.arrival_time
             wait_score = self._arrival_score(current_time, arrival_time, priority)
             score += wait_score
         else:
             metadata.arrival_time = current_time
-
-        if metadata.time_in_pool is not None:
-            time_in_queue = metadata.time_in_pool
-            queue_score = self.time_in_queue_score(time_in_queue, priority)
-            score += queue_score
-        else:
-            metadata.time_in_pool = 0.0
-
         if metadata.first_scheduled_time is not None:
-            schedule_score = self._schedule_score(metadata.first_scheduled_time)
+            schedule_score = self._schedule_score(current_time,metadata.first_scheduled_time)
             score += schedule_score
-
-        if metadata.prompt_length is not None:
-            length_score = self.promptLen_score(metadata.prompt_length)
+        if metadata.predict_length is not None:
+            length_score = self.length_score(metadata.predict_length)
             score -= length_score
         return score
 
@@ -274,7 +250,6 @@ class Profiler_TAS_v5(Profiler):
         self.epsilon = epsilon
 
     def _validate_real(self, value: float) -> float:
-        """Ensure the value is a real number and not a complex number."""
         if isinstance(value, complex):
             return float(value.real)  # Return the real part if it's complex
         return float(value)
