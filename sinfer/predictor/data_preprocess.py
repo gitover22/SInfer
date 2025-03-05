@@ -34,5 +34,5 @@ def transform_data(input_file, output_file):
         json.dump(transformed_data, f, indent=4)
 
 input_file = 'predictor/alpaca_data.json'
-output_file = 'predictor/alpaca_data_postprocess.json'
+output_file = 'predictor/alpaca_data_postprocess.json'  
 transform_data(input_file, output_file)

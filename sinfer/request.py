@@ -161,16 +161,6 @@ class RequestData:
 
 
 class Request:
-    """存储一个请求的数据状态等
-
-    Args:
-        req_id: 请求id.
-        prompt: The prompt of the request.
-        prompt_token_ids: The token IDs of the prompt.
-        block_size: The block size of the request. Should be the same as the
-            block size used by the block manager and cache engine.
-        lora_request: LoRA request.
-    """
     def __init__(
         self,
         req_id: int,

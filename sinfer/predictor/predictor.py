@@ -1,6 +1,6 @@
 import torch
 from transformers import DistilBertForSequenceClassification, DistilBertTokenizer
-
+import torch_mlu.utils.gpu_migration
 class LengthPredictor:
     def __init__(self, model_path, max_length=512, bucket_size=128, num_buckets=8):
         self.max_length = max_length
@@ -9,8 +9,7 @@ class LengthPredictor:
         
         self.tokenizer = DistilBertTokenizer.from_pretrained(model_path)
         self.model = DistilBertForSequenceClassification.from_pretrained(model_path)
-
-        self.device = torch.device('cpu')
+        self.device =torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.model.to(self.device)
     
     def predict_length(self, prompt):
