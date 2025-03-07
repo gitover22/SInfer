@@ -28,7 +28,8 @@ class BlockSizeInfo :
                 raise ValueError("BLOCKSIZE other than 16 are not supported in paged mode, please check '--block-size' value.")
             cls.BLOCK_SIZE = 16
         else :
-            cls.BLOCK_SIZE = 512 if a == -1 else a 
+            # cls.BLOCK_SIZE = 512 if a == -1 else a 
+            cls.BLOCK_SIZE = 1024 if a == -1 else a 
 
 def _check_env_true(env):
     return os.environ[env].lower() in ["true", "1"] if env in os.environ else False

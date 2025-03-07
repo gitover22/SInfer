@@ -232,7 +232,6 @@ class Scheduler:
         self.from_running_to_ready_tasks = 0
         self.batch_utils = 0
         self.block_utils = 0
-        self.preempt_ratio = 0
 
     @property
     def lora_enabled(self) -> bool:
@@ -779,7 +778,7 @@ class Scheduler:
         self.batch_utils = self.running_tasks / self.scheduler_config.max_num_reqs
         self.block_utils = (self.block_manager._total_mlu_blocks_num -
                             self.block_manager.get_num_free_mlu_blocks()) / self.block_manager._total_mlu_blocks_num
-        self.preempt_ratio = self.from_running_to_ready_tasks / self.total_tasks
+        
         df_ = pd.DataFrame(
             [[self.running_tasks,self.ready_tasks, 
             len(finished_tasks_), self.batch_utils, self.block_utils]],

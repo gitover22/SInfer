@@ -9,8 +9,6 @@ from sinfer.utils import (get_distributed_init_method, get_ip, get_open_port,
 from sinfer.worker.worker_base import WorkerDelayBase
 
 logger = init_logger(__name__)
-
-
 class MLUInterface(InterfaceBase):
 
     def _init_interface(self) -> None:
@@ -54,11 +52,11 @@ class MLUInterface(InterfaceBase):
 
     def _init_worker(self):
         assert self.parallel_config.world_size == 1, (
-            "MLUExecutor only supports single MLU.")
+            "MLUInterface only supports single MLU.")
 
-        self.driver_worker = self._create_worker() # 创建工作节点
-        self.driver_worker.init_device() # 初始化设备
-        self.driver_worker.load_model() # 加载模型
+        self.driver_worker = self._create_worker()
+        self.driver_worker.init_device() 
+        self.driver_worker.load_model()
 
     def determine_num_available_blocks(self) -> Tuple[int, int]:
         return self.driver_worker.determine_num_available_blocks()
