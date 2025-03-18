@@ -10,7 +10,7 @@ from sinfer.config import DecodingConfig, ModelConfig
 from sinfer.scheduler.TAScheduler import SchedulerOutputs
 from sinfer.sys.runtime_args import AsyncRuntimeArgs
 from sinfer.sys.runtime import LLMRuntime
-from sinfer.hil.init_ray import initialize_ray_cluster, ray
+from sinfer.hiLayer.init_ray import initialize_ray_cluster, ray
 from sinfer.logger import init_logger
 from sinfer.lora.request import LoRARequest
 from sinfer.outputs import RequestOutput
@@ -78,11 +78,6 @@ class AsyncStream:
 
 
 class RequestPool:
-    """
-    here is RequestPool,the Request in pool will process by runtime and be encapsulated as a Task.
-    the task_id here is only for passby parameters.
-    NOTE: request_id is task_id, req_id is Request id
-    """
     def __init__(self) -> None:
         self._request_streams: Dict[str, AsyncStream] = {}
         self._finished_requests: asyncio.Queue[str] = asyncio.Queue()
@@ -271,7 +266,7 @@ class _AsyncLLMRuntime(LLMRuntime):
 
 class AsyncLLMRuntime:
     """
-    它使用 asyncio 创建一个后台循环，用于持续处理传入的请求。  
+    使用 asyncio 创建一个后台循环，用于持续处理传入的请求。  
     当等待队列中有请求时，通过调用 generate 方法唤醒 LLMRuntime 
     generate 方法会将 LLMRuntime 的输出逐步传递给调用者。
 
@@ -309,13 +304,9 @@ class AsyncLLMRuntime:
 
         self.background_loop: Optional[asyncio.Future] = None
 
-        # 需要保持对未加保护的（unshielded）任务的引用
-        # 以防止它被垃圾回收
         self._background_loop_unshielded: Optional[asyncio.Task[Any]] = None
         self.start_runtime_loop = start_runtime_loop
         self._errored_with: Optional[BaseException] = None
-
-        # Lazy initialized fields
         self._request_pool: RequestPool
 
     @classmethod
@@ -325,24 +316,18 @@ class AsyncLLMRuntime:
         start_runtime_loop: bool = True,
         usage_context: UsageContext = UsageContext.ENGINE_CONTEXT,
     ) -> "AsyncLLMRuntime":
-        """创建一个异步的runtime"""
-        runtime_config = runtime_args.create_runtime_config() # 创建一个RuntimeConfig实例
+        runtime_config = runtime_args.create_runtime_config()
 
-        if runtime_config.device_config.device_type == "cpu":
-            assert not runtime_config.parallel_config.worker_use_ray, (
-                "Ray is not supported with the CPU backend.")
-            from sinfer.hil.cpu_Interface import CPUInterfaceAsync
-            interfacer = CPUInterfaceAsync
-        elif runtime_config.parallel_config.worker_use_ray:
+        if runtime_config.parallel_config.worker_use_ray:
             initialize_ray_cluster(runtime_config.parallel_config)
-            from sinfer.hil.ray_MLUInterface import Ray_MLUInterfaceAsync
+            from sinfer.hiLayer.ray_MLUInterface import Ray_MLUInterfaceAsync
             interfacer = Ray_MLUInterfaceAsync
         else:
             assert runtime_config.parallel_config.world_size == 1, (
                 "Ray is required if parallel_config.world_size > 1.")
-            from sinfer.hil.mlu_Interface import MLUInterfaceAsync
+            from sinfer.hiLayer.mlu_Interface import MLUInterfaceAsync
             interfacer = MLUInterfaceAsync    # tensor-parallel-size = 1 时
-        # 创建异步LLM runtime
+        
         runtime = cls(
             runtime_config.parallel_config.worker_use_ray,
             runtime_args.engine_use_ray,

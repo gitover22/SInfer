@@ -16,8 +16,8 @@ from sinfer.sys.output_processor.interfaces import (
     SequenceGroupOutputProcessor)
 from sinfer.sys.output_processor.stop_checker import StopChecker
 from sinfer.sys.output_processor.util import create_output_by_task
-from sinfer.hil.InterfaceBase import InterfaceBase
-from sinfer.hil.init_ray import initialize_ray_cluster
+from sinfer.hiLayer.InterfaceBase import InterfaceBase
+from sinfer.hiLayer.init_ray import initialize_ray_cluster
 from sinfer.logger import init_logger
 from sinfer.lora.request import LoRARequest
 from sinfer.outputs import RequestOutput
@@ -234,12 +234,12 @@ class LLMRuntime:
 
         if runtime_config.parallel_config.worker_use_ray:
             initialize_ray_cluster(runtime_config.parallel_config)
-            from sinfer.hil.ray_MLUInterface import Ray_MLUInterface
+            from sinfer.hiLayer.ray_MLUInterface import Ray_MLUInterface
             interfacer = Ray_MLUInterface
         else:
             assert runtime_config.parallel_config.world_size == 1, (
                 "Ray is required if parallel_config.world_size > 1.")
-            from sinfer.hil.mlu_Interface import MLUInterface
+            from sinfer.hiLayer.mlu_Interface import MLUInterface
             interfacer = MLUInterface
         # if runtime_config.device_config.device_type == "cpu":
         #     from sinfer.hil.cpu_Interface import CPUInterface

@@ -1,7 +1,11 @@
 import matplotlib.pyplot as plt
 import numpy as np
 # 该数据由benchmarks/benchmark_throughput.py跑出
+# ==========================================================
 # python benchmark_throughput.py --async-engine --model ~/Meta-Llama-3-8B-Instruct/ --tensor_parallel_size 2 --pipeline_parallel_size 2
+# ==========================================================
+
+
 
 # 4* 370X4   concurrent: 64
 # TP : Throughput: 9.08 requests/s, 1306.90 total tokens/s, 1161.69 output tokens/s

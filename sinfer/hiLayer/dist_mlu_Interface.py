@@ -1,8 +1,8 @@
 from abc import abstractmethod
 from typing import Any, Dict, List, Optional, Set, Tuple
 
-from sinfer.hil.InterfaceBase import InterfaceAsyncBase
-from sinfer.hil.mlu_Interface import MLUInterface
+from sinfer.hiLayer.InterfaceBase import InterfaceAsyncBase
+from sinfer.hiLayer.mlu_Interface import MLUInterface
 from sinfer.logger import init_logger
 from sinfer.lora.request import LoRARequest
 from sinfer.request import SamplerOutput

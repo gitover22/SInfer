@@ -1,6 +1,6 @@
 from typing import Any, Dict, List, Optional, Set, Tuple
 
-from sinfer.hil.InterfaceBase import InterfaceAsyncBase, InterfaceBase
+from sinfer.hiLayer.InterfaceBase import InterfaceAsyncBase, InterfaceBase
 from sinfer.logger import init_logger
 from sinfer.lora.request import LoRARequest
 from sinfer.request import ExecuteModelRequest, SamplerOutput
