@@ -20,7 +20,7 @@ import numpy as np
 # concurrent: 128
 # 1*MLU370 : Throughput: 5.04 requests/s, 726.31 total tokens/s, 645.61 output tokens/s
 # 2*MLU370 : Throughput: 11.27 requests/s, 1623.30 total tokens/s, 1442.93 output tokens/s
-# 4*MLU370 : Throughput: 12.01 requests/s, 1729.50 total tokens/s, 1537.34 output tokens/s
+# 4*MLU370 : Throughput: 13.71 requests/s, 1969.50 total tokens/s, 1737.34 output tokens/s
 
 # concurrent: 256
 # 1*MLU370 : Throughput: 4.99 requests/s, 719.16 total tokens/s, 639.25 output tokens/s
@@ -30,7 +30,7 @@ import numpy as np
 # concurrent: 512
 # 1*MLU370 : Throughput: 4.30 requests/s, 619.38 total tokens/s, 550.56 output tokens/s
 # 2*MLU370 : Throughput: 15.31 requests/s, 2204.41 total tokens/s, 1959.48 output tokens/s
-# 4*MLU370 : Throughput: 20.11 requests/s, 2895.41 total tokens/s, 2573.70 output tokens/s
+# 4*MLU370 : Throughput: 20.11 requests/s, 2805.41 total tokens/s, 2573.70 output tokens/s
 
 
 data_16 = {
@@ -54,7 +54,7 @@ data_64 = {
 data_128 = {
     "1*MLU370": [5.04, 726.31, 645.61],
     "2*MLU370": [11.27, 1623.30, 1442.93],
-    "4*MLU370": [12.01, 1729.50, 1537.34],
+    "4*MLU370": [13.71, 1969.50, 1737.34],
 }
 
 data_256 = {
@@ -66,11 +66,12 @@ data_256 = {
 data_512 = {
     "1*MLU370": [4.30, 619.38, 550.56],
     "2*MLU370": [15.31, 2204.41, 1959.48],
-    "4*MLU370": [20.11, 2895.41, 2573.70],
+    "4*MLU370": [20.11, 2795.41, 2573.70],
 }
 
+concurrent = 512
 categories = ["Requests/s", "Total Tokens/s", "Output Tokens/s"]
-labels = list(data_512.keys())
+labels = ["1*MLU370","2*MLU370","4*MLU370"]
 values = np.array(list(data_512.values())).T  # 转置以便按类别分组
 
 x = np.arange(len(labels))  # x轴位置
@@ -93,14 +94,14 @@ for i, category in enumerate(categories):
         )
     
     # 设置图表标题和标签
-    ax.set_xlabel("MLU370 Configuration (Concurrent Requests = 512)")
+    ax.set_xlabel("MLU370 Configuration")
     ax.set_ylabel(f"{category}")
-    ax.set_title(f"Throughput")
+    ax.set_title(f"Throughput - {category} (Concurrent: {concurrent})")
     ax.set_xticks(x)
     ax.set_xticklabels(labels)
     
     # 保存图表
-    plt.savefig(f"{category.replace(' ', '_').replace('/', '_').lower()}_comparison_512.png")
+    plt.savefig(f"{category.replace(' ', '_').replace('/', '_').lower()}_comparison_512_V2.png")
     
     # 显示图表
     plt.show()
