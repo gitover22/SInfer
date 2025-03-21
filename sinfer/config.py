@@ -926,8 +926,8 @@ class RuntimeConfig:
                 self.scheduler_config)
 
     def to_dict(self):
-        """
-        将 RuntimeConfig 类的所有配置项以字典的形式返回
-        """
+        
+        
+        
         return dict(
             (field.name, getattr(self, field.name)) for field in fields(self))

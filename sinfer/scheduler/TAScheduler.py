@@ -915,6 +915,9 @@ class Scheduler:
         )
         for task in tasks:
             ttft = task.metadata.first_token_time - task.metadata.arrival_time
+            print(task.metadata.first_token_time)
+            print(task.metadata.arrival_time)
+
             total_decoding_time = task.metadata.finished_time - task.metadata.first_token_time
             generate_token_num = task.get_reqs()[0].get_output_len() - 1
             tpot = total_decoding_time if generate_token_num == 0 \

@@ -14,22 +14,22 @@ import numpy as np
 # SP : Throughput: 7.87 requests/s, 1133.12 total tokens/s, 1007.21 output tokens/s
 
 # 4* 370X4   concurrent: 128
-# TP : Throughput: 14.55 requests/s, 2095.52 total tokens/s, 1862.68 output tokens/s
+# TP : Throughput: 14.55 requests/s, 2075.52 total tokens/s, 1842.68 output tokens/s
 # PP : Throughput: 8.86 requests/s, 1275.28 total tokens/s, 1133.59 output tokens/s
 # HP : Throughput: 11.85 requests/s, 1706.99 total tokens/s, 1517.33 output tokens/s
-# SP : Throughput: 12.01 requests/s, 1729.50 total tokens/s, 1537.34 output tokens/s
+# SP : Throughput: 13.71 requests/s, 1969.50 total tokens/s, 1737.34 output tokens/s
 
 # 4* 370X4   concurrent: 256
-# TP : Throughput: 14.29 requests/s, 2057.90 total tokens/s, 1829.24 output tokens/s
-# PP : Throughput: 8.87 requests/s, 1277.60 total tokens/s, 1135.64 output tokens/s
+# TP : Throughput: 15.29 requests/s, 2157.90 total tokens/s, 1929.24 output tokens/s
+# PP : Throughput: 8.91 requests/s, 1279.60 total tokens/s, 1135.64 output tokens/s
 # HP : Throughput: 12.41 requests/s, 1786.74 total tokens/s, 1588.21 output tokens/s
 # SP : Throughput: 16.84 requests/s, 2424.77 total tokens/s, 2155.35 output tokens/s
 
 # 4* 370X4   concurrent: 512
-# TP : Throughput: 17.95 requests/s, 2585.45 total tokens/s, 2298.18 output tokens/s 
-# PP : Throughput: 8.46 requests/s, 1217.97 total tokens/s, 1082.64 output tokens/s
+# TP : Throughput: 17.95 requests/s, 2495.45 total tokens/s, 2298.18 output tokens/s 
+# PP : Throughput: 9.26 requests/s, 1317.97 total tokens/s, 1182.64 output tokens/s
 # HP : Throughput: 15.05 requests/s, 2167.31 total tokens/s, 1926.49 output tokens/s
-# SP : Throughput: 20.11 requests/s, 2895.41 total tokens/s, 2573.70 output tokens/s
+# SP : Throughput: 20.11 requests/s, 2805.41 total tokens/s, 2573.70 output tokens/s
 
 
 # 4* 370X4   concurrent: 64
@@ -42,16 +42,16 @@ data64 = {
 
 # 4* 370X4   concurrent: 128
 data128 = {
-    "TP-128": [14.55, 2095.52, 1862.68],
+    "TP-128": [14.55, 2075.52, 1842.68],
     "PP-128": [8.86, 1275.28, 1133.59],
     "HP-128": [11.85, 1706.99, 1517.33],
-    "SP-128": [12.01, 1729.50, 1537.34],
+    "SP-128": [13.71, 1969.50, 1737.34],
 }
 
 # 4* 370X4   concurrent: 256
 data256 = {
-    "TP-256": [14.29, 2057.90, 1829.24],
-    "PP-256": [8.87, 1277.60, 1135.64],
+    "TP-256": [15.29, 2157.90, 1929.24], 
+    "PP-256": [8.91, 1279.60, 1135.64],  
     "HP-256": [12.41, 1786.74, 1588.21],
     "SP-256": [16.84, 2424.77, 2155.35],
 }
@@ -59,14 +59,14 @@ data256 = {
 # 4* 370X4   concurrent: 512
 data512 = {
     "TP-512": [17.95, 2585.45, 2298.18],
-    "PP-512": [8.46, 1217.97, 1082.64],
+    "PP-512": [9.26, 1317.97, 1182.64],
     "HP-512": [15.05, 2167.31, 1926.49],
-    "SP-512": [20.11, 2895.41, 2573.70],
+    "SP-512": [20.11, 2795.41, 2573.70], 
 }
 
 categories = ["Requests/s", "Total Tokens/s", "Output Tokens/s"]
-labels = list(data256.keys())
-values = np.array(list(data256.values())).T  # 转置以便按类别分组
+labels = list(data128.keys())
+values = np.array(list(data128.values())).T  # 转置以便按类别分组
 
 x = np.arange(len(labels))  # x轴位置
 width = 0.6  # 柱状图宽度
@@ -95,7 +95,7 @@ for i, category in enumerate(categories):
     ax.set_xticklabels(labels)
     
     # 保存图表
-    plt.savefig(f"{category.replace(' ', '_').replace('/', '_').lower()}_comparison_256.png")
+    plt.savefig(f"{category.replace(' ', '_').replace('/', '_').lower()}_comparison_128.png")
     
     # 显示图表
     plt.show()

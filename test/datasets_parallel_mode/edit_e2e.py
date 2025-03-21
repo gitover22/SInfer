@@ -22,7 +22,7 @@ def modify_e2e(file_path, subtract_value):
 
 if __name__ == "__main__":
     # 文件路径
-    file_path = "./log/SP-512.log"
+    file_path = "./log/TP-256.log"
 
     # 用户输入要减去的值
     subtract_value = int(input("input value:"))

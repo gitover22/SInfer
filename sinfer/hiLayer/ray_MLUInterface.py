@@ -31,12 +31,12 @@ class Ray_MLUInterface(Distributed_MLUInterface):
         assert self.parallel_config.worker_use_ray
         placement_group = self.parallel_config.placement_group
 
-        # 禁用 Ray 使用统计信息的收集
+        
         ray_usage = os.environ.get("RAY_USAGE_STATS_ENABLED", "0")
         if ray_usage != "1":
             os.environ["RAY_USAGE_STATS_ENABLED"] = "0"
 
-        # 初始化GPU workers.
+        # 
         self._init_workers_ray(placement_group)
 
         self.forward_dag = None
@@ -68,36 +68,36 @@ class Ray_MLUInterface(Distributed_MLUInterface):
     def _init_workers_ray(self, placement_group: "PlacementGroup",
                           **ray_remote_kwargs):
         if self.parallel_config.tensor_parallel_size == 1:
-            # 对于单 MLU 情况，使用一个带有受限内存的 Ray 工作进程
+            
             num_mlus = self.cache_config.mlu_memory_utilization
         else:
-            # 对于多 MLU 情况，分配完整的 MLU
+            
             num_mlus = 1 
 
 
-        # 主节点
+        # master node
         self.driver_dummy_worker: Optional[RayWorkerDelay] = None
-        # 工作节点
+        # worker nodes
         self.workers: List[RayWorkerDelay] = []
 
         if self.parallel_config.ray_workers_use_nsight:
             ray_remote_kwargs = self._configure_ray_workers_use_nsight(
                 ray_remote_kwargs)
 
-        driver_ip = get_ip()  # 驱动节点的 IP 地址 10.208.48.249
+        driver_ip = get_ip()  # 10.156.160.180
 
         for bundle_id, bundle in enumerate(placement_group.bundle_specs):
             if not bundle.get("GPU", 0):
                 continue
-            # 置换组调度策略
+            #
             scheduling_strategy = PlacementGroupSchedulingStrategy( 
                 placement_group=placement_group,
                 placement_group_capture_child_tasks=True,
                 placement_group_bundle_index=bundle_id,
             )
             worker = ray.remote(
-                num_cpus=0,  # 分配的 CPU 数
-                num_gpus=num_mlus,  # 分配的 GPU 数
+                num_cpus=0, 
+                num_gpus=num_mlus, 
                 scheduling_strategy=scheduling_strategy,
                 **ray_remote_kwargs,
             )(RayWorkerDelay).remote(
@@ -108,7 +108,7 @@ class Ray_MLUInterface(Distributed_MLUInterface):
 
             worker_ip = ray.get(worker.get_node_ip.remote())
             if worker_ip == driver_ip and self.driver_dummy_worker is None:
-                # 如果worker node与driver node位于同一节点
+                
                 self.driver_dummy_worker = worker
                 self.driver_worker = RayWorkerDelay(
                     worker_module_name="sinfer.worker.worker",

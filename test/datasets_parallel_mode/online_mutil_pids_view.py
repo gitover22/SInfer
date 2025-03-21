@@ -32,21 +32,21 @@ res3 = calculate_avg_e2e(log_file3)
 res4 = calculate_avg_e2e(log_file4)
 
 # 可视化
-labels = ['TP-512', 'PP-512', 'HP-512','SP-512']
+labels = ['TP', 'PP', 'HP','SP']
 values = [res1, res2, res3, res4]
 
 # 创建柱状图
 bars = plt.bar(labels, values, color=['blue', 'green', 'red', 'yellow'])
 
 # 在每个柱子上方添加数值标签
-for bar in bars:
-    height = bar.get_height()
-    plt.text(bar.get_x() + bar.get_width() / 2., height,
-             f'{height:.2f}',
-             ha='center', va='bottom')
+# for bar in bars:
+#     height = bar.get_height()
+#     plt.text(bar.get_x() + bar.get_width() / 2., height,
+#              f'{height:.2f}',
+#              ha='center', va='bottom')
 
-plt.xlabel('Parallel mode(max concurrent requests)')
+plt.xlabel('Parallel Mode')
 plt.ylabel('Latency (ms)')
-plt.title('Latency')
-plt.savefig('e2e_latency_512.png')
+plt.title('Latency (Concurrent: 512)')
+plt.savefig('e2e_latency_V2_NoValue_512.png')
 plt.show()

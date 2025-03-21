@@ -9,11 +9,7 @@ from sinfer.utils import STR_DTYPE_TO_TORCH_DTYPE, is_pin_memory_available
 
 logger = init_logger(__name__)
 
-
 class CacheManager:
-    """
-        负责初始化和管理 MLU/CPU 的 KV 块，同时提供用于执行 KV 缓存操作的方法，例如交换和拷贝操作
-    """
     def __init__(
         self,
         cache_config: CacheConfig,
@@ -37,10 +33,7 @@ class CacheManager:
         else:
             self.dtype = STR_DTYPE_TO_TORCH_DTYPE[cache_config.cache_dtype]
 
-        # 获取attention后端
         self.attn_backend = get_attn_backend(model_config.dtype)
-
-        # 在设备上分配kv cache空间
         self.mlu_cache = self._allocate_kv_cache(self.num_mlu_blocks, "cuda")
         self.cpu_cache = self._allocate_kv_cache(self.num_cpu_blocks, "cpu")
 

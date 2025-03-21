@@ -4,7 +4,7 @@ from sinfer.task import Task, TaskOutput
 from sinfer.config import SchedulerConfig
 from sinfer.scheduler.TAScheduler import Scheduler
 from sinfer.sys.output_processor.interfaces import (
-    SequenceGroupOutputProcessor)
+    TaskOutputProcessor)
 from sinfer.sys.output_processor.stop_checker import StopChecker
 from sinfer.logger import init_logger
 from sinfer.sampling_params import SamplingParams
@@ -15,7 +15,7 @@ from sinfer.utils import Counter
 logger = init_logger(__name__)
 
 
-class SingleStepOutputProcessor(SequenceGroupOutputProcessor):
+class SingleStepOutputProcessor(TaskOutputProcessor):
     """SequenceGroupOutputProcessor which handles "output processing" logic,
     which happens after the model returns generated token ids and before
     scheduling of the next batch. Output processing logic includes

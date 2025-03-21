@@ -59,7 +59,7 @@ class CompletionOutput:
 
 
 class RequestOutput:
-    """The output data of a request to the LLM.
+    """The output data of a request.
 
     Args:
         request_id: The unique ID of the request.

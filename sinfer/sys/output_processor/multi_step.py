@@ -6,7 +6,7 @@ from transformers import PreTrainedTokenizer
 from sinfer.task import Task, TaskOutput
 from sinfer.scheduler.TAScheduler import Scheduler
 from sinfer.sys.output_processor.interfaces import (
-    SequenceGroupOutputProcessor)
+    TaskOutputProcessor)
 from sinfer.sys.output_processor.stop_checker import StopChecker
 from sinfer.logger import init_logger
 from sinfer.sampling_params import SamplingParams
@@ -17,7 +17,7 @@ from sinfer.utils import Counter
 logger = init_logger(__name__)
 
 
-class MultiStepOutputProcessor(SequenceGroupOutputProcessor):
+class MultiStepOutputProcessor(TaskOutputProcessor):
     """SequenceGroupOutputProcessor which handles logic related to
     detokenization and stopping conditions. It specializes to "multi-step
     decoding", where SInfer's worker may generate multiple tokens per invocation.

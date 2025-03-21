@@ -12,7 +12,6 @@ try:
 
     from sinfer._C import custom_ar
 except ImportError:
-    # For AMD GPUs
     custom_ar = None
     pynvml = None
 

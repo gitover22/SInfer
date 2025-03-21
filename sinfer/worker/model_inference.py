@@ -773,7 +773,6 @@ class ModelInference:
         if self.lora_config:
             self.set_active_loras(lora_requests, lora_mapping)
 
-        # 目前 cuda graph 只支持 decode 阶段.
         prefill_meta = attn_metadata.prefill_metadata
         decode_meta = attn_metadata.decode_metadata
         if prefill_meta is None and decode_meta.use_cuda_graph:
@@ -791,14 +790,11 @@ class ModelInference:
             execute_model_kwargs.update({"image_input": multi_modal_input})
         hidden_states = model_executable(**execute_model_kwargs)
 
-        # 计算logits.
         logits = self.model.compute_logits(hidden_states, sampling_metadata)
 
-        # 只有driver worker节点才进行采样
         if not self.is_driver_worker:
             return None
 
-        # Sample下一个token
         output = self.model.sample(
             logits=logits,
             sampling_metadata=sampling_metadata,

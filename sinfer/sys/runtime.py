@@ -13,7 +13,7 @@ from sinfer.scheduler.TAScheduler import (ScheduledTask, Scheduler,
 from sinfer.sys.runtime_args import RuntimeArgs
 from sinfer.sys.metrics import StatLogger, Stats
 from sinfer.sys.output_processor.interfaces import (
-    SequenceGroupOutputProcessor)
+    TaskOutputProcessor)
 from sinfer.sys.output_processor.stop_checker import StopChecker
 from sinfer.sys.output_processor.util import create_output_by_task
 from sinfer.hiLayer.InterfaceBase import InterfaceBase
@@ -46,21 +46,6 @@ def _load_generation_config_dict(model_config: ModelConfig):
 
 
 class LLMRuntime:
-    """
-    参数:
-        model_config: LLM model 配置.
-        cache_config: KV cache内存管理配置.
-        parallel_config: distributed execution配置.
-        scheduler_config: request scheduler配置.
-        device_config: device配置.
-        lora_config (Optional): serving multi-LoRA配置.
-        vision_language_config (Optional): vision language models配置
-        speculative_config (Optional): speculative decoding配置.
-        executor_class: The model executor class for managing distributed execution.
-        log_stats: Whether to log statistics.
-        usage_context: Specified entry point, used for usage info collection
-    """
-
     def __init__(
         self,
         model_config: ModelConfig,
@@ -142,9 +127,8 @@ class LLMRuntime:
             load_config=load_config,
         )
 
-        self._preallocate_kv_caches() # 初始化kv cache缓存，CacheManager
+        self._preallocate_kv_caches()
 
-        # 收集信息
         if is_usage_stats_enabled():
             from sinfer.model_executor.model_loader import (
                 get_architecture_class_name)
@@ -152,7 +136,6 @@ class LLMRuntime:
                 get_architecture_class_name(model_config),
                 usage_context,
                 extra_kvs={
-                    # Common configuration
                     "dtype":
                     str(model_config.dtype),
                     "tensor_parallel_size":
@@ -162,13 +145,11 @@ class LLMRuntime:
                     "mlu_memory_utilization":
                     cache_config.mlu_memory_utilization,
 
-                    # Quantization
                     "quantization":
                     model_config.quantization,
                     "kv_cache_dtype":
                     cache_config.cache_dtype,
 
-                    # Feature flags
                     "enable_lora":
                     bool(lora_config),
                     "enable_prefix_caching":
@@ -193,9 +174,8 @@ class LLMRuntime:
                 max_model_len=self.model_config.max_model_len)
             self.stat_logger.info("cache_config", self.cache_config)
 
-        # 创建序列输出处理器
         self.output_processor = (
-            SequenceGroupOutputProcessor.create_output_processor(
+            TaskOutputProcessor.create_output_processor(
                 self.scheduler_config,
                 self.detokenizer,
                 self.scheduler,
@@ -241,20 +221,20 @@ class LLMRuntime:
                 "Ray is required if parallel_config.world_size > 1.")
             from sinfer.hiLayer.mlu_Interface import MLUInterface
             interfacer = MLUInterface
-        # if runtime_config.device_config.device_type == "cpu":
-        #     from sinfer.hil.cpu_Interface import CPUInterface
-        #     interfacer = CPUInterface
-        # elif runtime_config.parallel_config.worker_use_ray:
-        #     initialize_ray_cluster(runtime_config.parallel_config)
-        #     from sinfer.hil.ray_MLUInterface import Ray_MLUInterface
-        #     interfacer = Ray_MLUInterface
-        # else:
-        #     assert runtime_config.parallel_config.world_size == 1, (
-        #         "Ray is required if parallel_config.world_size > 1.")
-        #     from sinfer.hil.mlu_Interface import MLUInterface
-        #     interfacer = MLUInterface
+      
+      
+       
+      
+      
+       
+      
+       
+        
+       
+    
+        
 
-        # 运行构造函数创建runtime对象
+        
         runtime = cls(
             **runtime_config.to_dict(),
             interfacer=interfacer,
@@ -420,13 +400,7 @@ class LLMRuntime:
         ignored_tasks: List[Task],
         task_metadata_list: List[TaskMetadata],
     ) -> List[RequestOutput]:
-        """Apply the model output to the requests in the scheduled tasks.
-        Returns RequestOutputs that can be returned to the client.
-        """
-
         now = time.time()
-
-        # Organize outputs by [task][step] instead of [step][task].
         output_by_task = create_output_by_task(
             sampler_outputs=output, num_tasks=len(scheduled_tasks))
 
@@ -441,10 +415,8 @@ class LLMRuntime:
             if task_meta.do_sample:
                 self.output_processor.process_outputs(task, outputs)
 
-        # Free finished tasks
         self.scheduler.free_all_finished_tasks()
 
-        # Create the outputs.
         request_outputs: List[RequestOutput] = []
         for scheduled_task in scheduled_tasks:
             task = scheduled_task.task

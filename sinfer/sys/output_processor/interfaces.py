@@ -12,7 +12,7 @@ from sinfer.transformers_utils.detokenizer import Detokenizer
 from sinfer.utils import Counter
 
 
-class SequenceGroupOutputProcessor(ABC):
+class TaskOutputProcessor(ABC):
     """Interface for logic that processes new token ids in sequence groups,
     managing detokenization, stop checking, and freeing/forking sequences with
     the scheduler.

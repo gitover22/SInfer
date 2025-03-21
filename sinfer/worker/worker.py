@@ -60,7 +60,6 @@ class Worker(WorkerBase):
             assert self.rank == 0, "The driver worker must have rank 0."
 
         if self.model_config.trust_remote_code:
-            # note: lazy import to avoid importing torch before initializing
             from sinfer.utils import init_cached_hf_modules
             init_cached_hf_modules()
         self.vision_language_config = vision_language_config
@@ -80,7 +79,7 @@ class Worker(WorkerBase):
             vision_language_config=vision_language_config,
         )
 
-        self.cache_manager: CacheManager  # 没初始化
+        self.cache_manager: CacheManager
         self.mlu_cache: List[torch.Tensor]
 
     def init_device(self) -> None:
@@ -170,7 +169,6 @@ class Worker(WorkerBase):
     def _warm_up_model(self) -> None:
         if not self.model_config.enforce_eager:
             self.model_inference.capture_model(self.mlu_cache)
-        # 重置随机数种子，以确保随机状态不受模型初始化和分析的影响。
         set_random_seed(self.model_config.seed)
 
     def cache_swap(
@@ -179,7 +177,6 @@ class Worker(WorkerBase):
         blocks_to_swap_out: Dict[int, int],
         blocks_to_copy: Dict[int, List[int]],
     ) -> None:
-        # 
         if blocks_to_swap_in:
             self.cache_manager.swap_in(blocks_to_swap_in)
         if blocks_to_swap_out:
@@ -211,9 +208,9 @@ class Worker(WorkerBase):
                 "blocks_to_swap_out": blocks_to_swap_out,
                 "blocks_to_copy": blocks_to_copy,
             }
-            broadcast_tensor_dict(data, src=0) # 广播给其他 Worker
+            broadcast_tensor_dict(data, src=0) 
         else:
-            data = broadcast_tensor_dict(src=0) # 接收 Driver 广播的数据
+            data = broadcast_tensor_dict(src=0)
             num_seq_groups = data["num_seq_groups"]
             blocks_to_swap_in = data["blocks_to_swap_in"]
             blocks_to_swap_out = data["blocks_to_swap_out"]
@@ -221,14 +218,12 @@ class Worker(WorkerBase):
 
         self.cache_swap(blocks_to_swap_in, blocks_to_swap_out, blocks_to_copy)
 
-        # 没有输入数据，直接返回空列表
         if num_seq_groups == 0:
             return []
-        # 调用ModelRunner执行模型
+        
         output = self.model_inference.infer_model(task_metadata_list,
                                                  self.mlu_cache)
 
-        # Worker 仅支持单步执行，将输出包装为一个列表以符合接口要求
         return [output]
 
     def add_lora(self, lora_request: LoRARequest) -> bool:
@@ -249,8 +244,6 @@ class Worker(WorkerBase):
         return self.model_inference.vocab_size
 
     def get_cache_block_size_bytes(self) -> int:
-        """获取kv cache的块大小bytes.
-        """
         return CacheManager.get_cache_block_size(self.cache_config,
                                                 self.model_config,
                                                 self.parallel_config)
@@ -263,7 +256,6 @@ def init_worker_distributed_environment(
 ) -> None:
     init_distributed_environment(parallel_config.world_size, rank,
                                  distributed_init_method, local_rank)
-    # 确保模型的并行化已初始化
     ensure_model_parallel_initialized(parallel_config.tensor_parallel_size,
                                       parallel_config.pipeline_parallel_size)
 
@@ -275,16 +267,12 @@ def init_worker_distributed_environment(
                 "size does not match parallel_config.world_size "
                 f"({pynccl_world_size} vs. {parallel_config.world_size}).")
     elif parallel_config.world_size > 1:
-        # 当 world size 为 1 时，不会初始化 pynccl 进程组.
-        # 默认情况下，pynccl 为 tp group 初始化
         pynccl_utils.init_process_group(
             group=get_tensor_model_parallel_cpu_group())
 
-    # 初始化自定义的all-reduce
     if not parallel_config.disable_custom_all_reduce:
         init_custom_ar()
 
-    # 执行 all-reduce，用于预热分布式训练中的通信系统
     torch.distributed.all_reduce(torch.zeros(1).cuda())
     if pynccl_utils.is_initialized():
         pynccl_utils.all_reduce(torch.zeros(1).cuda())
@@ -293,7 +281,7 @@ def init_worker_distributed_environment(
 def _check_if_gpu_supports_dtype(torch_dtype: torch.dtype):
     if torch_dtype == torch.bfloat16:
         compute_capability = torch.cuda.get_device_capability()
-        if compute_capability[0] < 8: # 算力在8.0以上才支持BF16
+        if compute_capability[0] < 8:
             gpu_name = torch.cuda.get_device_name()
             raise ValueError(
                 "Bfloat16 is only supported on GPUs with compute capability "

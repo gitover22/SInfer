@@ -17,28 +17,28 @@ logger = init_logger(__name__)
 
 class LLM:
     """
-    包装LLMRuntime, 用于离线推理的用户接口类
+    
 
-    参数:
-        model: 模型名或路径.
-        tokenizer: 分词器名称或路径
-        tokenizer_mode: 分词器模式,“auto”将会使用快速分词器(如果可用),而“slow”将始终使用慢速分词器。
-        skip_tokenizer_init: 如果为 True,将跳过分词器和反分词器的初始化。需要在输入中提供有效的 prompt_token_ids,并将 prompt 设置为 None
+    
+        
+        
+        
+        
         trust_remote_code: 在下载模型和分词器时是否信任远程代码(例如来自 HuggingFace)
-        tensor_parallel_size: 使用TP并行的设备数量
-        dtype: 模型权重和激活值的数据类型。目前支持 float32、float16 和 bfloat16。如果设置为 auto,则使用模型配置文件中的 torch_dtype 属性。但是,如果配置中的 torch_dtype 是 float32,将改为使用 float16
+        
+        
         quantization: 用于量化模型权重的方法。目前支持 "awq"、"gptq"、"squeezellm"、"weightonly" 和 "fp8"(测试中)。如果为 None,将首先检查模型配置文件中的 quantization_config 属性。如果该属性为 None,则假定模型权重未被量化,并使用 dtype 来确定权重的数据类型。
-        revision: 使用的具体模型版本。可以是分支名、标签名或提交 ID
-        tokenizer_revision: 使用的具体分词器版本。可以是分支名、标签名或提交 ID
-        seed: 用于初始化随机数生成器的采样种子
-        gpu_memory_utilization: GPU 内存的利用率(在 0 到 1 之间)。用于保留模型权重、激活值和 KV 缓存的比例。
-                                更高的值将增加 KV 缓存的大小,从而提高模型的吞吐量。但是,值过高可能会导致内存不足(OOM)错误。
-        swap_space: 每个 GPU 使用的 CPU 内存大小(GB)作为交换空间。用于临时存储请求的状态,当它们的 best_of 参数大于 1 时非常有用。
-                    如果所有请求的 best_of=1,可以将其安全设置为 0。否则,值过小可能会导致OOM
-        enforce_eager: 是否强制使用即时模式执行。如果设置为 True,将禁用 CUDA 图,并始终在即时模式下执行模型。如果设置为 False,则在 CUDA 图和即时执行之间使用混合模式
-        max_context_len_to_capture: CUDA 图覆盖的最大上下文长度。当序列的上下文长度超过该值时,将回退到即时模式(已弃用,建议使用 max_seq_len_to_capture 代替)
-        max_seq_len_to_capture: CUDA 图覆盖的最大序列长度。当序列的上下文长度超过该值时,将回退到即时模式
-        disable_custom_all_reduce: 是否禁用自定义all reduce操作
+        
+        
+        
+        
+                                
+        
+                    
+        enforce_eager: 是否强制使用即时模式执行。如果设置为 True,将禁用计算图,并始终在即时模式下执行模型。如果设置为 False,则在计算图和即时执行之间使用混合模式
+        max_context_len_to_capture: 计算图覆盖的最大上下文长度。当序列的上下文长度超过该值时,将回退到即时模式(弃用)
+        max_seq_len_to_capture: 计算图覆盖的最大序列长度。当序列的上下文长度超过该值时,将回退到即时模式
+        
     """
     def __init__(
         self,
